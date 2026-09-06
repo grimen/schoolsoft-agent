@@ -9,7 +9,7 @@
 import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
-import { childOf, type GuardianContext } from "../portal/api-portal.js";
+import { childOf, type GuardianContext } from "../portal/guardian.js";
 import { decodeJwtClaims } from "../auth/oauth.js";
 import type { WebSession } from "../browser/web-login.js";
 
@@ -175,10 +175,7 @@ export class SessionManager {
   /** Re-bind the cookie session to another child and persist the choice. */
   async focusChild(studentId: number): Promise<GuardianContext> {
     const client = await this.ensureSession();
-    const strategy = this.activeStrategy;
-    if (!strategy?.focusChild) {
-      throw new Error(`Auth strategy "${strategy?.id}" cannot switch child.`);
-    }
+    const strategy = this.activeStrategy!; // set by ensureSession()
     childOf(this.guardian(), studentId); // validate before any side effect
     if (strategy.context?.childInFocus !== studentId) {
       await strategy.focusChild(client, studentId);

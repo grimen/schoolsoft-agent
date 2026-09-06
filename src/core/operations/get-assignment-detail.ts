@@ -15,6 +15,7 @@ Returns: { assignment: { view, sections } }.
 Use when: the user asks what an assignment is about, its instructions or
 assessment, after get_assignments listed it.`,
   input: { id: z.number().int().describe("Assignment id from get_assignments") },
+  portal: ["getAssignmentDetail"],
   annotations: READ_ONLY,
   async run(ctx, { id }) {
     await withChild(ctx);

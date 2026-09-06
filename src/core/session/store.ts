@@ -6,7 +6,7 @@
  * OS-keychain-backed implementation (keytar / DPAPI / Secret Service)
  * or an in-memory fake for tests without touching orchestration code.
  */
-import type { GuardianContext } from "../portal/api-portal.js";
+import type { GuardianContext } from "../portal/guardian.js";
 import type { WebSession } from "../browser/web-login.js";
 
 export interface PersistedSession {

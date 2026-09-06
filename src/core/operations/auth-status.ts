@@ -14,6 +14,7 @@ Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?,
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.`,
   input: {},
+  portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx) {
     try {

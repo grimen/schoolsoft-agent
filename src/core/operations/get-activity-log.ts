@@ -15,6 +15,7 @@ Returns: { child, entries: [{ id, date, title, author, text, recipients, comment
 
 Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från läraren".`,
   input: { child_id: ChildSchema, limit: LimitSchema },
+  portal: ["getActivityLog"],
   annotations: READ_ONLY,
   async run(ctx, { child_id, limit }) {
     const { childSummary } = await withChild(ctx, child_id);

@@ -84,7 +84,7 @@ test("platform config dirs", () => {
 });
 
 test("createSessionManager / createPortal wire a working manager without touching disk", async () => {
-  const { createSessionManager, createPortal } = await import("../../src/core/config.js");
+  const { createSessionManager, createPortal } = await import("../../src/core/wiring.js");
   const { MemorySessionStore } = await import("../../src/core/session/store.js");
   const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
   const manager = createSessionManager(config, {
@@ -127,7 +127,7 @@ test("browser engine config: chromium default, cdp needs an endpoint", () => {
 });
 
 test("createPortal injects the web-login cookies into the browser session for gated pages", async () => {
-  const { createSessionManager, createPortal } = await import("../../src/core/config.js");
+  const { createSessionManager, createPortal } = await import("../../src/core/wiring.js");
   const { MemorySessionStore } = await import("../../src/core/session/store.js");
   const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
   const store = new MemorySessionStore();
@@ -193,7 +193,7 @@ test("defaultConfigDir on win32 and linux honours APPDATA / XDG_CONFIG_HOME", as
 });
 
 test("createSessionManager defaults: file store in stateDir, web login runs a headed browser (chromium or cdp) and prints the URL", async () => {
-  const { createSessionManager } = await import("../../src/core/config.js");
+  const { createSessionManager } = await import("../../src/core/wiring.js");
   const { mkdtempSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -258,7 +258,7 @@ test("createSessionManager defaults: file store in stateDir, web login runs a he
 
 test("createPortal honours an explicit null browser; web cookies are null without a web session", async () => {
   const { createSessionManager, createPortal, createBrowserSession } =
-    await import("../../src/core/config.js");
+    await import("../../src/core/wiring.js");
   const { MemorySessionStore } = await import("../../src/core/session/store.js");
   const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
   const manager = createSessionManager(config, {

@@ -5,27 +5,35 @@
 export {
   type Config,
   type ConfigSource,
-  type SessionDeps,
   ENV,
   NotConfiguredError,
   envSource,
   defaultConfigDir,
   resolveConfig,
+} from "./config.js";
+export {
+  type SessionDeps,
   createSessionManager,
-  createGuardianApi,
   createPortal,
   createApiPortal,
   createBrowserSession,
   type PortalDeps,
-} from "./config.js";
+} from "./wiring.js";
 export { CHARACTER_LIMIT, SCHOOLSOFT_USER_TYPES, type SchoolsoftUserType } from "./constants.js";
 export { SessionManager, NotAuthenticatedError } from "./session/session-manager.js";
 export type { PersistedSession, SessionStore } from "./session/store.js";
 export { MemorySessionStore } from "./session/store.js";
 export { FileSessionStore } from "./session/file-store.js";
 export type { AuthStrategy, LoginInfo } from "./auth/strategy.js";
-export { ApiPortal, GuardianApi, childOf, orgIdOf } from "./portal/api-portal.js";
-export type { GuardianApiOptions, GuardianContext, ApiFetch } from "./portal/api-portal.js";
+export { ApiPortal, GuardianApi } from "./portal/api-portal.js";
+export type { GuardianApiOptions, ApiFetch } from "./portal/api-portal.js";
+export { childOf, orgIdOf } from "./portal/guardian.js";
+export type { GuardianContext } from "./portal/guardian.js";
+export { EvaApi } from "./portal/api/eva-api.js";
+export { WebviewApi } from "./portal/api/webview-api.js";
+export { LegacyApi } from "./portal/api/legacy-api.js";
+export { WebSessionApi } from "./portal/api/web-session-api.js";
+export { SchoolsoftHttp } from "./portal/api/transport.js";
 export {
   PROVIDERS,
   API_CAPABILITIES,

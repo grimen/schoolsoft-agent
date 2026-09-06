@@ -22,13 +22,8 @@ import {
 } from "../constants.js";
 import { exchangeTokenForCookies, type ExchangeFetch } from "./session-exchange.js";
 import { exchangeCode, refreshTokens, decodeJwtClaims, type TokenFetch } from "./oauth.js";
-import {
-  GuardianApi,
-  childOf,
-  orgIdOf,
-  type GuardianContext,
-  type ApiFetch,
-} from "../portal/api-portal.js";
+import { GuardianApi, type ApiFetch } from "../portal/api-portal.js";
+import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
 
 export interface BankIdBrowserOptions {
   orgid?: string;

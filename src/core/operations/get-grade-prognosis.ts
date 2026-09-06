@@ -17,6 +17,7 @@ Returns: { child, reconciliationDates }.
 
 Use when: "har skolan gjort någon avstämning", "när är nästa avstämning".`,
   input: { child_id: ChildSchema },
+  portal: ["getGradePrognosis"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

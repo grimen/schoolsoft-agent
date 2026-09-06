@@ -13,6 +13,7 @@ Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
 
 Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".`,
   input: { child_id: ChildSchema },
+  portal: ["getSubjectRooms"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

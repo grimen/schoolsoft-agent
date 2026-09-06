@@ -21,6 +21,7 @@ configuring this integration for a new school.`,
     query: z.string().min(2).describe("School name or part of it"),
     limit: z.number().int().min(1).max(50).optional().describe("Max results, default 10"),
   },
+  portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx, { query, limit }) {
     const dir = new SchoolDirectory({ cacheFile: join(ctx.config.configDir, "schools.json") });

@@ -18,6 +18,7 @@ Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] 
 
 Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".`,
   input: { child_id: ChildSchema },
+  portal: ["getContacts"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

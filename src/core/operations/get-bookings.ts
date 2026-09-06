@@ -17,6 +17,7 @@ Returns: { child, bookings: [{ title, description?, slots: [{ start, status }], 
 
 Use when: "när är utvecklingssamtalet", "finns det tider att boka".`,
   input: { child_id: ChildSchema },
+  portal: ["getBookings"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

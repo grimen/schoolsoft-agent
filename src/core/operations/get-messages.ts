@@ -21,6 +21,7 @@ Use when: "har jag fått något meddelande från skolan", "olästa meddelanden".
     limit: LimitSchema,
     unread_only: z.boolean().optional().describe("Only unread messages"),
   },
+  portal: ["getInbox"],
   annotations: READ_ONLY,
   async run(ctx, { child_id, limit, unread_only }) {
     const { guardian, orgId } = await withChild(ctx, child_id);

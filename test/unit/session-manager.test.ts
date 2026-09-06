@@ -37,6 +37,8 @@ class FakeStrategy implements AuthStrategy {
     this.restoreCalls++;
     if (this.restoreShouldFail) throw new Error("boom");
   }
+
+  async focusChild(): Promise<void> {}
 }
 
 function makeManager(
@@ -184,7 +186,7 @@ test("guards: no strategies, unknown strategy id, explicit strategy id, unknown 
   assert.equal(strategy.restoreCalls, 1, "default strategy restored the session");
 });
 
-test("persist copes with a client without tokens; a non-Error restore failure is stringified; focusChild needs a capable strategy", async () => {
+test("persist copes with a client without tokens; a non-Error restore failure is stringified", async () => {
   const { manager, store } = makeManager({
     client: fakeClient({ accessToken: null as never, refreshToken: null as never }),
   });
@@ -193,7 +195,6 @@ test("persist copes with a client without tokens; a non-Error restore failure is
   assert.equal(saved.accessToken, undefined);
   assert.equal(saved.refreshToken, undefined);
   assert.equal(saved.accessTokenExpiresAt, undefined);
-  await assert.rejects(manager.focusChild(1), /cannot switch child/);
 
   class Weird extends FakeStrategy {
     override async restore(): Promise<void> {

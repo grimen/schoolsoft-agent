@@ -38,6 +38,7 @@ Don't use when: a session is already active (check auth_status).`,
         "Web login instead: opens a browser window for SchoolSoft's normal login; needed once for grades, documents and attendance (GDPR-gated pages).",
       ),
   },
+  portal: [],
   annotations: { readOnly: false, destructive: false, idempotent: false, requiresAuth: false },
   async run(ctx, { strategy, web }) {
     if (web) {

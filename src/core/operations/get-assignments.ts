@@ -16,6 +16,7 @@ Returns: { week, year, child, assignments: [{ id, title, subTitle, sortDate, sub
 Use when: "vilka läxor/prov finns den här veckan", "vad ska lämnas in".
 For full details of one assignment, use get_assignment_detail.`,
   input: { week: WeekSchema, year: YearSchema, child_id: ChildSchema },
+  portal: ["getAssignmentsWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, year, child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

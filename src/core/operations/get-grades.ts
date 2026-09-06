@@ -17,6 +17,7 @@ Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows:
 
 Use when: the user asks about the child's grades.`,
   input: { child_id: ChildSchema },
+  portal: ["getGrades"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

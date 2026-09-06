@@ -12,6 +12,7 @@ Returns: { status: "logged_out" }.
 
 Use when: the user asks to log out or to remove stored SchoolSoft data.`,
   input: {},
+  portal: [],
   annotations: { readOnly: false, destructive: true, idempotent: true, requiresAuth: false },
   async run(ctx) {
     ctx.manager.logout();

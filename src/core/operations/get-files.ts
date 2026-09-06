@@ -16,6 +16,7 @@ Returns: { child, files: [{ name, url, type: "file" | "link", category? }] }.
 
 Use when: "finns det något dokument från skolan om …", "länken till fritids".`,
   input: { child_id: ChildSchema },
+  portal: ["getFiles"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

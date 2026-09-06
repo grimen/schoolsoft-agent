@@ -1,67 +1,28 @@
 /**
- * Guardian ("vårdnadshavare") data access, verified live against Täby
- * 2026-09-06. Two backends are involved:
+ * API provider of the Portal: a facade over the four JSON backends a
+ * guardian's SchoolSoft exposes, sharing one transport. Each backend is its
+ * own class (api/*.ts) with its own credential; this file only composes
+ * them into the ApiPortalPart the composite routes to.
  *
- *  - **Eva** (`/eva/api/v1|v2/...`): the native app's API. Bearer token
- *    (JWT with `user_type: PARENT`, `aud: eva-backend`). Serves parent
- *    profile + children, lunch, news, messages, calendar events.
- *  - **React webview REST** (`/rest-api/parent/...`): needs the session
- *    cookies from `src/auth/session-exchange.ts`, which are bound to one
- *    child ("childInFocus"). Serves schedule and assignments.
+ *  - Eva (Bearer JWT): profile, lunch, news, messages, calendar.
+ *  - Webview REST (app cookies, bound to childInFocus): schedule,
+ *    assignments, subject rooms.
+ *  - Legacy /rest (app cookies): activity log.
+ *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
  *
- * ssp-node only covers student endpoints, so nothing here uses it beyond
- * its HTTP helpers. Endpoint shapes follow sebdanielsson/better-schoolsoft
- * (MIT), the only other guardian implementation found.
+ * Verified live against Täby 2026-09-06; see docs/schoolsoft-api.md.
  */
-import { schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
+import type { ApiPortalPart } from "./composite.js";
+import type { ActivityEntry, GuardianParent, SubjectRoom } from "./types.js";
+import { SchoolsoftHttp, type ApiFetch } from "./api/transport.js";
+import { EvaApi } from "./api/eva-api.js";
+import { WebviewApi } from "./api/webview-api.js";
+import { LegacyApi } from "./api/legacy-api.js";
+import { WebSessionApi, type WebChild } from "./api/web-session-api.js";
 
-import {
-  WebLoginRequiredError,
-  SessionLostError,
-  type ActivityEntry,
-  type GuardianChild,
-  type GuardianParent,
-  type SubjectRoom,
-} from "./types.js";
+export type { ApiFetch } from "./api/transport.js";
 export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
-
-/** What we persist between runs so tools know whose data they serve. */
-export interface GuardianContext {
-  userId: number;
-  parentName: string;
-  children: GuardianChild[];
-  /** studentId the session cookies are currently bound to. */
-  childInFocus: number;
-}
-
-export function childOf(ctx: GuardianContext, studentId = ctx.childInFocus): GuardianChild {
-  const child = ctx.children.find((c) => c.studentId === studentId);
-  if (!child) {
-    throw new Error(
-      `Unknown child id ${studentId}. Known children: ` +
-        ctx.children.map((c) => `${c.studentId} (${c.firstName})`).join(", "),
-    );
-  }
-  return child;
-}
-
-export function orgIdOf(child: GuardianChild): number {
-  const org = child.schools[0]?.orgId;
-  if (org === undefined) throw new Error(`Child ${child.studentId} has no school`);
-  return org;
-}
-
-/** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
-export type ApiFetch = (
-  url: string,
-  school: string,
-  options: {
-    method?: string;
-    headers?: Record<string, string>;
-    responseType?: "json" | "text" | "buffer";
-  },
-  userAgent?: string,
-) => Promise<{ status: number; data: unknown }>;
+export { childOf, orgIdOf, type GuardianContext } from "./guardian.js";
 
 export interface GuardianApiOptions {
   school: string;
@@ -74,278 +35,82 @@ export interface GuardianApiOptions {
    * API session's child in focus). The web session keeps its own selection,
    * so gated reads first align it; null = leave the web session as it is.
    */
-  webChildTarget?: () => { childId: number; orgId: number } | null;
+  webChildTarget?: () => WebChild | null;
   fetchImpl?: ApiFetch;
 }
 
-/** Shape of GET /rest-api/parent/header/parent (web session): who is selected. */
-interface WebHeader {
-  currentChildId: number;
-  currentOrgId: number;
-}
+export class ApiPortal implements ApiPortalPart {
+  readonly eva: EvaApi;
+  readonly webview: WebviewApi;
+  readonly legacy: LegacyApi;
+  readonly webSession: WebSessionApi;
 
-const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
-
-export class ApiPortal {
-  private readonly fetchImpl: ApiFetch;
-  constructor(private readonly o: GuardianApiOptions) {
-    this.fetchImpl = o.fetchImpl ?? (schoolsoftFetch as ApiFetch);
-  }
-
-  private async bearer<T>(path: string): Promise<T> {
-    const token = this.o.accessToken();
-    if (!token) throw new Error("No access token — log in first.");
-    return this.get<T>(path, { Authorization: `Bearer ${token}` });
-  }
-
-  private async cookie<T>(path: string): Promise<T> {
-    const cookie = this.o.cookieHeader();
-    if (!cookie) throw new Error("No session cookies — log in first.");
-    return this.get<T>(path, { Cookie: cookie });
-  }
-
-  /** Cookie GET using the WEB login session (gated endpoints). */
-  private async webCookie<T>(capability: string, path: string): Promise<T> {
-    const cookie = this.o.webCookieHeader?.() ?? null;
-    if (!cookie) throw new WebLoginRequiredError(capability);
-    return this.get<T>(path, { Cookie: cookie });
-  }
-
-  /**
-   * Ämne: subject rooms from the webview REST the portal's React view uses
-   * (app session, child in focus): the room list, then each room's teachers.
-   */
-  async getSubjectRooms(): Promise<SubjectRoom[]> {
-    const rooms = await this.cookie<
-      { activityId: number; subject: string; groupNames?: string[]; isSubjectRoom?: boolean }[]
-    >("/rest-api/parent/ps/subjectroom/all");
-    return Promise.all(
-      rooms
-        .filter((r) => r.isSubjectRoom !== false)
-        .map(async (r) => {
-          const teachers = await this.cookie<{ firstName: string; lastName: string }[]>(
-            `/rest-api/parent/ps/subjectroom/${r.activityId}/teachers`,
-          );
-          return {
-            subject: r.subject,
-            subjectId: r.activityId,
-            groups: r.groupNames ?? [],
-            teachers: teachers.map((t) => `${t.firstName} ${t.lastName}`.trim()),
-          };
-        }),
+  constructor(o: GuardianApiOptions) {
+    const http = new SchoolsoftHttp(o.school, o.fetchImpl);
+    this.eva = new EvaApi(http, o.accessToken);
+    this.webview = new WebviewApi(http, o.cookieHeader);
+    this.legacy = new LegacyApi(http, o.cookieHeader);
+    this.webSession = new WebSessionApi(
+      http,
+      () => o.webCookieHeader?.() ?? null,
+      () => o.webChildTarget?.() ?? null,
     );
   }
 
-  /** The web session's own child in focus (header REST, web cookies). */
-  async getWebChildInFocus(): Promise<{ childId: number; orgId: number }> {
-    const h = await this.webCookie<WebHeader>(
-      "getWebChildInFocus",
-      "/rest-api/parent/header/parent",
-    );
-    return { childId: h.currentChildId, orgId: h.currentOrgId };
-  }
-
-  /**
-   * Select a child in the WEB session: the same PUT the portal's child menu
-   * sends. It changes session state only (which child pages show), never
-   * school data; it is the one non-GET the web session performs.
-   */
-  async focusWebChild(childId: number, orgId: number): Promise<void> {
-    const cookie = this.o.webCookieHeader?.() ?? null;
-    if (!cookie) throw new WebLoginRequiredError("focusWebChild");
-    const path = `/rest-api/parent/header/parent?childId=${childId}&orgId=${orgId}`;
-    const r = await this.fetchImpl(
-      ssUrl(this.o.school, path),
-      this.o.school,
-      {
-        method: "PUT",
-        headers: { Cookie: cookie, Accept: "application/json" },
-        responseType: "text",
-      } as never,
-      MOBILE_UA,
-    );
-    if (r.status === 401 || r.status === 403) throw new SessionLostError(path, true);
-    if (r.status < 200 || r.status >= 300)
-      throw new Error(
-        `SchoolSoft returned HTTP ${r.status} when selecting child ${childId} in the web session.`,
-      );
-  }
-
-  /** Align the web session's child with the wanted one (no-op when already there or no target). */
-  async syncWebChild(): Promise<void> {
-    const want = this.o.webChildTarget?.() ?? null;
-    if (!want) return;
-    const cur = await this.getWebChildInFocus();
-    if (cur.childId === want.childId && cur.orgId === want.orgId) return;
-    await this.focusWebChild(want.childId, want.orgId);
-  }
-
-  /** Avstämning: reconciliation dates from the gated grade-prognosis REST (web session). */
-  async getGradePrognosis(): Promise<{ reconciliationDates: unknown }> {
-    await this.syncWebChild();
-    return this.webCookie<unknown>(
-      "getGradePrognosis",
-      "/rest-api/parent/gradeprognosis/options/reconciliationdates",
-    ).then((reconciliationDates) => ({ reconciliationDates }));
-  }
-
-  /** Cookie-authenticated JSON POST used by legacy /rest endpoints for READ queries only. */
-  private async cookiePost<T>(path: string, body: unknown): Promise<T> {
-    const cookie = this.o.cookieHeader();
-    if (!cookie) throw new Error("No session cookies — log in first.");
-    const r = await this.fetchImpl(
-      ssUrl(this.o.school, path),
-      this.o.school,
-      {
-        method: "POST",
-        headers: {
-          Cookie: cookie,
-          Accept: "application/json",
-          "Content-Type": "application/json;charset=UTF-8",
-        },
-        body: JSON.stringify(body),
-        responseType: "json",
-      } as never,
-      MOBILE_UA,
-    );
-    if (r.status === 401 || r.status === 403)
-      throw new Error(`SchoolSoft rejected the session (HTTP ${r.status}) for ${path}.`);
-    if (r.status !== 200) throw new Error(`SchoolSoft returned HTTP ${r.status} for ${path}.`);
-    return r.data as T;
-  }
-
-  private async get<T>(path: string, headers: Record<string, string>): Promise<T> {
-    const r = await this.fetchImpl(
-      ssUrl(this.o.school, path),
-      this.o.school,
-      { headers: { ...headers, Accept: "application/json" }, responseType: "json" },
-      MOBILE_UA,
-    );
-    if (r.status === 401 || r.status === 403) {
-      throw new Error(`SchoolSoft rejected the session (HTTP ${r.status}) for ${path}.`);
-    }
-    if (r.status !== 200) {
-      throw new Error(`SchoolSoft returned HTTP ${r.status} for ${path}.`);
-    }
-    return r.data as T;
-  }
-
-  // ----- Eva (Bearer) -------------------------------------------------
-
+  // Eva
   getParent(): Promise<GuardianParent> {
-    return this.bearer<GuardianParent>("/eva/api/v1/parent");
+    return this.eva.getParent();
   }
-
   getLunchWeek(orgId: number, week: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(`/eva/api/v1/schools/${orgId}/lunchmenu/${week}`);
+    return this.eva.getLunchWeek(orgId, week);
   }
-
   getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(
-      `/eva/api/v2/parent/${userId}/schools/${orgId}/news?studentId=${studentId}&langId=1`,
-    );
+    return this.eva.getNews(userId, orgId, studentId);
   }
-
   getInbox(userId: number, orgId: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(`/eva/api/v1/parent/${userId}/schools/${orgId}/messages/inbox`);
+    return this.eva.getInbox(userId, orgId);
   }
-
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown> {
-    return this.bearer<unknown>(
-      `/eva/api/v1/parent/${userId}/schools/${orgId}/messages/${messageId}`,
-    );
+    return this.eva.getMessage(userId, orgId, messageId);
   }
-
   getNextCalendarEvent(userId: number, orgId: number, studentId: number): Promise<unknown> {
-    return this.bearer<unknown>(
-      `/eva/api/v1/parent/${userId}/schools/${orgId}/news/calendarevent/next?studentId=${studentId}`,
-    );
+    return this.eva.getNextCalendarEvent(userId, orgId, studentId);
   }
 
-  // ----- React webview REST (cookies, bound to childInFocus) ----------
-
+  // Webview REST
   getSession(): Promise<unknown> {
-    return this.cookie<unknown>("/rest-api/session");
+    return this.webview.getSession();
   }
-
   getScheduleWeek(week: number): Promise<unknown[]> {
-    return this.cookie<unknown[]>(`/rest-api/parent/calendar/lessons/week/${week}`);
+    return this.webview.getScheduleWeek(week);
   }
-
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {
-    return this.cookie<unknown[]>(
-      `/rest-api/parent/ps/assignments/start-page?week=${week}&year=${year}`,
-    );
+    return this.webview.getAssignmentsWeek(week, year);
+  }
+  getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }> {
+    return this.webview.getAssignmentDetail(id);
+  }
+  getSubjectRooms(): Promise<SubjectRoom[]> {
+    return this.webview.getSubjectRooms();
   }
 
-  /**
-   * Verksamhetslogg. The page's own query: a generic filter with paging. Read-only
-   * despite the verb (observed 2026-09-06: `POST /rest/blogpost/getbyloggedinuser`).
-   */
-  async getActivityLog(limit = 20): Promise<ActivityEntry[]> {
-    interface Block {
-      blockType: string;
-      contentBlocks?: { content?: string }[];
-    }
-    interface Row {
-      blogPost: { id: number; creDate: number | string; name: string; description: string };
-      author?: string;
-      recipientsNamesString?: string;
-      numberOfComments?: number;
-      content?: { contentBlockDTOList?: Block[] }[];
-    }
-    const rows = await this.cookiePost<Row[]>("/rest/blogpost/getbyloggedinuser", {
-      userId: -1,
-      userType: -1,
-      week: -1,
-      subjects: [],
-      archives: [],
-      tags: [],
-      freeText: "",
-      goalIds: [],
-      groupOrStudent: "",
-      offset: 0,
-      row_count: limit,
-    });
-    const strip = (html: string) =>
-      html
-        .replace(/<[^>]+>/g, " ")
-        .replace(/&nbsp;/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-    return (Array.isArray(rows) ? rows : []).map((r) => {
-      const blocks = (r.content ?? []).flatMap((c) => c.contentBlockDTOList ?? []);
-      const bodyText = blocks
-        .filter((b) => b.blockType === "text")
-        .flatMap((b) => (b.contentBlocks ?? []).map((cb) => strip(cb.content ?? "")))
-        .filter(Boolean)
-        .join("\n");
-      const images = blocks
-        .filter((b) => b.blockType === "image")
-        .reduce((n, b) => n + (b.contentBlocks?.length ?? 0), 0);
-      const cre = r.blogPost.creDate;
-      const date = typeof cre === "number" ? new Date(cre).toISOString() : String(cre);
-      const summary = strip(r.blogPost.description ?? "");
-      return {
-        id: r.blogPost.id,
-        date,
-        title: r.blogPost.name,
-        ...(r.author ? { author: r.author } : {}),
-        text: bodyText || summary,
-        ...(summary && bodyText && summary !== bodyText ? { summary } : {}),
-        ...(images ? { images } : {}),
-        ...(r.recipientsNamesString ? { recipients: r.recipientsNamesString } : {}),
-        comments: r.numberOfComments ?? 0,
-      };
-    });
+  // Legacy /rest
+  getActivityLog(limit?: number): Promise<ActivityEntry[]> {
+    return this.legacy.getActivityLog(limit);
   }
 
-  async getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }> {
-    const [view, sections] = await Promise.all([
-      this.cookie<unknown>(`/rest-api/parent/ps/assignments/${id}/view`),
-      this.cookie<unknown>(`/rest-api/parent/ps/assignments/${id}/sections`).catch(() => null),
-    ]);
-    return { view, sections };
+  // Web-session REST
+  getGradePrognosis(): Promise<{ reconciliationDates: unknown }> {
+    return this.webSession.getGradePrognosis();
+  }
+  getWebChildInFocus(): Promise<WebChild> {
+    return this.webSession.getWebChildInFocus();
+  }
+  focusWebChild(childId: number, orgId: number): Promise<void> {
+    return this.webSession.focusWebChild(childId, orgId);
+  }
+  syncWebChild(): Promise<void> {
+    return this.webSession.syncWebChild();
   }
 }
 

@@ -30,6 +30,18 @@ SchoolSoft's guardian app uses OAuth 2 with PKCE. We use the same flow, with a l
 
 Two backends serve the data afterwards. The **Eva API** takes the Bearer token and serves profile, lunch, news and messages. The **webview REST** API takes the cookies, which are bound to one child (`childInFocus`), and serves schedule and assignments. Switching child means one more cookie exchange; the operations do that when `child_id` changes.
 
+## Design principles
+
+The layout is SOLID by construction, and the boundary tests make it stay that way:
+
+| Principle             | Where it shows                                                                                                                                                                                                       | What enforces it                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Single responsibility | one backend class per JSON API under `portal/api/`, `api-portal.ts` only composes; `config.ts` is a pure model, `wiring.ts` builds the object graph; extractors, page specs and the session guard are separate files | review; file headers state the one job                                             |
+| Open/closed           | a capability is one operation file + one registry line; a page is one `pages.ts` entry; an auth method is one `AuthStrategy`; tools, commands, docs and skills are generated                                         | drift tests on generated docs and skills                                           |
+| Liskov                | fakes implement the same ports as production; `AuthStrategy` has no optional methods                                                                                                                                 | type checker (fakes are typed against the port)                                    |
+| Interface segregation | each operation declares `portal: [...]` and receives `Pick<Portal, C>`; `ApiPortalPart` / `BrowserPortalPart` split the producer side                                                                                | `test/boundary/registry.test.ts` compares declarations with source                 |
+| Dependency inversion  | core sees ports only; store, fetch, browser, spawn, web login and clock are injected with defaults in `wiring.ts`                                                                                                    | `make boundaries`, `test/boundary/imports.test.ts`, the 100% offline coverage gate |
+
 ## Portal adapter: API first, browser where no API exists
 
 Not everything a guardian sees has a JSON endpoint. Contact lists, subject rooms, bookings and shared files exist only as legacy web pages. Operations therefore talk to a **Portal**, one method per capability, and a static table (`PROVIDERS` in `src/core/portal/types.ts`) says which provider serves each one: the JSON APIs wherever they exist, a headless browser only where they don't. The routing is deterministic and documented; the browser is never used for something the API serves.
@@ -57,9 +69,9 @@ The retry exists because the alternative is a BankID round for the user. Refresh
 ## Repository layout
 
 ```
-src/core/         auth/, portal/ (types, api-portal, browser-portal, extractors, composite), browser/ (session, playwright, install), session/, operations/, config.ts, constants.ts, index.ts
+src/core/         auth/, portal/ (types, guardian, pages, extractors, verify, fingerprints, browser-portal, composite, api-portal + api/{transport,eva-api,webview-api,legacy-api,web-session-api}), browser/ (session, playwright, optional-playwright, install, web-login), session/, operations/, config.ts (model), wiring.ts (composition root), constants.ts, index.ts
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
-src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor}.ts, index.ts (bin)
+src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts
 src/http/         reserved for the remote transport (next spec)
 skills/schoolsoft SKILL.md, scripts/schoolsoft.sh, references/commands.md (generated)

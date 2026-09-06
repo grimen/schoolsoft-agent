@@ -24,6 +24,7 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
     school_type: z.number().int().optional().describe("SchoolSoft school type code, default 7"),
     child_id: ChildSchema,
   },
+  portal: ["getAssessmentCriteria"],
   annotations: READ_ONLY,
   async run(ctx, { subject, school_type, child_id }) {
     const { childSummary } = await withChild(ctx, child_id);

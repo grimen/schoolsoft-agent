@@ -167,6 +167,7 @@ test("web child sync: reads the web header, PUTs only when the child differs, no
     ["GET /taby/rest-api/parent/header/parent cookie=JSESSIONID=web"],
     "same child: no PUT",
   );
+  assert.deepEqual(await api.getWebChildInFocus(), { childId: 1, orgId: 20 });
   calls.length = 0;
   target = { childId: 2, orgId: 20 };
   await api.syncWebChild();
