@@ -14,6 +14,9 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   exists, by the browser provider only when none does (`PROVIDERS` in
   `src/core/portal/types.ts`). Never add a browser path for something the API
   serves; never let the browser session issue writes without `allowWrites`.
+  GDPR-gated capabilities (`WEB_SESSION_CAPABILITIES`) need the web-login
+  session from `login --web`; they must fail before navigating without it.
+  The web session's only non-GET is the child-in-focus PUT (`syncWebChild`).
 - **One definition per capability.** New capability = one file in
   `src/core/operations/` + one line in `registry.ts`. Never hand-write an MCP
   tool or CLI command. Then `make docs && make skills` and commit the output;

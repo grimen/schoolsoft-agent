@@ -11,5 +11,8 @@ flowchart LR
   API --> REST[Webview REST]
   API --> LEG[legacy /rest<br/>read-only POST]
   CH & CDP --> JSP[JSP pages<br/>contacts · subjects · bookings · files]
+  CH & CDP --> GATED[GDPR-gated JSP pages<br/>grades · documents · absence · criteria]
+  WEB[[login --web<br/>headed browser, user does BankID,<br/>cookies stored encrypted]] -.->|web cookies preferred| SESS
+  WEB -.->|same cookie header| REST
   classDef opt stroke-dasharray: 4 3
-  class PW,CH,CDP,JSP,BP,SESS opt
+  class PW,CH,CDP,JSP,GATED,BP,SESS,WEB opt
