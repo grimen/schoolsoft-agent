@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="960" height="340" viewBox="0 0 960 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="schoolsoft-agent: a parent asks their AI agent about school; the agent reaches schoolsoft-agent through either its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft.">
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="340" viewBox="0 0 960 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="schoolsoft-agent (independent project; SchoolSoft and BankID are trademarks of their owners, who are not involved): a parent asks their AI agent about school; the agent reaches schoolsoft-agent through either its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
@@ -128,8 +128,8 @@
     <rect x="822" y="246" width="98" height="30" rx="8" fill="#eff6ff" stroke="#bfdbfe"/><text x="871" y="265" text-anchor="middle" fill="#2563eb">per child</text>
   </g>
 
-  <text x="818" y="296" text-anchor="middle" font-size="9" fill="#94a3b8">SchoolSoft is a trademark of SchoolSoft AB,</text>
-  <text x="818" y="309" text-anchor="middle" font-size="9" fill="#94a3b8">which is not involved in this project</text>
+  <text x="818" y="294" text-anchor="middle" font-size="8.5" fill="#94a3b8">SchoolSoft™ SchoolSoft AB · BankID™ Finansiell ID-Teknik BID AB</text>
+  <text x="818" y="306" text-anchor="middle" font-size="8.5" fill="#94a3b8">Independent project; neither is involved or endorsing</text>
 
   <!-- footer tagline -->
   <text x="480" y="326" text-anchor="middle" font-size="11" fill="#64748b">Pick the surface your host supports. Same core, same session, same answers.</text>

@@ -23,9 +23,10 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   manifests, tests with coverage), `make check-ci`, `make e2e-artifact`. `make e2e`
   runs the live suite locally only, never in CI. Hooks (lefthook) run the cheap
   ones on commit/push; CI (`ci.yml`) stages Checks → Unit → E2E → Publish.
-- **Independence:** SchoolSoft is a trademark of SchoolSoft AB; keep every
-  user-facing text clear that this is an independent MIT project SchoolSoft AB
-  is not involved in. Never imply endorsement.
+- **Independence:** SchoolSoft is a trademark of SchoolSoft AB and BankID of
+  Finansiell ID-Teknik BID AB; neither is involved in this project. Keep every
+  user-facing text and illustration clear about that, name them only
+  descriptively, never use their logos or brand assets, never imply endorsement.
 - **Commits:** Conventional Commits, scopes from `commitlint.config.mjs`; the
   type drives release-please's version bump (see `docs/releasing.md`). No
   session links or trailers.
