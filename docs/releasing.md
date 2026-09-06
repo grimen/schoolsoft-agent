@@ -1,14 +1,30 @@
 # Releasing
 
-How a change goes from a merged PR to a version on npm, and the one thing a
-human does along the way: merge the release PR.
+How a change goes from a merged PR to a published version, and the one thing
+a human does along the way: merge the release PR.
+
+## Where it publishes
+
+`PUBLISH_REGISTRY` at the top of `ci.yml` selects the registry:
+
+- **`github` (current):** GitHub Packages, as `@grimen/schoolsoft-agent`,
+  using the workflow's own `GITHUB_TOKEN`. Nothing to set up. The scoped name
+  is applied only in the publish step; the repository, the bins
+  (`schoolsoft-agent`, `schoolsoft-agent-mcp`) and the Claude Desktop bundle
+  keep the unscoped name. Consumers need a GitHub token with `read:packages`
+  even for public packages, so the parent-facing `npx -y schoolsoft-agent`
+  lines in the guides only work once we are on npm; until then the install
+  path is in `docs/troubleshooting.md` ("not on npm yet").
+- **`npm` (later):** npmjs.com as `schoolsoft-agent` with provenance. Flip
+  the value and add the `NPM_TOKEN` secret; nothing else changes.
 
 ## The short version
 
 1. Merge PRs to `main` as usual. Every PR title is a Conventional Commit
    (commitlint enforces it); the squash merge makes that title the commit.
-2. Each push to `main` publishes a prerelease under the `next` dist-tag:
-   `npm i schoolsoft-agent@next`.
+2. Each push to `main` publishes a prerelease under the `next` dist-tag
+   (`npm i schoolsoft-agent@next` once on npm; `@grimen/schoolsoft-agent@next`
+   from GitHub Packages).
 3. When a `feat:`, `fix:`, `perf:` or `revert:` commit reaches `main`,
    release-please opens (or updates) one pull request titled
    `chore(release): X.Y.Z` with the next version and the changelog entry for
@@ -17,7 +33,8 @@ human does along the way: merge the release PR.
    release. release-please tags `vX.Y.Z`, creates the GitHub Release with the
    changelog entry as its body, and starts the release run of `ci.yml`, which
    stamps the version, runs Checks → Unit → E2E, waits for the commit's main
-   run to be green, publishes to npm under `latest` with provenance, builds
+   run to be green, publishes to the registry under `latest` (with provenance
+   on npm), builds
    the Claude Desktop bundle and attaches it to the release. Verify then
    installs the published version and asserts the consumer contract.
 
@@ -72,16 +89,17 @@ release-please ignores such tags.
 
 ## Setup that must exist once
 
-- **`NPM_TOKEN`** repository secret: an npm automation token for the
-  `schoolsoft-agent` package. `GITHUB_TOKEN` cannot publish to npmjs.com.
+- **`NPM_TOKEN`** repository secret, only when `PUBLISH_REGISTRY` is `npm`:
+  an npm automation token for the `schoolsoft-agent` package. `GITHUB_TOKEN`
+  cannot publish to npmjs.com. GitHub Packages needs no secret.
 - Settings → Actions → General → "Allow GitHub Actions to create and approve
   pull requests" must be on, or release-please cannot open the release PR.
 - `gh-pages` badges need nothing: the default token can push there.
 
 ## When something goes wrong
 
-- **The release run failed after tagging.** npm never accepts a version
-  twice, so fix forward, merge, and the next release PR bumps again. A run
+- **The release run failed after tagging.** Registries never accept a
+  version twice, so fix forward, merge, and the next release PR bumps again. A run
   that failed _before_ Publish can be re-run.
 - **No release PR appears.** Nothing releasable has merged since the last
   tag, or the `Release Please` workflow run on `main` failed (check the

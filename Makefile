@@ -165,7 +165,7 @@ release-rc: ## Hand-cut a prerelease-suffixed tag that ships under next: make re
 version: ## Show what CI would publish for HEAD (prerelease), or for a tag: make version TAG=vX.Y.Z
 	@DRY_RUN=1 EVENT=$(if $(TAG),release,push) TAG=$(TAG) bash scripts/release/resolve-version.sh
 
-registry-smoke: ## Install a published version from npm and assert the consumer contract: make registry-smoke V=X.Y.Z
+registry-smoke: ## Install a published version from the registry and assert the consumer contract: make registry-smoke V=X.Y.Z [PUBLISH_REGISTRY=github|npm]
 	@test -n "$(V)" || { echo "usage: make registry-smoke V=X.Y.Z"; exit 1; }
 	bash scripts/release/registry-smoke.sh "$(V)"
 
