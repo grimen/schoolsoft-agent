@@ -1,16 +1,25 @@
 # Hermes Agent
 
-## Skill
+[Hermes Agent](https://hermes-agent.nousresearch.com/docs/) supports both surfaces. The skill is one command.
+
+## What you need
+
+- Hermes Agent installed ([installation](https://hermes-agent.nousresearch.com/docs/getting-started/installation)).
+- [Node.js](https://nodejs.org/en/download) 22 or newer.
+- Your school's name, and BankID.
+
+## Install: skill
 
 ```bash
 hermes skills install github:grimen/schoolsoft-agent/skills/schoolsoft
+npx -y schoolsoft-agent configure --query "Rösjöskolan"
 ```
 
-The skill is category `education` in Hermes' hub metadata. From a checkout, `make install-hermes` copies it to `~/.hermes/skills/education/schoolsoft`.
+The skill is filed under `education` in Hermes' hub. Hermes' docs: [Skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills).
 
-Hermes runs commands with a 180-second default timeout. `schoolsoft-agent login` waits up to five minutes for BankID; raise `terminal.timeout` in `~/.hermes/config.yaml` or run the login in a normal terminal once.
+**Timeout note.** Hermes runs commands with a 180-second default timeout; the BankID login waits up to five minutes. Raise `terminal.timeout` in `~/.hermes/config.yaml`, or run `npx -y schoolsoft-agent login` once in a normal terminal. The session is shared.
 
-## MCP
+## Install: MCP
 
 In `~/.hermes/config.yaml`:
 
@@ -23,8 +32,28 @@ mcp_servers:
       SCHOOLSOFT_SCHOOL: taby
 ```
 
-Tools appear as `mcp_schoolsoft_schoolsoft_<operation>`.
+Replace `taby` with your school slug (`npx -y schoolsoft-agent find-school --query "<school name>"` prints it). Hermes' docs: [MCP](https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp). Tools appear as `mcp_schoolsoft_schoolsoft_<operation>`.
 
-## Optional: headless browser
+## First use
 
-Contact lists, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead. Grades, student documents, unreported absence, the attendance report, assessment criteria and Avstämning are behind SchoolSoft's "log in again" gate and additionally need one `npx -y schoolsoft-agent login --web` (the normal web login opens in a browser window; nothing is automated), after which they read through the same headless browser.
+Ask: **"Logga in på SchoolSoft."** A browser tab opens SchoolSoft's login; complete BankID there.
+
+## Try asking
+
+- "Vad har barnen på schemat imorgon?"
+- "Vad är det till lunch i veckan?"
+- "Sammanfatta olästa meddelanden från skolan."
+
+## Optional: contact lists, bookings, files, grades
+
+Run `npx -y schoolsoft-agent browser install` once. For grades, documents, absence and assessment criteria also run `npx -y schoolsoft-agent login --web` once. Details in [Get started](README.md#4-optional-extras-only-if-you-want-them).
+
+## Update and remove
+
+Re-run the install command to update. Remove the skill folder under `~/.hermes/skills/education/schoolsoft` or the `schoolsoft` block from the config; `npx -y schoolsoft-agent logout` deletes the saved session.
+
+Problems? [Troubleshooting](../troubleshooting.md).
+
+## For developers
+
+`make install-hermes` copies the skill to `~/.hermes/skills/education/schoolsoft` from a checkout.

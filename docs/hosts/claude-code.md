@@ -1,40 +1,57 @@
 # Claude Code
 
-Both surfaces are available. Pick one; installing both gives Claude overlapping instructions.
+Claude in your terminal or IDE. Install as a plugin from this repository's marketplace: two commands inside Claude Code.
 
-## Option A: MCP plugin
+## What you need
+
+- [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed and signed in.
+- [Node.js](https://nodejs.org/en/download) 22 or newer (`node --version`).
+- Your school's name, and BankID.
+
+## Install
+
+Inside Claude Code, add the marketplace once, then pick **one** of the two plugins:
 
 ```
 /plugin marketplace add grimen/schoolsoft-agent
 /plugin install schoolsoft-mcp@schoolsoft-agent
 ```
 
-The install prompt asks for your school slug (from `https://sms.schoolsoft.se/<slug>/…`). If you don't know it, leave it empty and ask Claude to run the `schoolsoft_find_school` tool with your school's name, then set `SCHOOLSOFT_SCHOOL` in your environment or re-install with the value.
+- `schoolsoft-mcp` is the recommended choice: an MCP server, one tool per capability.
+- `schoolsoft-skill` is the alternative: Claude runs the command-line tool through a skill. Same data. Do not install both; Claude would get overlapping instructions.
 
-Tools appear as `mcp__plugin_schoolsoft-mcp_schoolsoft__schoolsoft_<operation>`. First use: ask Claude to log in; a browser tab opens for BankID.
+The install asks for your school slug (from `https://sms.schoolsoft.se/<slug>/…`). If you do not know it, leave it empty and ask Claude afterwards: "Find my school on SchoolSoft, it is called Rösjöskolan", then run `/plugin install` again with the slug, or export `SCHOOLSOFT_SCHOOL=<slug>` in your shell.
 
-## Option B: Skill plugin
+Claude's docs: [Plugins](https://docs.claude.com/en/docs/claude-code/plugins) · [Plugin marketplaces](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) · [MCP](https://docs.claude.com/en/docs/claude-code/mcp) · [Skills](https://docs.claude.com/en/docs/claude-code/skills).
 
-```
-/plugin marketplace add grimen/schoolsoft-agent
-/plugin install schoolsoft-skill@schoolsoft-agent
-```
+## First use
 
-Claude runs the `schoolsoft-agent` CLI through the skill's wrapper script, which finds the binary via `npx -y schoolsoft-agent` if nothing is installed. To avoid the `npx` startup cost, `npm install -g schoolsoft-agent` once.
+Ask: **"Logga in på SchoolSoft."** A browser tab opens SchoolSoft's login page; complete BankID there. Claude continues when SchoolSoft redirects back. Tools appear as `schoolsoft_<operation>` (for example `schoolsoft_get_schedule`).
 
-Configure with `npx -y schoolsoft-agent configure --query "<school name>"` before first use, or let Claude do it when the skill reports exit code 3.
+## Try asking
+
+- "Vad har Ella på schemat på fredag?"
+- "Vad är det till lunch i veckan?"
+- "Sammanfatta veckans nyheter från skolan."
+- "Vilka läxor finns den här veckan?"
+
+## Optional: contact lists, bookings, files, grades
+
+Ask Claude to run `browser install` once (hidden Chromium for the pages without a data feed). For grades, student documents, absence and assessment criteria, also run the web login once: `npx -y schoolsoft-agent login --web` opens a normal browser window for one more BankID. Details in [Get started](README.md#4-optional-extras-only-if-you-want-them).
 
 ## Sandbox note
 
-With Claude Code's sandbox enabled, commands cannot open a browser and outbound network is proxied. Either allow `sms.schoolsoft.se` (and your municipality's login domain) in the sandbox settings, or run `schoolsoft-agent login` once in a normal terminal; the session is then reused by both surfaces. The CLI always prints the login URL on stderr so Claude can show it to you.
+With Claude Code's sandbox on, commands cannot open a browser and network is proxied. Either allow `sms.schoolsoft.se` and your municipality's login domain in the [sandbox settings](https://docs.claude.com/en/docs/claude-code/settings), or run `npx -y schoolsoft-agent login` once in a normal terminal; the session is shared. The login URL is always printed so Claude can show it to you.
 
-## Developing against a checkout
+## Update and remove
+
+`/plugin update schoolsoft-mcp@schoolsoft-agent` updates; `/plugin uninstall schoolsoft-mcp@schoolsoft-agent` removes. Run `npx -y schoolsoft-agent logout` to delete the saved session.
+
+Problems? [Troubleshooting](../troubleshooting.md).
+
+## For developers
 
 ```bash
 make install-claude   # registers ./plugins/claude as a local marketplace
 claude --plugin-dir ./plugins/claude/schoolsoft-mcp
 ```
-
-## Optional: headless browser
-
-Contact lists, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead. Grades, student documents, unreported absence, the attendance report, assessment criteria and Avstämning are behind SchoolSoft's "log in again" gate and additionally need one `npx -y schoolsoft-agent login --web` (the normal web login opens in a browser window; nothing is automated), after which they read through the same headless browser.
