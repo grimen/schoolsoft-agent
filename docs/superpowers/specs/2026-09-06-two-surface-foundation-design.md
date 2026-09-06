@@ -261,7 +261,7 @@ plugins/
 
 | Host | Surface(s) | Mechanism |
 |---|---|---|
-| Claude Code | MCP, skill | Marketplace in this repo: `/plugin marketplace add grimen/schoolsoft-agent`; `schoolsoft-mcp` runs `npx -y schoolsoft-agent-mcp` with `userConfig` for school; `schoolsoft-skill` ships the skill |
+| Claude Code | MCP, skill | Marketplace in this repo: `/plugin marketplace add grimen/schoolsoft-agent`; `schoolsoft-mcp` runs `npx -y -p schoolsoft-agent schoolsoft-agent-mcp` with `userConfig` for school; `schoolsoft-skill` ships the skill |
 | Claude Desktop | MCP | `.mcpb` from `plugins/mcpb/manifest.json` (`user_config.school`); directory submission later |
 | OpenCode | MCP, skill | Documented `opencode.json` snippet; skill copied to `.agents/skills/` by `make install-opencode` |
 | OpenClaw | skill, MCP | ClawHub publish with `metadata.openclaw`; native `mcp.servers` snippet documented |
