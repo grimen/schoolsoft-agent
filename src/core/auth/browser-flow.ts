@@ -37,10 +37,17 @@ const SUCCESS_HTML = `<!doctype html><html lang="sv"><meta charset="utf-8">
 <p>Du kan stänga den här fliken och gå tillbaka till din AI-assistent.</p></div>
 </body></html>`;
 
+/** The error text comes from the redirect's query string: never echo it unescaped (CodeQL js/reflected-xss). */
+const escapeHtml = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
+
 const ERROR_HTML = (msg: string) => `<!doctype html><html lang="sv"><meta charset="utf-8">
 <title>Inloggning misslyckades</title>
 <body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center"><h1>❌ Något gick fel</h1><p>${msg}</p></div>
+<div style="text-align:center"><h1>❌ Något gick fel</h1><p>${escapeHtml(msg)}</p></div>
 </body></html>`;
 
 /** Opener command per platform; exported for tests. */

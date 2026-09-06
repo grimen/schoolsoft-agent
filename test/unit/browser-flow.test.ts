@@ -192,3 +192,21 @@ test("defaultOpenInBrowser spawns the platform opener detached and survives a mi
   assert.match(errors[0], /Could not open browser automatically \(ENOENT xdg-open\)/);
   assert.equal(spawned.length, 4, "second call used the real platform's opener");
 });
+
+test("the error page escapes whatever the identity provider put in the query string", async () => {
+  const port = usePort();
+  let body = "";
+  const login = runBrowserLogin({
+    school: "testskola",
+    port,
+    openBrowser: async () => {
+      const res = await fetch(
+        `http://127.0.0.1:${port}/callback?error=${encodeURIComponent('<script>alert("x")</script>&"')}`,
+      );
+      body = await res.text();
+    },
+  });
+  await assert.rejects(login, /alert/);
+  assert.ok(body.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&quot;"), body);
+  assert.ok(!body.includes("<script>alert"), "raw script tag must not appear");
+});
