@@ -34,6 +34,19 @@ export interface Portal {
   getBookings(): Promise<Booking[]>;
   /** Alla filer & länkar: shared files and links. */
   getFiles(): Promise<PortalFile[]>;
+  // ----- browser + WEB session: SchoolSoft's GDPR-gated pages -----
+  /** Betyg: grade tables (empty until the school publishes grades). */
+  getGrades(): Promise<TablePage>;
+  /** Elevdokument: student documents (title, created by, date, link). */
+  getStudentDocuments(): Promise<TablePage>;
+  /** Oanmäld frånvaro: unreported absence, or the "nothing to show" message. */
+  getUnreportedAbsence(): Promise<TablePage>;
+  /** Rapport: attendance report for the default week range. */
+  getAttendanceReport(): Promise<TablePage>;
+  /** Kriterier för bedömning: assessment criteria matrix for one subject. */
+  getAssessmentCriteria(subjectId: number, schoolType?: number): Promise<TablePage>;
+  /** Avstämning: grade prognosis reconciliation dates (gated REST, web session). */
+  getGradePrognosis(): Promise<{ reconciliationDates: unknown }>;
 }
 
 export type Capability = keyof Portal;
@@ -55,7 +68,23 @@ export const PROVIDERS: Record<Capability, readonly PortalProvider[]> = {
   getSubjectRooms: ["browser"],
   getBookings: ["browser"],
   getFiles: ["browser"],
+  getGrades: ["browser"],
+  getStudentDocuments: ["browser"],
+  getUnreportedAbsence: ["browser"],
+  getAttendanceReport: ["browser"],
+  getAssessmentCriteria: ["browser"],
+  getGradePrognosis: ["api"],
 };
+
+/** Capabilities that need a WEB login session (SchoolSoft's GDPR gate), whichever provider serves them. */
+export const WEB_SESSION_CAPABILITIES: readonly Capability[] = [
+  "getGrades",
+  "getStudentDocuments",
+  "getUnreportedAbsence",
+  "getAttendanceReport",
+  "getAssessmentCriteria",
+  "getGradePrognosis",
+];
 
 export const API_CAPABILITIES = (Object.keys(PROVIDERS) as Capability[]).filter((c) =>
   PROVIDERS[c].includes("api"),
@@ -78,8 +107,23 @@ export interface ContactGroup {
 }
 export interface SubjectRoom {
   subject: string;
+  /** SchoolSoft subject id (`requestid` in the page URL), used by get_assessment_criteria. */
+  subjectId: number | null;
   teachers: string[];
   url: string;
+}
+
+/** A server-rendered page made of tables: what the gated pages are. */
+export interface TablePage {
+  title: string;
+  /** Informational text shown instead of, or above, the tables (e.g. "nothing to show"). */
+  message?: string;
+  sections: TableSection[];
+}
+export interface TableSection {
+  heading?: string;
+  headers: string[];
+  rows: { cells: string[]; url?: string }[];
 }
 export interface ActivityEntry {
   id: number;
@@ -133,6 +177,16 @@ export interface GuardianParent {
 export const BROWSER_INSTALL_HINT =
   'This needs the headless browser: run "schoolsoft-agent browser install" once (downloads Chromium), or point SCHOOLSOFT_BROWSER_CDP at a CDP endpoint.';
 
+/** A GDPR-gated capability was requested without a web-login session. */
+export class WebLoginRequiredError extends Error {
+  constructor(capability: string) {
+    super(
+      `${capability} is behind SchoolSoft's "log in again" gate and needs a web login session: run "schoolsoft-agent login --web" (or the login tool with web: true) once, then retry.`,
+    );
+    this.name = "WebLoginRequiredError";
+  }
+}
+
 /** A browser-only capability was requested but no browser session is available. */
 export class BrowserRequiredError extends Error {
   constructor(capability: string, reason?: string) {
@@ -155,9 +209,11 @@ export class PortalGatedError extends Error {
 
 /** The page redirected to the login page: the cookie session is gone. */
 export class SessionLostError extends Error {
-  constructor(page: string) {
+  constructor(page: string, web = false) {
     super(
-      `SchoolSoft redirected ${page} to the login page: the web session expired. Retry (it re-authenticates silently) or run login.`,
+      web
+        ? `SchoolSoft redirected ${page} to the login page: the web login session expired (inactivity). Run "schoolsoft-agent login --web" again.`
+        : `SchoolSoft redirected ${page} to the login page: the web session expired. Retry (it re-authenticates silently) or run login.`,
     );
     this.name = "SessionLostError";
   }

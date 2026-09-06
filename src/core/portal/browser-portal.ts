@@ -6,13 +6,21 @@
  */
 import type { BrowserSession } from "../browser/session.js";
 import type { BrowserPortalPart } from "./composite.js";
-import type { Booking, ContactGroup, PortalFile, SubjectRoom } from "./types.js";
+import {
+  WebLoginRequiredError,
+  type Booking,
+  type ContactGroup,
+  type PortalFile,
+  type SubjectRoom,
+  type TablePage,
+} from "./types.js";
 import {
   extractBookings,
   extractContacts,
   extractFiles,
   extractSubjectLinks,
   extractSubjectTeachers,
+  extractTablePage,
 } from "./extractors.js";
 
 export const PAGES = {
@@ -20,10 +28,20 @@ export const PAGES = {
   subjects: "/jsp/student/right_student_subject.jsp",
   bookings: "/jsp/student/right_student_timebooking.jsp",
   files: "/jsp/student/right_student_library.jsp",
+  // GDPR-gated (need the web session)
+  grades: "/jsp/student/right_student_gradesubject.jsp",
+  documents: "/jsp/student/right_student_review.jsp",
+  unreportedAbsence: "/jsp/student/right_parent_absence_message.jsp",
+  attendanceReport: "/jsp/student/right_student_absence_student.jsp",
+  assessmentCriteria: "/jsp/student/right_student_ability.jsp",
 } as const;
 
 export interface BrowserPortalOptions {
   session: BrowserSession;
+  /** Whether a web-login session is stored; gated pages refuse to try without one. */
+  hasWebSession?: () => boolean;
+  /** Align the web session's child in focus with the requested child before a gated page. */
+  syncWebChild?: () => Promise<void>;
   /** Cap on per-subject page visits when listing subject rooms. */
   maxSubjectPages?: number;
 }
@@ -47,7 +65,12 @@ export class BrowserPortal implements BrowserPortalPart {
       for (const link of links.slice(0, max)) {
         await page.goto("/jsp/student/" + link.url.replace(/^\.?\/?/, ""));
         const teachers = await page.evaluate(extractSubjectTeachers);
-        rooms.push({ subject: link.subject, teachers, url: "/jsp/student/" + link.url });
+        rooms.push({
+          subject: link.subject,
+          subjectId: link.subjectId,
+          teachers,
+          url: "/jsp/student/" + link.url,
+        });
       }
       return rooms;
     });
@@ -58,6 +81,42 @@ export class BrowserPortal implements BrowserPortalPart {
       await page.goto(PAGES.bookings);
       return page.evaluate(extractBookings);
     });
+  }
+
+  /**
+   * GDPR-gated pages: carried by the web-login cookies (`web: true`), after
+   * the web session's child in focus is aligned with the requested child.
+   */
+  private async gated(capability: string, path: string): Promise<TablePage> {
+    if (this.o.hasWebSession && !this.o.hasWebSession())
+      throw new WebLoginRequiredError(capability);
+    await this.o.syncWebChild?.();
+    return this.o.session.withPage(
+      async (page) => {
+        await page.goto(path);
+        return page.evaluate(extractTablePage);
+      },
+      { web: true },
+    );
+  }
+
+  getGrades(): Promise<TablePage> {
+    return this.gated("getGrades", PAGES.grades);
+  }
+  getStudentDocuments(): Promise<TablePage> {
+    return this.gated("getStudentDocuments", PAGES.documents);
+  }
+  getUnreportedAbsence(): Promise<TablePage> {
+    return this.gated("getUnreportedAbsence", PAGES.unreportedAbsence);
+  }
+  getAttendanceReport(): Promise<TablePage> {
+    return this.gated("getAttendanceReport", PAGES.attendanceReport);
+  }
+  getAssessmentCriteria(subjectId: number, schoolType = 7): Promise<TablePage> {
+    return this.gated(
+      "getAssessmentCriteria",
+      `${PAGES.assessmentCriteria}?subject=${subjectId}&schooltype=${schoolType}`,
+    );
   }
 
   getFiles(): Promise<PortalFile[]> {

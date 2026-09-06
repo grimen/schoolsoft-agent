@@ -17,6 +17,7 @@ import {
   extractSubjectLinks,
   extractSubjectTeachers,
   extractPageTitle,
+  extractTablePage,
 } from "../../src/core/portal/extractors.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
@@ -78,8 +79,8 @@ test(
         return p.evaluate(extractSubjectLinks);
       });
       assert.deepEqual(links, [
-        { subject: "Bild", url: "right_student_subject.jsp?requestid=1301" },
-        { subject: "Matematik", url: "right_student_subject.jsp?requestid=1302" },
+        { subject: "Bild", url: "right_student_subject.jsp?requestid=1301", subjectId: 1301 },
+        { subject: "Matematik", url: "right_student_subject.jsp?requestid=1302", subjectId: 1302 },
       ]);
       const teachers = await s.withPage(async (p) => {
         await p.goto("/right_student_subject_one.jsp.html");
@@ -129,3 +130,51 @@ test("files extractor: categories from headings, file vs link", { skip }, async 
     await s.close();
   }
 });
+
+test(
+  "table-page extractor: documents (longlist + links), attendance (th headers), message page, criteria matrix, empty grades",
+  { skip },
+  async () => {
+    const s = session();
+    try {
+      const load = (f: string) =>
+        s.withPage(async (p) => {
+          await p.goto("/" + f);
+          return p.evaluate(extractTablePage);
+        });
+      const docs = await load("right_student_review.jsp.html");
+      assert.equal(docs.title, "Elevdokument");
+      assert.equal(docs.sections.length, 1);
+      assert.equal(docs.sections[0].heading, "Arkiverade elevdokument");
+      assert.deepEqual(docs.sections[0].headers, ["Rubrik", "Skapad av", "Datum", ""]);
+      assert.deepEqual(docs.sections[0].rows[0], {
+        cells: ["IUP höstterminen", "Lärare Exempel", "2026-01-10", ""],
+        url: "right_student_review.jsp?action=view&archive=1&requestid=11",
+      });
+      assert.equal(docs.sections[0].rows.length, 2);
+      const att = await load("right_student_absence_student.jsp.html");
+      assert.equal(att.sections.length, 1, "the filter form's table is ignored");
+      assert.deepEqual(att.sections[0].headers, ["Orsak", "Lektioner", "Timmar"]);
+      assert.deepEqual(
+        att.sections[0].rows.map((r) => r.cells),
+        [
+          ["Sjuk", "2", "1,5"],
+          ["Beviljad ledighet", "1", "1"],
+        ],
+      );
+      const msg = await load("right_parent_absence_message.jsp.html");
+      assert.equal(msg.message, "Det finns ingen oanmäld frånvaro att ta del av");
+      assert.deepEqual(msg.sections, []);
+      const crit = await load("right_student_ability.jsp.html");
+      assert.equal(crit.sections.length, 1);
+      assert.deepEqual(crit.sections[0].headers, ["Förmåga", "", "Nivå C", "Nivå A"]);
+      assert.equal(crit.sections[0].rows.length, 2, "empty spacer row dropped");
+      assert.equal(crit.sections[0].rows[1].cells[0], "Skapa bilder");
+      const grades = await load("right_student_gradesubject.jsp.html");
+      assert.equal(grades.title, "Betyg");
+      assert.deepEqual(grades.sections, [], "session-warning table under #top-box is not content");
+    } finally {
+      await s.close();
+    }
+  },
+);

@@ -21,6 +21,12 @@ export interface PortalPage {
 }
 
 export interface WithPageOptions {
+  /**
+   * Carry the web-login cookies (GDPR-gated pages) instead of the app
+   * session cookies. The two sessions have separate "child in focus" state,
+   * so only gated pages use the web one (see BrowserPortal.gated).
+   */
+  web?: boolean;
   /** Permit non-GET requests. Never set by read capabilities. */
   allowWrites?: boolean;
   /** Read-only POSTs the page legitimately performs (e.g. list fetches). */

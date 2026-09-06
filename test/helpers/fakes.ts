@@ -87,6 +87,39 @@ export const fakePortal = {
   getFiles: async () => [
     { name: "Veckobrev", url: "https://example.test/veckobrev.pdf", type: "file" },
   ],
+  // GDPR-gated (web session) capabilities
+  getGrades: async () => ({ title: "Betyg", sections: [] }),
+  getStudentDocuments: async () => ({
+    title: "Elevdokument",
+    sections: [
+      {
+        heading: "Arkiverade elevdokument",
+        headers: ["Rubrik", "Skapad av", "Datum", ""],
+        rows: [
+          {
+            cells: ["IUP", "Lärare Test", "2026-01-10", ""],
+            url: "right_student_review.jsp?action=view&archive=1&requestid=1",
+          },
+        ],
+      },
+    ],
+  }),
+  getUnreportedAbsence: async () => ({
+    title: "Oanmäld frånvaro",
+    message: "Det finns ingen oanmäld frånvaro att ta del av",
+    sections: [],
+  }),
+  getAttendanceReport: async () => ({
+    title: "Närvarorapport",
+    sections: [
+      { headers: ["Orsak", "Lektioner", "Timmar"], rows: [{ cells: ["Sjuk", "2", "1"] }] },
+    ],
+  }),
+  getAssessmentCriteria: async (subjectId: number) => ({
+    title: `Kriterier ${subjectId}`,
+    sections: [{ headers: ["Förmåga", "E", "C", "A"], rows: [{ cells: ["Läsa", "…", "…", "…"] }] }],
+  }),
+  getGradePrognosis: async () => ({ reconciliationDates: [] }),
 } as unknown as Portal;
 
 export class FakeAuth implements AuthStrategy {

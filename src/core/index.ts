@@ -32,6 +32,8 @@ export {
   BrowserRequiredError,
   PortalGatedError,
   SessionLostError,
+  WebLoginRequiredError,
+  WEB_SESSION_CAPABILITIES,
 } from "./portal/types.js";
 export type {
   Portal,
@@ -46,6 +48,8 @@ export type {
   ActivityEntry,
   Booking,
   PortalFile,
+  TablePage,
+  TableSection,
 } from "./portal/types.js";
 export { createCompositePortal, providerOf } from "./portal/composite.js";
 export type { ApiPortalPart, BrowserPortalPart } from "./portal/composite.js";

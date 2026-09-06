@@ -15,7 +15,7 @@ import { SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
 import type { SessionStore } from "./session/store.js";
 import { BankIdBrowserStrategy, type BankIdBrowserOptions } from "./auth/bankid-browser.js";
-import { ApiPortal } from "./portal/api-portal.js";
+import { ApiPortal, childOf, orgIdOf } from "./portal/api-portal.js";
 import { createCompositePortal, type BrowserPortalPart } from "./portal/composite.js";
 import type { Portal } from "./portal/types.js";
 import type { BrowserEngine } from "./browser/session.js";
@@ -220,18 +220,21 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
       return null;
     }
   };
-  const browser =
-    deps.browser === undefined
-      ? new BrowserPortal({
-          session: new PlaywrightSession({
-            school: client.school,
-            cookieHeader,
-            engine: deps.engine,
-            loader: deps.playwrightLoader,
-          }),
-        })
-      : deps.browser;
+  const webCookieHeader = () => {
+    const w = manager.getWebSession();
+    return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
+  };
+  const webChildTarget = () => {
+    try {
+      const g = manager.guardian();
+      return { childId: g.childInFocus, orgId: orgIdOf(childOf(g)) };
+    } catch {
+      return null;
+    }
+  };
   const api = new ApiPortal({
+    webChildTarget,
+    webCookieHeader,
     school: client.school,
     accessToken: () => client.accessToken,
     cookieHeader: () => {
@@ -242,6 +245,20 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
       }
     },
   });
+  const browser =
+    deps.browser === undefined
+      ? new BrowserPortal({
+          hasWebSession: () => manager.getWebSession() !== null,
+          syncWebChild: () => api.syncWebChild(),
+          session: new PlaywrightSession({
+            school: client.school,
+            cookieHeader,
+            webCookies: () => manager.getWebSession()?.cookies ?? null,
+            engine: deps.engine,
+            loader: deps.playwrightLoader,
+          }),
+        })
+      : deps.browser;
   return createCompositePortal({
     api,
     browser,

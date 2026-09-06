@@ -15,7 +15,13 @@
  */
 import { schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
 
-import type { ActivityEntry, GuardianChild, GuardianParent } from "./types.js";
+import {
+  WebLoginRequiredError,
+  SessionLostError,
+  type ActivityEntry,
+  type GuardianChild,
+  type GuardianParent,
+} from "./types.js";
 export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
 
 /** What we persist between runs so tools know whose data they serve. */
@@ -60,7 +66,21 @@ export interface GuardianApiOptions {
   school: string;
   accessToken: () => string | null;
   cookieHeader: () => string | null;
+  /** Cookies from a web login (needed for GDPR-gated REST endpoints). */
+  webCookieHeader?: () => string | null;
+  /**
+   * Which child the caller wants the WEB session focused on (normally the
+   * API session's child in focus). The web session keeps its own selection,
+   * so gated reads first align it; null = leave the web session as it is.
+   */
+  webChildTarget?: () => { childId: number; orgId: number } | null;
   fetchImpl?: ApiFetch;
+}
+
+/** Shape of GET /rest-api/parent/header/parent (web session): who is selected. */
+interface WebHeader {
+  currentChildId: number;
+  currentOrgId: number;
 }
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
@@ -81,6 +101,66 @@ export class ApiPortal {
     const cookie = this.o.cookieHeader();
     if (!cookie) throw new Error("No session cookies — log in first.");
     return this.get<T>(path, { Cookie: cookie });
+  }
+
+  /** Cookie GET using the WEB login session (gated endpoints). */
+  private async webCookie<T>(capability: string, path: string): Promise<T> {
+    const cookie = this.o.webCookieHeader?.() ?? null;
+    if (!cookie) throw new WebLoginRequiredError(capability);
+    return this.get<T>(path, { Cookie: cookie });
+  }
+
+  /** The web session's own child in focus (header REST, web cookies). */
+  async getWebChildInFocus(): Promise<{ childId: number; orgId: number }> {
+    const h = await this.webCookie<WebHeader>(
+      "getWebChildInFocus",
+      "/rest-api/parent/header/parent",
+    );
+    return { childId: h.currentChildId, orgId: h.currentOrgId };
+  }
+
+  /**
+   * Select a child in the WEB session: the same PUT the portal's child menu
+   * sends. It changes session state only (which child pages show), never
+   * school data; it is the one non-GET the web session performs.
+   */
+  async focusWebChild(childId: number, orgId: number): Promise<void> {
+    const cookie = this.o.webCookieHeader?.() ?? null;
+    if (!cookie) throw new WebLoginRequiredError("focusWebChild");
+    const path = `/rest-api/parent/header/parent?childId=${childId}&orgId=${orgId}`;
+    const r = await this.fetchImpl(
+      ssUrl(this.o.school, path),
+      this.o.school,
+      {
+        method: "PUT",
+        headers: { Cookie: cookie, Accept: "application/json" },
+        responseType: "text",
+      } as never,
+      MOBILE_UA,
+    );
+    if (r.status === 401 || r.status === 403) throw new SessionLostError(path, true);
+    if (r.status < 200 || r.status >= 300)
+      throw new Error(
+        `SchoolSoft returned HTTP ${r.status} when selecting child ${childId} in the web session.`,
+      );
+  }
+
+  /** Align the web session's child with the wanted one (no-op when already there or no target). */
+  async syncWebChild(): Promise<void> {
+    const want = this.o.webChildTarget?.() ?? null;
+    if (!want) return;
+    const cur = await this.getWebChildInFocus();
+    if (cur.childId === want.childId && cur.orgId === want.orgId) return;
+    await this.focusWebChild(want.childId, want.orgId);
+  }
+
+  /** Avstämning: reconciliation dates from the gated grade-prognosis REST (web session). */
+  async getGradePrognosis(): Promise<{ reconciliationDates: unknown }> {
+    await this.syncWebChild();
+    return this.webCookie<unknown>(
+      "getGradePrognosis",
+      "/rest-api/parent/gradeprognosis/options/reconciliationdates",
+    ).then((reconciliationDates) => ({ reconciliationDates }));
   }
 
   /** Cookie-authenticated JSON POST used by legacy /rest endpoints for READ queries only. */

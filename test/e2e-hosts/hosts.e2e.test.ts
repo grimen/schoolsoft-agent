@@ -214,13 +214,13 @@ async function withMcp<T>(l: Launch, fn: (c: Client) => Promise<T>): Promise<T> 
 }
 
 test(
-  "MCP hosts: each manifest launches a server that lists 17 tools, answers offline, and reports no session",
+  "MCP hosts: each manifest launches a server that lists 23 tools, answers offline, and reports no session",
   { skip },
   async () => {
     for (const l of launches()) {
       await withMcp(l, async (client) => {
         const { tools } = await client.listTools();
-        assert.equal(tools.length, 17, `${l.host}: tools/list`);
+        assert.equal(tools.length, 23, `${l.host}: tools/list`);
         const found = await client.callTool({
           name: "schoolsoft_find_school",
           arguments: { query: "rösjö" },

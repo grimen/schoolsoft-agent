@@ -3,7 +3,8 @@
  * the page (page.evaluate), so it must be self-contained: no imports, no
  * closures over module state. They are exercised against synthetic fixtures
  * (test/fixtures/jsp) in real Chromium by the e2e-artifact suite, and their
- * post-processing by unit tests.
+ * post-processing by unit tests; this file is therefore excluded from the
+ * unit-coverage gate (.c8rc.json).
  *
  * Structure observed on Täby, 2026-09-06 (see docs/schoolsoft-api.md):
  *  - Kontaktlistor: #contAll_content > .h3_bold (group) + table rows with
@@ -16,7 +17,7 @@
  *    [id^=description] (text), .inner_right_info label+div pairs.
  *  - Filer & länkar: #library_con_content table tr > td > a[href] (+ div).
  */
-import type { Booking, ContactGroup, PortalFile } from "./types.js";
+import type { Booking, ContactGroup, PortalFile, TablePage } from "./types.js";
 
 const text = (el: Element | null | undefined): string =>
   (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -55,15 +56,20 @@ export function extractContacts(): ContactGroup[] {
   return groups;
 }
 
-export function extractSubjectLinks(): { subject: string; url: string }[] {
-  const out: { subject: string; url: string }[] = [];
+export function extractSubjectLinks(): {
+  subject: string;
+  url: string;
+  subjectId: number | null;
+}[] {
+  const out: { subject: string; url: string; subjectId: number | null }[] = [];
   const seen = new Set<string>();
   for (const a of Array.from(document.querySelectorAll("#subject_menu a[href*='requestid=']"))) {
     const href = (a as HTMLAnchorElement).getAttribute("href") ?? "";
     const name = (a.textContent ?? "").replace(/\s+/g, " ").trim();
     if (!href || !name || seen.has(href)) continue;
     seen.add(href);
-    out.push({ subject: name, url: href });
+    const m = /requestid=(\d+)/.exec(href);
+    out.push({ subject: name, url: href, subjectId: m ? Number(m[1]) : null });
   }
   return out;
 }
@@ -140,3 +146,57 @@ export function extractPageTitle(): string {
 
 // keep `text` referenced for tooling (it is inlined above because evaluate() needs self-contained functions)
 void text;
+
+/**
+ * Generic extractor for SchoolSoft's server-rendered "longlist" pages (grades,
+ * student documents, attendance report, assessment criteria): title, an
+ * optional info message, and every table as headers + rows (+ first link).
+ * Header row = `tr.longlistheader` / `th` / `td.header`; the section heading is
+ * the nearest preceding `.h2`, `.h3_bold` or `td.header` text.
+ */
+export function extractTablePage(): TablePage {
+  const t = (el: Element | null | undefined) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+  const content = document.querySelector("#content") ?? document.body;
+  const title = t(content.querySelector(".h1"));
+  const message = t(content.querySelector(".alert .message-text")) || undefined;
+  const sections: TablePage["sections"] = [];
+  // A heading may sit in its own one-row table (td.header) right before the list table.
+  let pendingHeading: string | undefined;
+  const tables = Array.from(content.querySelectorAll("table")).filter(
+    (tb) => !tb.closest("#top-box") && !tb.closest("form") && !tb.closest(".h2_box"),
+  );
+  for (const table of tables) {
+    const trs = Array.from(table.querySelectorAll(":scope > tbody > tr, :scope > tr"));
+    if (trs.length === 0) continue;
+    let headers: string[] = [];
+    const rows: { cells: string[]; url?: string }[] = [];
+    let heading: string | undefined = pendingHeading;
+    pendingHeading = undefined;
+    const prev = table.previousElementSibling;
+    if (prev && /h3_bold|h2/.test(prev.className)) heading = t(prev);
+    for (const tr of trs) {
+      const cells = Array.from(tr.children).filter((c) => c.tagName === "TD" || c.tagName === "TH");
+      if (cells.length === 0) continue;
+      const texts = cells.map((c) => t(c));
+      const isHeader =
+        tr.classList.contains("longlistheader") ||
+        cells.every((c) => c.tagName === "TH") ||
+        (cells.length === 1 && cells[0].classList.contains("header"));
+      if (isHeader) {
+        if (cells.length === 1 && cells[0].classList.contains("header")) heading = texts[0];
+        else headers = texts;
+        continue;
+      }
+      if (texts.every((x) => x === "")) continue;
+      const a = tr.querySelector("a[href]:not([href^='javascript'])");
+      const url = a?.getAttribute("href") || undefined;
+      rows.push({ cells: texts, ...(url ? { url } : {}) });
+    }
+    if (headers.length === 0 && rows.length === 0) {
+      pendingHeading = heading;
+      continue;
+    }
+    sections.push({ ...(heading ? { heading } : {}), headers, rows });
+  }
+  return { title, ...(message ? { message } : {}), sections };
+}

@@ -28,15 +28,20 @@ function recorder() {
 
 test("PROVIDERS lists every Portal capability with a non-empty provider list", () => {
   const caps = Object.keys(PROVIDERS) as Capability[];
-  assert.equal(caps.length, 15);
+  assert.equal(caps.length, 21);
   for (const c of caps) assert.ok(PROVIDERS[c].length > 0, c);
   assert.deepEqual(BROWSER_CAPABILITIES.sort(), [
+    "getAssessmentCriteria",
+    "getAttendanceReport",
     "getBookings",
     "getContacts",
     "getFiles",
+    "getGrades",
+    "getStudentDocuments",
     "getSubjectRooms",
+    "getUnreportedAbsence",
   ]);
-  assert.equal(API_CAPABILITIES.length, 11);
+  assert.equal(API_CAPABILITIES.length, 12);
 });
 
 test("api capabilities route to the api part with their arguments", async () => {

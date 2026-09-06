@@ -24,6 +24,12 @@ Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state
 | `get-subject-rooms` | Get subject rooms | read-only, idempotent, needs login |
 | `get-bookings` | Get bookings | read-only, idempotent, needs login |
 | `get-files` | Get files and links | read-only, idempotent, needs login |
+| `get-grades` | Get grades | read-only, idempotent, needs login |
+| `get-student-documents` | Get student documents | read-only, idempotent, needs login |
+| `get-unreported-absence` | Get unreported absence | read-only, idempotent, needs login |
+| `get-attendance-report` | Get attendance report | read-only, idempotent, needs login |
+| `get-assessment-criteria` | Get assessment criteria | read-only, idempotent, needs login |
+| `get-grade-prognosis` | Get grade prognosis dates | read-only, idempotent, needs login |
 | `login` | Log in to SchoolSoft | writes, no login needed |
 | `auth-status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -331,6 +337,148 @@ Use when: "finns det något dokument från skolan om …", "länken till fritids
 
 ```bash
 schoolsoft-agent get-files
+```
+
+## `schoolsoft-agent get-grades`
+
+Betyg: the child's published grades (grade tables as the page shows them; empty until the school publishes grades, typically from year 6).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's grades.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-grades
+```
+
+## `schoolsoft-agent get-student-documents`
+
+Elevdokument: the child's student documents (title, created by, date) with links to open them in SchoolSoft.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's documents.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-student-documents
+```
+
+## `schoolsoft-agent get-unreported-absence`
+
+Oanmäld frånvaro: lessons the school marked as absent without a report from home, or the page's "nothing to show" message.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's absence.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-unreported-absence
+```
+
+## `schoolsoft-agent get-attendance-report`
+
+Rapport / Närvarorapport: attendance summary for the school's default week range (reasons, subjects, lessons, hours).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's attendance.
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-attendance-report
+```
+
+## `schoolsoft-agent get-assessment-criteria`
+
+Kriterier för bedömning av kunskaper: the assessment matrix for one subject
+(abilities by step, with what has been published so far).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser. Read only.
+
+Args:
+  - subject_id (number): from get_subject_rooms (subjectId).
+  - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+
+Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--subject-id <number>` | yes | Subject id from get_subject_rooms |
+| `--school-type <number>` | no | SchoolSoft school type code, default 7 |
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-assessment-criteria --subject-id 1
+```
+
+## `schoolsoft-agent get-grade-prognosis`
+
+Avstämning: the reconciliation dates SchoolSoft has for the child's grade
+prognosis. Empty until the school runs one.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once). No browser needed. Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, reconciliationDates }.
+
+Use when: "har skolan gjort någon avstämning", "när är nästa avstämning".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-grade-prognosis
 ```
 
 ## `schoolsoft-agent login`

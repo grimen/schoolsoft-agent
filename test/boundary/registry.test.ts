@@ -67,8 +67,21 @@ test("every browser capability is used by an operation whose description says ho
   }
 });
 
+test("every web-session capability's operation says how to get the web login", () => {
+  for (const op of [
+    "get_grades",
+    "get_student_documents",
+    "get_unreported_absence",
+    "get_attendance_report",
+    "get_assessment_criteria",
+    "get_grade_prognosis",
+  ]) {
+    assert.match(getOperation(op)?.description ?? "", /login --web/, op);
+  }
+});
+
 test("registry lookups", () => {
   assert.equal(getOperation("get_schedule")?.title, "Get schedule");
   assert.equal(getOperation("nope"), undefined);
-  assert.equal(operations.length, 17);
+  assert.equal(operations.length, 23);
 });

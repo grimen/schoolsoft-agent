@@ -75,8 +75,9 @@ export class PlaywrightSession implements BrowserSession {
     fn: (page: PortalPage) => Promise<T>,
     options: WithPageOptions = {},
   ): Promise<T> {
-    const web = this.o.webCookies?.() ?? null;
+    const web = options.web ? (this.o.webCookies?.() ?? null) : null;
     const cookie = this.o.cookieHeader();
+    if (options.web && !web?.length) throw new SessionLostError("(no web-login cookies)", true);
     if (!web?.length && !cookie) throw new SessionLostError("(no web session cookies)");
     const browser = await this.getBrowser();
     const context: BrowserContext = await browser.newContext({ locale: "sv-SE" });
@@ -117,7 +118,7 @@ export class PlaywrightSession implements BrowserSession {
         if (options.allowedNonGet?.some((re) => re.test(req.url()))) return route.continue();
         return route.abort("blockedbyclient");
       });
-      return await fn(this.wrap(page));
+      return await fn(this.wrap(page, web));
     } finally {
       await context.close().catch(() => {});
       // One browser per call: a lingering Chromium would keep the CLI / MCP
@@ -127,13 +128,14 @@ export class PlaywrightSession implements BrowserSession {
     }
   }
 
-  private wrap(page: Page): PortalPage {
+  private wrap(page: Page, web: WebCookie[] | null = null): PortalPage {
     const base = `${this.origin}/${this.o.school}`;
     return {
       goto: async (path: string) => {
-        await page.goto(base + path, { waitUntil: "networkidle", timeout: 30_000 });
+        await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
         const landed = page.url();
-        if (/\/jsp\/Login\.jsp/.test(landed)) throw new SessionLostError(path);
+        if (/\/jsp\/Login\.jsp/.test(landed))
+          throw new SessionLostError(path, Boolean(web?.length));
         if (/right_student_app_blocked\.jsp/.test(landed)) throw new PortalGatedError(path);
       },
       evaluate: <T>(fn: () => T) => page.evaluate(fn),

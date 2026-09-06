@@ -125,3 +125,55 @@ test("browser engine config: chromium default, cdp needs an endpoint", () => {
     "cdp",
   );
 });
+
+test("createPortal injects the web-login cookies into the browser session for gated pages", async () => {
+  const { createSessionManager, createPortal } = await import("../../src/core/config.js");
+  const { MemorySessionStore } = await import("../../src/core/session/store.js");
+  const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
+  const store = new MemorySessionStore();
+  const web = {
+    savedAt: 1,
+    landedOn: "https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp",
+    cookies: [{ name: "JSESSIONID", value: "web-cookie", domain: "sms.schoolsoft.se", path: "/" }],
+  };
+  const manager = createSessionManager(config, {
+    store,
+    fetchImpl: async () => {
+      throw new Error("no network in tests");
+    },
+    openBrowser: () => {},
+    webLogin: async () => web,
+  });
+  await manager.webLogin();
+  assert.equal(manager.getWebSession()?.cookies.length, 1);
+  const injected: { name: string; value: string }[] = [];
+  const page = {
+    addInitScript: async () => {},
+    route: async () => {},
+    goto: async () => {},
+    url: () => "https://sms.schoolsoft.se/taby/jsp/student/right_student_gradesubject.jsp",
+    evaluate: async () => ({ title: "Betyg", sections: [] }),
+  };
+  const context = {
+    addCookies: async (c: typeof injected) => {
+      injected.push(...c);
+    },
+    newPage: async () => page,
+    close: async () => {},
+  };
+  const browser = { newContext: async () => context, close: async () => {} };
+  const portal = createPortal(manager, {
+    playwrightLoader: async () =>
+      ({ chromium: { launch: async () => browser, connectOverCDP: async () => browser } }) as never,
+  });
+  const grades = await portal.getGrades();
+  assert.equal(grades.title, "Betyg");
+  assert.deepEqual(
+    injected.map((c) => `${c.name}=${c.value}`),
+    ["JSESSIONID=web-cookie"],
+    "the web cookies, not the app cookie header, reach the browser for a gated page",
+  );
+  injected.length = 0;
+  await assert.rejects(portal.getContacts(), /No session cookies|Login|login/);
+  assert.deepEqual(injected, [], "a non-gated page never gets the web cookies");
+});

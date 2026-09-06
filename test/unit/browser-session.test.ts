@@ -249,7 +249,7 @@ test("browserStatus reports the three states and installChromium spawns playwrig
   );
 });
 
-test("web-login cookies are preferred over the app cookie header", async () => {
+test("web-login cookies are used only when a call asks for them (gated pages)", async () => {
   const state = fresh();
   const s = new PlaywrightSession({
     school: "taby",
@@ -262,6 +262,23 @@ test("web-login cookies are preferred over the app cookie header", async () => {
   await s.withPage(async () => 0);
   assert.deepEqual(
     state.cookies.map((c) => c.value),
+    ["app", "h"],
+    "app cookies by default",
+  );
+  state.cookies.length = 0;
+  await s.withPage(async () => 0, { web: true });
+  assert.deepEqual(
+    state.cookies.map((c) => c.value),
     ["web"],
+    "web cookies when asked",
+  );
+  const noWeb = new PlaywrightSession({
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=app",
+    loader: async () => fakePlaywright(fresh()),
+  });
+  await assert.rejects(
+    noWeb.withPage(async () => 0, { web: true }),
+    /login --web/,
   );
 });

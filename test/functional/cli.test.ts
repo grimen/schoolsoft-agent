@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { runCli, type CliDeps } from "../../src/cli/program.js";
 import { EXIT } from "../../src/cli/exit-codes.js";
 import { NotConfiguredError, type ConfigSource } from "../../src/core/index.js";
-import { makeContext } from "../helpers/fakes.js";
+import { makeContext, fakePortal } from "../helpers/fakes.js";
 
 function harness(
   opts: {
@@ -219,4 +219,28 @@ test("login --web runs the web login and auth-status reports the web session", a
   assert.equal(w.json().cookies, 1);
   const st = await run("auth-status");
   assert.equal(st.json().webSession.cookies, 1);
+});
+
+test("a gated command without a web session fails with the login --web hint", async () => {
+  const { createCompositePortal, BrowserPortal } = await import("../../src/core/index.js");
+  const session = {
+    withPage: async () => {
+      throw new Error("must not navigate");
+    },
+    close: async () => {},
+  };
+  const portal = createCompositePortal({
+    api: fakePortal as never,
+    browser: new BrowserPortal({ session, hasWebSession: () => false }),
+  });
+  const { run } = harness({ ctx: makeContext({ portal }).ctx });
+  assert.equal((await run("login")).code, EXIT.OK);
+  const r = await run("get-grades");
+  assert.equal(r.code, EXIT.ERROR);
+  assert.match(r.err, /login --web/);
+  assert.equal(
+    (await run("get-contacts")).code,
+    EXIT.ERROR,
+    "non-gated browser page tries to navigate (fake session throws)",
+  );
 });

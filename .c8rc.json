@@ -5,7 +5,8 @@
     "src/**/index.ts",
     "src/http/**",
     "src/core/auth/strategy.ts",
-    "src/shared/version.ts"
+    "src/shared/version.ts",
+    "src/core/portal/extractors.ts"
   ],
   "reporter": ["text", "lcov", "json-summary", "html"],
   "check-coverage": true,

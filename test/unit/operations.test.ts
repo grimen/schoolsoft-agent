@@ -98,3 +98,24 @@ test("find_school works without a session and uses the config dir cache", async 
   assert.equal(r.schools[0].slug, "taby");
   assert.equal(op("find_school").annotations.requiresAuth, false);
 });
+
+test("browser-backed and web-gated operations return the child plus the portal page", async () => {
+  const { ctx } = makeContext();
+  await run("login", ctx);
+  for (const [name, key] of [
+    ["get_subject_rooms", "subjects"],
+    ["get_bookings", "bookings"],
+    ["get_files", "files"],
+    ["get_grades", "page"],
+    ["get_student_documents", "page"],
+    ["get_unreported_absence", "page"],
+    ["get_attendance_report", "page"],
+    ["get_grade_prognosis", "reconciliationDates"],
+  ] as const) {
+    const r = await run(name, ctx);
+    assert.ok(r.child, `${name} names the child`);
+    assert.ok(key in r, `${name} returns ${key}: ${Object.keys(r)}`);
+  }
+  const crit = await run("get_assessment_criteria", ctx, { subject_id: 1301 });
+  assert.equal(crit.page.title, "Kriterier 1301");
+});

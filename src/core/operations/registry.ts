@@ -17,6 +17,12 @@ import { getSubjectRooms } from "./get-subject-rooms.js";
 import { getActivityLog } from "./get-activity-log.js";
 import { getBookings } from "./get-bookings.js";
 import { getFiles } from "./get-files.js";
+import { getGrades } from "./get-grades.js";
+import { getStudentDocuments } from "./get-student-documents.js";
+import { getUnreportedAbsence } from "./get-unreported-absence.js";
+import { getAttendanceReport } from "./get-attendance-report.js";
+import { getAssessmentCriteria } from "./get-assessment-criteria.js";
+import { getGradePrognosis } from "./get-grade-prognosis.js";
 import { login } from "./login.js";
 import { authStatus } from "./auth-status.js";
 import { logout } from "./logout.js";
@@ -36,6 +42,12 @@ export const operations: readonly Operation[] = [
   getSubjectRooms,
   getBookings,
   getFiles,
+  getGrades,
+  getStudentDocuments,
+  getUnreportedAbsence,
+  getAttendanceReport,
+  getAssessmentCriteria,
+  getGradePrognosis,
   login,
   authStatus,
   logout,

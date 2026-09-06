@@ -20,6 +20,12 @@ Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredCo
 | `schoolsoft_get_subject_rooms` | Get subject rooms | read-only, idempotent, needs login |
 | `schoolsoft_get_bookings` | Get bookings | read-only, idempotent, needs login |
 | `schoolsoft_get_files` | Get files and links | read-only, idempotent, needs login |
+| `schoolsoft_get_grades` | Get grades | read-only, idempotent, needs login |
+| `schoolsoft_get_student_documents` | Get student documents | read-only, idempotent, needs login |
+| `schoolsoft_get_unreported_absence` | Get unreported absence | read-only, idempotent, needs login |
+| `schoolsoft_get_attendance_report` | Get attendance report | read-only, idempotent, needs login |
+| `schoolsoft_get_assessment_criteria` | Get assessment criteria | read-only, idempotent, needs login |
+| `schoolsoft_get_grade_prognosis` | Get grade prognosis dates | read-only, idempotent, needs login |
 | `schoolsoft_login` | Log in to SchoolSoft | writes, no login needed |
 | `schoolsoft_auth_status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `schoolsoft_logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -403,6 +409,180 @@ Example call:
 ```json
 {
   "name": "schoolsoft_get_files",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_grades`
+
+Betyg: the child's published grades (grade tables as the page shows them; empty until the school publishes grades, typically from year 6).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's grades.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_grades",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_student_documents`
+
+Elevdokument: the child's student documents (title, created by, date) with links to open them in SchoolSoft.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's documents.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_student_documents",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_unreported_absence`
+
+Oanmäld frånvaro: lessons the school marked as absent without a report from home, or the page's "nothing to show" message.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's absence.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_unreported_absence",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_attendance_report`
+
+Rapport / Närvarorapport: attendance summary for the school's default week range (reasons, subjects, lessons, hours).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser
+("schoolsoft-agent browser install"). Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+
+Use when: the user asks about the child's attendance.
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_attendance_report",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_assessment_criteria`
+
+Kriterier för bedömning av kunskaper: the assessment matrix for one subject
+(abilities by step, with what has been published so far).
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once) and the headless browser. Read only.
+
+Args:
+  - subject_id (number): from get_subject_rooms (subjectId).
+  - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
+  - child_id (number, optional): from list_children.
+
+Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+
+Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `subject_id` | number | yes | Subject id from get_subject_rooms |
+| `school_type` | number | no | SchoolSoft school type code, default 7 |
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_assessment_criteria",
+  "arguments": {
+    "subject_id": 1
+  }
+}
+```
+
+## `schoolsoft_get_grade_prognosis`
+
+Avstämning: the reconciliation dates SchoolSoft has for the child's grade
+prognosis. Empty until the school runs one.
+
+GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login --web",
+or the login tool with web: true, once). No browser needed. Read only.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, reconciliationDates }.
+
+Use when: "har skolan gjort någon avstämning", "när är nästa avstämning".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_grade_prognosis",
   "arguments": {}
 }
 ```

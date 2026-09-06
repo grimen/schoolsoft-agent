@@ -21,11 +21,23 @@ export type ApiPortalPart = Pick<
     | "getAssignmentsWeek"
     | "getAssignmentDetail"
     | "getActivityLog"
+    | "getGradePrognosis"
   >
 >;
 export type BrowserPortalPart = Pick<
   Portal,
-  Extract<Capability, "getContacts" | "getSubjectRooms" | "getBookings" | "getFiles">
+  Extract<
+    Capability,
+    | "getContacts"
+    | "getSubjectRooms"
+    | "getBookings"
+    | "getFiles"
+    | "getGrades"
+    | "getStudentDocuments"
+    | "getUnreportedAbsence"
+    | "getAttendanceReport"
+    | "getAssessmentCriteria"
+  >
 >;
 
 export interface CompositePortalOptions {
