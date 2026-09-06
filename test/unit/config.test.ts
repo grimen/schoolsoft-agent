@@ -85,7 +85,13 @@ test("createSessionManager / createGuardianApi wire a working manager without to
   const { createSessionManager, createGuardianApi } = await import("../../src/core/config.js");
   const { MemorySessionStore } = await import("../../src/core/session/store.js");
   const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
-  const manager = createSessionManager(config, { store: new MemorySessionStore(), fetchImpl: async () => { throw new Error("no network in tests"); }, openBrowser: () => {} });
+  const manager = createSessionManager(config, {
+    store: new MemorySessionStore(),
+    fetchImpl: async () => {
+      throw new Error("no network in tests");
+    },
+    openBrowser: () => {},
+  });
   const api = createGuardianApi(manager);
   await assert.rejects(api.getParent(), /No access token/);
   await assert.rejects(api.getScheduleWeek(1), /No session cookies/);
