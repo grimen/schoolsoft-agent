@@ -14,7 +14,7 @@
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { PersistedSession } from "../session/store.js";
-import type { GuardianContext } from "../api/guardian.js";
+import type { GuardianContext } from "../portal/api-portal.js";
 
 export interface LoginInfo {
   name: string | null;

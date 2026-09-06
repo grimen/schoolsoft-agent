@@ -13,7 +13,7 @@ test("D1: guardian context + webview session shape", { skip }, async () => {
   const manager = ctx.manager;
   await manager.ensureSession();
   const guardian = manager.guardian();
-  const session = await ctx.api.getSession();
+  const session = await ctx.portal.getSession();
   record(
     "Q3",
     "Multi-child session shape",
@@ -30,7 +30,7 @@ test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
   const ctx = e2eContext();
   const manager = ctx.manager;
   await manager.ensureSession();
-  const api = ctx.api;
+  const api = ctx.portal;
   const guardian = manager.guardian();
   const child = guardian.children.find((c) => c.studentId === guardian.childInFocus)!;
   const orgId = child.schools[0].orgId;

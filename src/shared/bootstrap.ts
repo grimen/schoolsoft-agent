@@ -9,7 +9,7 @@ import {
   type Config,
   type ConfigSource,
   type OperationContext,
-  createGuardianApi,
+  createPortal,
   createSessionManager,
   defaultConfigDir,
   envSource,
@@ -82,7 +82,7 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
       const manager = createSessionManager(config);
       ctx = {
         manager,
-        api: createGuardianApi(manager),
+        portal: createPortal(manager),
         config,
         log: inputs.log ?? ((m) => console.error(m)),
       };

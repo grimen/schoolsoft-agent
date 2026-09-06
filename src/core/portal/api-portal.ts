@@ -15,25 +15,8 @@
  */
 import { schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
 
-export interface GuardianChildSchool {
-  orgId: number;
-  name: string;
-  className: string;
-}
-
-export interface GuardianChild {
-  studentId: number;
-  firstName: string;
-  lastName: string;
-  schools: GuardianChildSchool[];
-}
-
-export interface GuardianParent {
-  userId: number;
-  firstName: string;
-  lastName: string;
-  children: GuardianChild[];
-}
+import type { GuardianChild, GuardianParent } from "./types.js";
+export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
 
 /** What we persist between runs so tools know whose data they serve. */
 export interface GuardianContext {
@@ -82,7 +65,7 @@ export interface GuardianApiOptions {
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 
-export class GuardianApi {
+export class ApiPortal {
   private readonly fetchImpl: ApiFetch;
   constructor(private readonly o: GuardianApiOptions) {
     this.fetchImpl = o.fetchImpl ?? (schoolsoftFetch as ApiFetch);
@@ -172,3 +155,7 @@ export class GuardianApi {
     return { view, sections };
   }
 }
+
+/** Backwards-compatible name. */
+export const GuardianApi = ApiPortal;
+export type GuardianApi = ApiPortal;

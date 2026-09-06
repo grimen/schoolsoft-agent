@@ -81,8 +81,8 @@ test("platform config dirs", () => {
   );
 });
 
-test("createSessionManager / createGuardianApi wire a working manager without touching disk", async () => {
-  const { createSessionManager, createGuardianApi } = await import("../../src/core/config.js");
+test("createSessionManager / createPortal wire a working manager without touching disk", async () => {
+  const { createSessionManager, createPortal } = await import("../../src/core/config.js");
   const { MemorySessionStore } = await import("../../src/core/session/store.js");
   const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
   const manager = createSessionManager(config, {
@@ -92,7 +92,7 @@ test("createSessionManager / createGuardianApi wire a working manager without to
     },
     openBrowser: () => {},
   });
-  const api = createGuardianApi(manager);
+  const api = createPortal(manager);
   await assert.rejects(api.getParent(), /No access token/);
   await assert.rejects(api.getScheduleWeek(1), /No session cookies/);
   await assert.rejects(manager.ensureSession(), /Not authenticated/);

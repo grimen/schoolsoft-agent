@@ -9,7 +9,7 @@
 import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
-import { childOf, type GuardianContext } from "../api/guardian.js";
+import { childOf, type GuardianContext } from "../portal/api-portal.js";
 import { decodeJwtClaims } from "../auth/oauth.js";
 
 export class NotAuthenticatedError extends Error {

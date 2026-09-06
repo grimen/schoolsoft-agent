@@ -18,7 +18,7 @@ assessment, after get_assignments listed it.`,
   annotations: READ_ONLY,
   async run(ctx, { id }) {
     await withChild(ctx);
-    const assignment = await ctx.api.getAssignmentDetail(id);
+    const assignment = await ctx.portal.getAssignmentDetail(id);
     return { assignment };
   },
 });

@@ -21,7 +21,7 @@ For full details of one assignment, use get_assignment_detail.`,
     const { childSummary } = await withChild(ctx, child_id);
     const w = week ?? isoWeek();
     const y = year ?? new Date().getFullYear();
-    const assignments = await ctx.api.getAssignmentsWeek(w, y);
+    const assignments = await ctx.portal.getAssignmentsWeek(w, y);
     return { week: w, year: y, child: childSummary, assignments };
   },
 });

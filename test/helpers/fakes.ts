@@ -1,6 +1,6 @@
 /**
  * Shared test doubles: a guardian context with two children, a fake
- * GuardianApi, a fake auth strategy, and a context factory that wires them
+ * Portal, a fake auth strategy, and a context factory that wires them
  * into a real SessionManager (memory store, no network).
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
@@ -10,7 +10,7 @@ import {
   type AuthStrategy,
   type LoginInfo,
   type PersistedSession,
-  type GuardianApi,
+  type Portal,
   type GuardianContext,
   type OperationContext,
   type Config,
@@ -52,7 +52,7 @@ export function fakeSchoolsoftClient(overrides: Partial<SchoolsoftClient> = {}):
   } as unknown as SchoolsoftClient;
 }
 
-export const fakeApi = {
+export const fakePortal = {
   getScheduleWeek: async (_week: number) => FAKE_LESSONS,
   getLunchWeek: async (_org: number, week: number) => [
     { week, dayId: 5, dishes: [{ mealType: "Lunch", description: "Spagetti" }] },
@@ -65,7 +65,7 @@ export const fakeApi = {
     { id: 6, subject: "Läst", isRead: true },
   ],
   getMessage: async (_u: number, _o: number, id: number) => ({ id, message: "Full text" }),
-} as unknown as GuardianApi;
+} as unknown as Portal;
 
 export class FakeAuth implements AuthStrategy {
   readonly id = "fake";
@@ -95,7 +95,7 @@ export const testConfig: Config = {
 };
 
 export function makeContext(
-  opts: { store?: MemorySessionStore; api?: GuardianApi; config?: Partial<Config> } = {},
+  opts: { store?: MemorySessionStore; portal?: Portal; config?: Partial<Config> } = {},
 ) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = new FakeAuth();
@@ -108,7 +108,7 @@ export function makeContext(
   const logs: string[] = [];
   const ctx: OperationContext = {
     manager,
-    api: opts.api ?? fakeApi,
+    portal: opts.portal ?? fakePortal,
     config: { ...testConfig, ...opts.config },
     log: (m) => logs.push(m),
   };

@@ -15,7 +15,9 @@ import { SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
 import type { SessionStore } from "./session/store.js";
 import { BankIdBrowserStrategy, type BankIdBrowserOptions } from "./auth/bankid-browser.js";
-import { GuardianApi } from "./api/guardian.js";
+import { ApiPortal } from "./portal/api-portal.js";
+import { createCompositePortal, type BrowserPortalPart } from "./portal/composite.js";
+import type { Portal } from "./portal/types.js";
 
 export interface Config {
   /** School slug, e.g. "taby" from https://sms.schoolsoft.se/taby/... */
@@ -162,10 +164,14 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
   });
 }
 
-/** Guardian data API bound to the manager's live client. */
-export function createGuardianApi(manager: SessionManager): GuardianApi {
+/** Portal bound to the manager's live client: API provider always; browser provider when supplied. */
+export interface PortalDeps {
+  browser?: BrowserPortalPart | null;
+  browserUnavailableReason?: string;
+}
+export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
   const client = manager.getClient();
-  return new GuardianApi({
+  const api = new ApiPortal({
     school: client.school,
     accessToken: () => client.accessToken,
     cookieHeader: () => {
@@ -176,4 +182,12 @@ export function createGuardianApi(manager: SessionManager): GuardianApi {
       }
     },
   });
+  return createCompositePortal({
+    api,
+    browser: deps.browser ?? null,
+    browserUnavailableReason: deps.browserUnavailableReason,
+  });
 }
+
+/** @deprecated use createPortal */
+export const createGuardianApi = (manager: SessionManager): Portal => createPortal(manager);

@@ -5,7 +5,7 @@
  */
 import type { z } from "zod";
 import type { SessionManager } from "../session/session-manager.js";
-import type { GuardianApi } from "../api/guardian.js";
+import type { Portal } from "../portal/types.js";
 import type { Config } from "../config.js";
 
 export interface OperationAnnotations {
@@ -21,7 +21,7 @@ export interface OperationAnnotations {
 
 export interface OperationContext {
   manager: SessionManager;
-  api: GuardianApi;
+  portal: Portal;
   config: Config;
   /** Diagnostic output (stderr for stdio surfaces). */
   log: (message: string) => void;

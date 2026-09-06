@@ -28,7 +28,7 @@ import {
   orgIdOf,
   type GuardianContext,
   type ApiFetch,
-} from "../api/guardian.js";
+} from "../portal/api-portal.js";
 
 export interface BankIdBrowserOptions {
   orgid?: string;

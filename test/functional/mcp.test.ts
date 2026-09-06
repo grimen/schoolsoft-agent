@@ -1,6 +1,6 @@
 /**
  * Functional: a real MCP Client talks to the registry-driven McpServer over
- * InMemoryTransport. SchoolSoft is a fake GuardianApi; auth is a fake
+ * InMemoryTransport. SchoolSoft is a fake Portal; auth is a fake
  * strategy (BankID cannot appear in automated tests).
  */
 import { test, before, after } from "node:test";

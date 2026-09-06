@@ -1,16 +1,16 @@
 /**
- * Unit tests for GuardianApi: which backend (Bearer vs cookie) and which
+ * Unit tests for Portal: which backend (Bearer vs cookie) and which
  * path each call uses, and how HTTP errors surface. HTTP is injected.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  GuardianApi,
+  ApiPortal,
   childOf,
   orgIdOf,
   type ApiFetch,
   type GuardianContext,
-} from "../../src/core/api/guardian.js";
+} from "../../src/core/portal/api-portal.js";
 
 function harness(status = 200, data: unknown = []) {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -18,7 +18,7 @@ function harness(status = 200, data: unknown = []) {
     calls.push({ url, headers: (options.headers ?? {}) as Record<string, string> });
     return { status, data };
   };
-  const api = new GuardianApi({
+  const api = new ApiPortal({
     school: "taby",
     accessToken: () => "TOK",
     cookieHeader: () => "JSESSIONID=a; hash=b; usertype=2",
@@ -72,7 +72,7 @@ test("401 surfaces as a session rejection, other statuses as HTTP errors", async
 });
 
 test("missing token/cookies fail before any request", async () => {
-  const api = new GuardianApi({
+  const api = new ApiPortal({
     school: "taby",
     accessToken: () => null,
     cookieHeader: () => null,

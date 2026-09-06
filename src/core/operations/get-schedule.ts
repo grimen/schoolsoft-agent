@@ -21,7 +21,7 @@ Use when: "vad har barnet på schemat", "när slutar skolan på fredag".`,
   async run(ctx, { week, child_id }) {
     const { childSummary } = await withChild(ctx, child_id);
     const w = week ?? isoWeek();
-    const lessons = await ctx.api.getScheduleWeek(w);
+    const lessons = await ctx.portal.getScheduleWeek(w);
     return { week: w, child: childSummary, lessons };
   },
 });
