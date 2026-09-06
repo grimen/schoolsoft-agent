@@ -1,0 +1,26 @@
+{
+  "name": "schoolsoft-agent",
+  "owner": { "name": "Jonas Grimfelt", "url": "https://github.com/grimen" },
+  "metadata": {
+    "description": "SchoolSoft for AI agents — pick the MCP server or the skill, both share one core.",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "schoolsoft-mcp",
+      "source": "./schoolsoft-mcp",
+      "description": "SchoolSoft as MCP tools (schedule, lunch, assignments, news, messages) with BankID login in your browser.",
+      "version": "0.2.0",
+      "category": "productivity",
+      "keywords": ["schoolsoft", "school", "sweden", "bankid", "mcp"]
+    },
+    {
+      "name": "schoolsoft-skill",
+      "source": "./schoolsoft-skill",
+      "description": "SchoolSoft as a skill: the agent runs the schoolsoft-agent CLI. Same data, no MCP server.",
+      "version": "0.2.0",
+      "category": "productivity",
+      "keywords": ["schoolsoft", "school", "sweden", "bankid", "skill"]
+    }
+  ]
+}

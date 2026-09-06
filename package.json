@@ -65,5 +65,10 @@
   "homepage": "https://github.com/grimen/schoolsoft-agent#readme",
   "bugs": {
     "url": "https://github.com/grimen/schoolsoft-agent/issues"
+  },
+  "pi": {
+    "skills": [
+      "skills/schoolsoft"
+    ]
   }
 }
