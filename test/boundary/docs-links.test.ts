@@ -18,7 +18,11 @@ function mdFiles(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const files = [join(process.cwd(), "README.md"), ...mdFiles(join(process.cwd(), "docs")), ...mdFiles(join(process.cwd(), "skills"))];
+const files = [
+  join(process.cwd(), "README.md"),
+  ...mdFiles(join(process.cwd(), "docs")),
+  ...mdFiles(join(process.cwd(), "skills")),
+];
 
 test("relative links in docs resolve", () => {
   const broken: string[] = [];

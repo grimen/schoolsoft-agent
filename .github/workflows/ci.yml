@@ -1,0 +1,25 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: make setup
+      - run: make check
+      - run: make plugin-validate
+      - run: make build
+      - run: make skills
+      - run: make mcpb-stage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-stage
+          path: dist/mcpb
+          if-no-files-found: error

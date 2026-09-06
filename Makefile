@@ -4,7 +4,7 @@ SHELL := /bin/bash
 TSX := ./node_modules/.bin/tsx
 NODE_MIN := 22
 
-.PHONY: help setup build typecheck fmt fmt-check boundaries test coverage check e2e docs skills mcpb plugin-validate login status logout configure doctor release clean \
+.PHONY: help setup build typecheck fmt fmt-check boundaries test coverage check e2e docs skills mcpb mcpb-stage plugin-validate login status logout configure doctor release clean \
         install-claude install-opencode install-hermes install-openclaw install-pi
 
 help: ## Show this help
@@ -51,8 +51,11 @@ docs: ## Regenerate command/tool reference docs from the operation registry
 skills: build ## Build per-host skill folders into dist/skills/
 	npm run skills
 
-mcpb: build skills ## Build the Claude Desktop bundle (dist/schoolsoft-agent.mcpb)
-	npx -y @anthropic-ai/mcpb pack plugins/mcpb dist/schoolsoft-agent.mcpb
+mcpb-stage: build ## Stage the Claude Desktop bundle directory (dist/mcpb)
+	$(TSX) scripts/build-mcpb.ts
+
+mcpb: mcpb-stage ## Pack the Claude Desktop bundle (dist/schoolsoft-agent.mcpb)
+	npx -y @anthropic-ai/mcpb pack dist/mcpb dist/schoolsoft-agent.mcpb
 
 plugin-validate: ## Validate every host manifest and skill folder
 	npm run plugin:validate

@@ -33,7 +33,7 @@ before(async () => {
   if (!LIVE) return;
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [join(process.cwd(), "dist", "index.js")],
+    args: [join(process.cwd(), "dist", "mcp", "index.js")],
     env: {
       ...(process.env as Record<string, string>),
     },
@@ -46,6 +46,24 @@ before(async () => {
 after(async () => {
   if (client) await client.close();
 });
+
+test(
+  "M0: tools/list exposes all 12 operations and find_school works without auth",
+  { skip },
+  async () => {
+    const { tools } = await client.listTools();
+    assert.equal(tools.length, 12);
+    const res = await call("schoolsoft_find_school", { query: "rösjö" });
+    assert.notEqual(res.isError, true, res.content[0]?.text);
+    const data = res.structuredContent as { schools: { slug: string; orgId: number }[] };
+    assert.equal(data.schools[0]?.slug, "taby");
+    record(
+      "M0",
+      "find_school live (rösjö)",
+      `${data.schools.length} hits, top=${data.schools[0]?.slug}/${data.schools[0]?.orgId}`,
+    );
+  },
+);
 
 test("M1: subprocess restores session silently (no BankID)", { skip }, async () => {
   const res = await call("schoolsoft_auth_status");

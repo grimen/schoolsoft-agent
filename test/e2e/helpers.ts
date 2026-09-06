@@ -44,9 +44,12 @@ export function record(id: string, question: string, finding: string): void {
 
 const inputs = () => ({ env: process.env, home: homedir(), platform: process.platform });
 
-/** The same context production adapters build. */
+let ctxFactory: (() => OperationContext) | null = null;
+
+/** The same context production adapters build — one per test process. */
 export function e2eContext(): OperationContext {
-  return loadContext(inputs())();
+  if (!ctxFactory) ctxFactory = loadContext(inputs());
+  return ctxFactory();
 }
 
 export function e2eStore(): FileSessionStore {

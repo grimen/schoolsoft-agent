@@ -117,7 +117,9 @@ export function toExitCode(e: unknown, stderr: (s: string) => void): ExitCode {
     return e.code;
   }
   if (e instanceof NotAuthenticatedError) {
-    stderr(`Not authenticated: run "schoolsoft-agent login" (opens your browser for BankID).`);
+    stderr(
+      `Not authenticated: run "schoolsoft-agent login" (opens your browser for BankID). ${e.message}`,
+    );
     return EXIT.NOT_AUTHENTICATED;
   }
   if (e instanceof NotConfiguredError) {
