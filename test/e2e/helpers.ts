@@ -11,14 +11,15 @@
 import { appendFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { FileSessionStore } from "../../src/services/file-store.js";
-import { DEFAULT_STATE_DIR_ENV } from "../../src/constants.js";
-import type { PersistedSession } from "../../src/services/store.js";
+import {
+  FileSessionStore,
+  type PersistedSession,
+  type OperationContext,
+} from "../../src/core/index.js";
+import { loadConfig, loadContext } from "../../src/shared/bootstrap.js";
 
 export const LIVE = process.env.SCHOOLSOFT_E2E === "1";
-export const skip = LIVE
-  ? false
-  : "set SCHOOLSOFT_E2E=1 (and SCHOOLSOFT_SCHOOL) to run live e2e";
+export const skip = LIVE ? false : "set SCHOOLSOFT_E2E=1 (and SCHOOLSOFT_SCHOOL) to run live e2e";
 
 export const REPORT_PATH = join(process.cwd(), "e2e-report.md");
 
@@ -41,8 +42,18 @@ export function record(id: string, question: string, finding: string): void {
   console.log(`[finding ${id}] ${question} → ${clean}`);
 }
 
+const inputs = () => ({ env: process.env, home: homedir(), platform: process.platform });
+
+let ctxFactory: (() => OperationContext) | null = null;
+
+/** The same context production adapters build — one per test process. */
+export function e2eContext(): OperationContext {
+  if (!ctxFactory) ctxFactory = loadContext(inputs());
+  return ctxFactory();
+}
+
 export function e2eStore(): FileSessionStore {
-  return FileSessionStore.fromEnv(DEFAULT_STATE_DIR_ENV);
+  return new FileSessionStore(loadConfig(inputs()).stateDir);
 }
 
 export function loadPersisted(): PersistedSession | null {
@@ -60,5 +71,5 @@ export function forceExpireAccessToken(): boolean {
 }
 
 export function stateDirInfo(): string {
-  return process.env[DEFAULT_STATE_DIR_ENV] ?? join(homedir(), ".schoolsoft-mcp");
+  return loadConfig(inputs()).stateDir;
 }

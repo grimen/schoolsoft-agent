@@ -1,0 +1,29 @@
+sequenceDiagram
+  autonumber
+  participant O as Operation
+  participant M as SessionManager
+  participant St as Encrypted store
+  participant Str as BankIdBrowserStrategy
+  participant L as SchoolSoft token endpoint
+  participant E as Eva API
+
+  O->>M: ensureSession()
+  M->>St: load()
+  alt nothing saved / other school
+    M-->>O: NotAuthenticatedError ("run login")
+  else saved session
+    M->>Str: restore(saved)
+    alt token expired or expiry unknown
+      Str->>L: grantType=refresh_token (clientId=vApp)
+      L-->>Str: new access + rotated refresh
+    end
+    Str->>E: GET /eva/api/v1/parent
+    alt 401
+      Str->>L: refresh once more
+      Str->>E: retry
+    end
+    Str->>Str: cookie exchange for remembered childInFocus
+    M->>St: save(refreshed tokens, cookies, context)
+    M->>M: verifySession() via cookies
+    M-->>O: live client
+  end

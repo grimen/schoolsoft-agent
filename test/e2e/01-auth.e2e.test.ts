@@ -10,8 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionManager } from "../../src/services/wiring.js";
-import { NotAuthenticatedError } from "../../src/services/session-manager.js";
+import { NotAuthenticatedError } from "../../src/core/index.js";
 import {
   skip,
   initReport,
@@ -19,12 +18,13 @@ import {
   loadPersisted,
   forceExpireAccessToken,
   e2eStore,
+  e2eContext,
 } from "./helpers.js";
 
 initReport();
 
 test("A1: bootstrap — silent restore, else interactive BankID login", { skip }, async () => {
-  const manager = sessionManager();
+  const manager = e2eContext().manager;
   let path = "silent-restore";
   try {
     await manager.ensureSession();
@@ -75,13 +75,13 @@ test("A3: forced access-token expiry triggers silent refresh", { skip }, async (
     return;
   }
   // New manager instance = cold start, must go through restore+refresh.
-  const { SessionManager } = await import("../../src/services/session-manager.js");
-  const { BankIdBrowserStrategy } = await import("../../src/auth/bankid-browser.js");
-  const cold = new SessionManager({
-    school: process.env.SCHOOLSOFT_SCHOOL!,
-    store: e2eStore(),
-    strategies: [new BankIdBrowserStrategy()],
-  });
+  const { createSessionManager } = await import("../../src/core/index.js");
+  const { loadConfig } = await import("../../src/shared/bootstrap.js");
+  const { homedir } = await import("node:os");
+  const cold = createSessionManager(
+    loadConfig({ env: process.env, home: homedir(), platform: process.platform }),
+    { store: e2eStore() },
+  );
   const client = await cold.ensureSession(); // must NOT prompt for BankID
   assert.ok(await client.verifySession());
   const refreshed = loadPersisted();
@@ -98,13 +98,13 @@ test("A4: garbage session fails closed with actionable error", { skip }, async (
   assert.ok(backup);
   try {
     store.save({ ...backup!, accessToken: "corrupt", refreshToken: "corrupt" });
-    const { SessionManager } = await import("../../src/services/session-manager.js");
-    const { BankIdBrowserStrategy } = await import("../../src/auth/bankid-browser.js");
-    const cold = new SessionManager({
-      school: process.env.SCHOOLSOFT_SCHOOL!,
-      store,
-      strategies: [new BankIdBrowserStrategy()],
-    });
+    const { createSessionManager } = await import("../../src/core/index.js");
+    const { loadConfig } = await import("../../src/shared/bootstrap.js");
+    const { homedir } = await import("node:os");
+    const cold = createSessionManager(
+      loadConfig({ env: process.env, home: homedir(), platform: process.platform }),
+      { store },
+    );
     await assert.rejects(() => cold.ensureSession(), NotAuthenticatedError);
     assert.equal(store.load(), null, "bad session must be cleared");
   } finally {

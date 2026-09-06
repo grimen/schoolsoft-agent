@@ -1,0 +1,7 @@
+{
+  "hermes": {
+    "category": "education",
+    "tags": ["schoolsoft", "school", "sweden", "bankid", "parents"],
+    "requires_toolsets": ["terminal"]
+  }
+}

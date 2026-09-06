@@ -25,10 +25,7 @@ interface ToolCallResult {
   content: { type: string; text: string }[];
 }
 
-async function call(
-  name: string,
-  args: Record<string, unknown> = {},
-): Promise<ToolCallResult> {
+async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
   return (await client.callTool({ name, arguments: args })) as ToolCallResult;
 }
 
@@ -36,7 +33,7 @@ before(async () => {
   if (!LIVE) return;
   const transport = new StdioClientTransport({
     command: process.execPath,
-    args: [join(process.cwd(), "dist", "index.js")],
+    args: [join(process.cwd(), "dist", "mcp", "index.js")],
     env: {
       ...(process.env as Record<string, string>),
     },
@@ -49,6 +46,24 @@ before(async () => {
 after(async () => {
   if (client) await client.close();
 });
+
+test(
+  "M0: tools/list exposes all 12 operations and find_school works without auth",
+  { skip },
+  async () => {
+    const { tools } = await client.listTools();
+    assert.equal(tools.length, 12);
+    const res = await call("schoolsoft_find_school", { query: "rösjö" });
+    assert.notEqual(res.isError, true, res.content[0]?.text);
+    const data = res.structuredContent as { schools: { slug: string; orgId: number }[] };
+    assert.equal(data.schools[0]?.slug, "taby");
+    record(
+      "M0",
+      "find_school live (rösjö)",
+      `${data.schools.length} hits, top=${data.schools[0]?.slug}/${data.schools[0]?.orgId}`,
+    );
+  },
+);
 
 test("M1: subprocess restores session silently (no BankID)", { skip }, async () => {
   const res = await call("schoolsoft_auth_status");
@@ -100,9 +115,16 @@ test("M5: get_news returns items", { skip }, async () => {
 test("M6: list_children + get_messages work for the guardian", { skip }, async () => {
   const kids = await call("schoolsoft_list_children");
   assert.notEqual(kids.isError, true, kids.content[0]?.text);
-  const data = kids.structuredContent as { children: { studentId: number }[]; childInFocus: number };
+  const data = kids.structuredContent as {
+    children: { studentId: number }[];
+    childInFocus: number;
+  };
   assert.ok(data.children.length >= 1);
-  record("Q3", "Multi-child accounts", `${data.children.length} children, focus=${data.childInFocus}`);
+  record(
+    "Q3",
+    "Multi-child accounts",
+    `${data.children.length} children, focus=${data.childInFocus}`,
+  );
 
   const msgs = await call("schoolsoft_get_messages", { limit: 5 });
   assert.notEqual(msgs.isError, true, msgs.content[0]?.text);

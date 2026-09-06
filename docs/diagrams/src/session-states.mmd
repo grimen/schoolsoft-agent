@@ -1,0 +1,15 @@
+stateDiagram-v2
+  [*] --> None
+  None --> TokensOnly: login → code exchanged
+  TokensOnly --> Established: profile + cookie exchange ok
+  TokensOnly --> None: exchange fails and no refresh token
+  Established --> Established: operation / child switch (re-exchange)
+  Established --> Expired: access token > 15 min old
+  Expired --> Established: restore → refresh ok
+  Expired --> None: refresh rejected (refresh token dead)
+  Established --> None: logout
+  note right of TokensOnly
+    Persisted even when a later step fails,
+    so a bug in the exchange never costs
+    the user another BankID.
+  end note

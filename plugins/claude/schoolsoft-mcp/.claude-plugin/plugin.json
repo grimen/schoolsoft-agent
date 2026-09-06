@@ -1,0 +1,23 @@
+{
+  "name": "schoolsoft-mcp",
+  "displayName": "SchoolSoft (MCP)",
+  "version": "0.2.0",
+  "description": "SchoolSoft for guardians as MCP tools: schedule, lunch, assignments, news, messages. BankID login happens in your own browser. Independent project, not affiliated with SchoolSoft AB.",
+  "author": {
+    "name": "Jonas Grimfelt",
+    "url": "https://github.com/grimen"
+  },
+  "homepage": "https://github.com/grimen/schoolsoft-agent",
+  "repository": "https://github.com/grimen/schoolsoft-agent",
+  "license": "MIT",
+  "keywords": ["schoolsoft", "school", "bankid", "sweden"],
+  "mcpServers": "./.mcp.json",
+  "userConfig": {
+    "school": {
+      "title": "School slug",
+      "type": "string",
+      "description": "Your school's SchoolSoft slug, e.g. \"taby\" from https://sms.schoolsoft.se/taby/… (use the schoolsoft_find_school tool if unsure)",
+      "required": false
+    }
+  }
+}

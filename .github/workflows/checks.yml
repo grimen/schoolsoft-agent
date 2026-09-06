@@ -1,0 +1,114 @@
+name: Checks
+
+# Reusable only: ci.yml calls this as the first stage of every run. Everything
+# here is static and cheap; Unit waits for all of it and E2E waits for Unit,
+# so a lint error or a bad commit message never spends test minutes.
+on:
+  workflow_call:
+    outputs:
+      docs-only:
+        description: "'true' when every changed file is documentation (PRs only)"
+        value: ${{ jobs.changes.outputs.docs-only }}
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      docs-only: ${{ steps.classify.outputs.docs-only }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Classify changed files
+        id: classify
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/ci/changed-class.sh
+
+  code:
+    name: Code
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Dependency audit (audit-ci.jsonc allowlist)
+        run: make audit
+      - name: Lint GitHub Actions workflows (actionlint)
+        run: docker run --rm -v "$PWD":/repo --workdir /repo rhysd/actionlint:latest -color
+      - name: Lint repo shell scripts (shellcheck)
+        run: make shellcheck
+      - name: Check generated diagrams are current
+        run: make diagrams-check
+      - name: Lint + typecheck + format check + import boundaries
+        run: make check-code
+
+  packages:
+    name: Packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Generated docs and skills are current
+        run: make docs skills && git diff --exit-code -- docs/reference skills plugins/claude/schoolsoft-skill/skills
+      - name: Host manifests validate
+        run: make plugin-validate
+      - name: Package shape (publint) + pack/install smoke
+        run: make check-package
+
+  # Conventional Commits on the PR's commits and its title (squash merges take
+  # the title as the commit on main; release-please reads it).
+  commits:
+    name: Commits
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Lint PR commits
+        run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
+      - name: Lint PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$PR_TITLE" | npx commitlint --verbose
+
+  # Warns when architecture-relevant files change without a docs/ update;
+  # fails for a diagram source without its re-rendered SVG.
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      EVENT_NAME: ${{ github.event_name }}
+      BASE_REF: ${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Check for architecture changes without doc updates
+        run: make docs-check

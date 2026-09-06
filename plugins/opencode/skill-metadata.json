@@ -1,0 +1,1 @@
+{ "opencode": { "install": "npm install -g schoolsoft-agent", "requires": { "bins": ["node"] } } }

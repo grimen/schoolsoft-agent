@@ -1,0 +1,9 @@
+{
+  "openclaw": {
+    "emoji": "🏫",
+    "homepage": "https://github.com/grimen/schoolsoft-agent",
+    "requires": { "bins": ["node"], "anyBins": ["schoolsoft-agent", "npx"] },
+    "install": [{ "kind": "node", "package": "schoolsoft-agent", "bins": ["schoolsoft-agent"] }],
+    "os": ["darwin", "linux", "win32"]
+  }
+}

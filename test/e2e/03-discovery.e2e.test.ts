@@ -5,39 +5,41 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionManager, guardianApi } from "../../src/services/wiring.js";
+import { e2eContext } from "./helpers.js";
 import { skip, record } from "./helpers.js";
 
 test("D1: guardian context + webview session shape", { skip }, async () => {
-  const manager = sessionManager();
+  const ctx = e2eContext();
+  const manager = ctx.manager;
   await manager.ensureSession();
-  const ctx = manager.guardian();
-  const session = await guardianApi(manager).getSession();
+  const guardian = manager.guardian();
+  const session = await ctx.api.getSession();
   record(
     "Q3",
     "Multi-child session shape",
-    `${ctx.children.length} children (${ctx.children.map((c) => c.schools[0]?.className).join(", ")}), ` +
-      `focus=${ctx.childInFocus}; /rest-api/session keys: ${Object.keys(session as object).join(",")}`,
+    `${guardian.children.length} children (${guardian.children.map((c) => c.schools[0]?.className).join(", ")}), ` +
+      `focus=${guardian.childInFocus}; /rest-api/session keys: ${Object.keys(session as object).join(",")}`,
   );
   const { writeFileSync } = await import("node:fs");
-  writeFileSync("e2e-session-dump.json", JSON.stringify({ ctx, session }, null, 2));
+  writeFileSync("e2e-session-dump.json", JSON.stringify({ guardian, session }, null, 2));
   console.log("session dump → e2e-session-dump.json (gitignored)");
   assert.ok(session);
 });
 
 test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
-  const manager = sessionManager();
+  const ctx = e2eContext();
+  const manager = ctx.manager;
   await manager.ensureSession();
-  const api = guardianApi(manager);
-  const ctx = manager.guardian();
-  const child = ctx.children.find((c) => c.studentId === ctx.childInFocus)!;
+  const api = ctx.api;
+  const guardian = manager.guardian();
+  const child = guardian.children.find((c) => c.studentId === guardian.childInFocus)!;
   const orgId = child.schools[0].orgId;
   const week = 37;
   const probes: [string, () => Promise<unknown>][] = [
     ["lunch", () => api.getLunchWeek(orgId, week)],
-    ["news", () => api.getNews(ctx.userId, orgId, child.studentId)],
-    ["inbox", () => api.getInbox(ctx.userId, orgId)],
-    ["nextEvent", () => api.getNextCalendarEvent(ctx.userId, orgId, child.studentId)],
+    ["news", () => api.getNews(guardian.userId, orgId, child.studentId)],
+    ["inbox", () => api.getInbox(guardian.userId, orgId)],
+    ["nextEvent", () => api.getNextCalendarEvent(guardian.userId, orgId, child.studentId)],
     ["schedule", () => api.getScheduleWeek(week)],
     ["assignments", () => api.getAssignmentsWeek(week, new Date().getFullYear())],
   ];
@@ -51,7 +53,10 @@ test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
     }
   }
   record("D2", "Guardian API coverage", results.join("; "));
-  assert.ok(results.every((r) => !r.includes("FAIL")), results.join("; "));
+  assert.ok(
+    results.every((r) => !r.includes("FAIL")),
+    results.join("; "),
+  );
 });
 
 test("D3: token lifetime snapshot for longitudinal tracking", { skip }, async () => {

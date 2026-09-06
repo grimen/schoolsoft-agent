@@ -5,3 +5,11 @@ package-lock.json
 e2e-report.md
 e2e-session-dump.json
 CHANGELOG.md
+docs/reference/
+skills/schoolsoft/references/
+plugins/claude/schoolsoft-skill/skills/
+CLAUDE.md
+docs/superpowers/
+docs/diagrams/README.md
+docs/diagrams/dist/
+docs/assets/

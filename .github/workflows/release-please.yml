@@ -1,0 +1,44 @@
+name: Release Please
+
+# Owns the version, CHANGELOG.md, the vX.Y.Z tag and the GitHub Release.
+# On every push to main it reads the Conventional Commits since the last
+# release (the squashed PR titles commitlint enforces), infers the bump
+# (feat -> minor, fix -> patch, `!` / BREAKING CHANGE -> minor while < 1.0)
+# and keeps ONE open pull request, "chore(release): X.Y.Z", up to date.
+# Merging that PR is the whole release step (`make release`).
+#
+# After the merge this workflow tags, creates the GitHub Release (body = the
+# changelog section) and dispatches ci.yml at the tag with `release_tag`,
+# because GitHub never triggers workflows from events the workflow token
+# itself created. ci.yml treats that dispatch exactly like a `release`
+# event. See docs/releasing.md.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # tag + release + the release branch
+  pull-requests: write # the release PR
+  actions: write # dispatch ci.yml at the tag
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: Release PR / Tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Update the release PR, or tag the merged one
+        id: release
+        uses: googleapis/release-please-action@v4
+
+      - name: Start the release run of ci.yml at the new tag
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+        run: gh workflow run ci.yml --repo "$REPO" --ref "$TAG" -f "release_tag=$TAG"
