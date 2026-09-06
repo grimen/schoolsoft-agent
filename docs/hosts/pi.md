@@ -1,23 +1,39 @@
 # Pi
 
-Pi has no MCP support, so the skill is the only surface.
+[Pi](https://pi.dev) has no MCP support, so the skill is the surface.
+
+## What you need
+
+- Pi installed ([pi-mono on GitHub](https://github.com/badlogic/pi-mono)).
+- [Node.js](https://nodejs.org/en/download) 22 or newer.
+- Your school's name, and BankID.
+
+## Install
 
 ```bash
 pi install git:github.com/grimen/schoolsoft-agent
-```
-
-The repository's `package.json` declares the skill under the `pi` key. Pi reads `.agents/skills/` and `~/.pi/agent/skills/` as well; from a checkout, `make install-pi` copies it to `~/.pi/agent/skills/schoolsoft`.
-
-Install the CLI globally so the wrapper script does not fall back to `npx` on every call:
-
-```bash
 npm install -g schoolsoft-agent
-schoolsoft-agent configure --query "<school name>"
-schoolsoft-agent login
+schoolsoft-agent configure --query "Rösjöskolan"
 ```
 
-Pi runs shell commands without a default timeout; `login` blocks until BankID completes or five minutes pass.
+The repository declares the skill for Pi in its `package.json`. Installing the command globally avoids an `npx` start-up on every call. Pi also reads skills from `.agents/skills/` and `~/.pi/agent/skills/`; from a checkout, `make install-pi` copies it there.
 
-## Optional: headless browser
+## First use
 
-Contact lists, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead. Grades, student documents, unreported absence, the attendance report, assessment criteria and Avstämning are behind SchoolSoft's "log in again" gate and additionally need one `npx -y schoolsoft-agent login --web` (the normal web login opens in a browser window; nothing is automated), after which they read through the same headless browser.
+Ask: **"Logga in på SchoolSoft."**, or run `schoolsoft-agent login` in a terminal. A browser tab opens SchoolSoft's login; complete BankID there. Pi runs commands without a timeout, so the login can wait the full five minutes.
+
+## Try asking
+
+- "Vad har Ella på schemat på fredag?"
+- "Vad är det till lunch i veckan?"
+- "Vilka läxor finns den här veckan?"
+
+## Optional: contact lists, bookings, files, grades
+
+Run `schoolsoft-agent browser install` once. For grades, documents, absence and assessment criteria also run `schoolsoft-agent login --web` once. Details in [Get started](README.md#4-optional-extras-only-if-you-want-them).
+
+## Update and remove
+
+`npm install -g schoolsoft-agent` again updates the command; re-run `pi install` for the skill. `schoolsoft-agent logout` deletes the saved session.
+
+Problems? [Troubleshooting](../troubleshooting.md).

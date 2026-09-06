@@ -1,10 +1,22 @@
 # OpenCode
 
-OpenCode has no marketplace; configuration is a file.
+[OpenCode](https://opencode.ai) has no marketplace; you add a few lines to its config file. Choose MCP (recommended) or the skill.
 
-## MCP
+## What you need
 
-Add to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
+- OpenCode installed ([docs](https://opencode.ai/docs/)).
+- [Node.js](https://nodejs.org/en/download) 22 or newer.
+- Your school's name, and BankID.
+
+## Install: MCP (recommended)
+
+Find your school first (once):
+
+```bash
+npx -y schoolsoft-agent configure --query "Rösjöskolan"
+```
+
+Then add this to `opencode.json` in your project, or to `~/.config/opencode/opencode.json` for all projects:
 
 ```json
 {
@@ -12,27 +24,40 @@ Add to `opencode.json` (project) or `~/.config/opencode/opencode.json` (global):
     "schoolsoft": {
       "type": "local",
       "command": ["npx", "-y", "-p", "schoolsoft-agent", "schoolsoft-agent-mcp"],
-      "environment": { "SCHOOLSOFT_SCHOOL": "taby" },
       "enabled": true
     }
   }
 }
 ```
 
-`plugins/opencode/opencode.json` in the repo is a ready-made copy.
+If you skipped `configure`, add `"environment": { "SCHOOLSOFT_SCHOOL": "<slug>" }` inside the `schoolsoft` block instead. A ready-made copy is `plugins/opencode/opencode.json` in the repository. OpenCode's own docs: [MCP servers](https://opencode.ai/docs/mcp-servers/) · [Config](https://opencode.ai/docs/config/).
 
-## Skill
+## Install: skill (alternative)
 
-OpenCode reads Agent Skills from `.agents/skills/`, `.claude/skills/` and their global equivalents. From a checkout:
+OpenCode reads skills from `.agents/skills/` and `~/.config/opencode/skills/`. Copy the folder `skills/schoolsoft/` from the repository there (from a checkout, `make install-opencode` does it), and allow it in `opencode.json`:
 
-```bash
-make install-opencode   # copies the skill into ./.agents/skills/schoolsoft
+```json
+{ "permission": { "skill": { "schoolsoft": "allow" } } }
 ```
 
-Or by hand: copy `skills/schoolsoft/` to `~/.config/opencode/skills/schoolsoft/`. Allow it in `opencode.json` with `"permission": { "skill": { "schoolsoft": "allow" } }`.
+The skill runs the `schoolsoft-agent` command; `npm install -g schoolsoft-agent` once to avoid the `npx` start-up delay. OpenCode's docs: [Skills](https://opencode.ai/docs/skills/).
 
-The skill runs `schoolsoft-agent`; install it globally (`npm install -g schoolsoft-agent`) or let the wrapper fall back to `npx`.
+## First use
 
-## Optional: headless browser
+Ask: **"Logga in på SchoolSoft."** A browser tab opens SchoolSoft's login; complete BankID. OpenCode continues when SchoolSoft redirects back.
 
-Contact lists, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead. Grades, student documents, unreported absence, the attendance report, assessment criteria and Avstämning are behind SchoolSoft's "log in again" gate and additionally need one `npx -y schoolsoft-agent login --web` (the normal web login opens in a browser window; nothing is automated), after which they read through the same headless browser.
+## Try asking
+
+- "Vad har barnen på schemat imorgon?"
+- "Vad är det till lunch på torsdag?"
+- "Finns det nya meddelanden från skolan?"
+
+## Optional: contact lists, bookings, files, grades
+
+Run `npx -y schoolsoft-agent browser install` once (hidden Chromium). For grades, documents, absence and assessment criteria also run `npx -y schoolsoft-agent login --web` once. Details in [Get started](README.md#4-optional-extras-only-if-you-want-them).
+
+## Update and remove
+
+`npx -y` always fetches the latest release. Remove the `schoolsoft` block from `opencode.json`; run `npx -y schoolsoft-agent logout` to delete the saved session.
+
+Problems? [Troubleshooting](../troubleshooting.md).

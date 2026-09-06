@@ -1,27 +1,51 @@
 # OpenClaw
 
-## Skill (ClawHub)
+[OpenClaw](https://docs.openclaw.ai/) supports both surfaces. The skill from ClawHub is one command; MCP is one command too.
+
+## What you need
+
+- OpenClaw installed ([docs](https://docs.openclaw.ai/)).
+- [Node.js](https://nodejs.org/en/download) 22 or newer.
+- Your school's name, and BankID.
+
+## Install: skill (ClawHub)
 
 ```bash
 openclaw skills install @grimen/schoolsoft
 ```
 
-The published skill carries `metadata.openclaw` declaring the Node requirement and `npm install -g schoolsoft-agent` as the install step. From a checkout, `make install-openclaw` copies the OpenClaw variant to `~/.openclaw/skills/schoolsoft`.
+The skill declares its Node requirement and installs the `schoolsoft-agent` command for you. OpenClaw's docs: [Skills](https://docs.openclaw.ai/tools/skills) · [ClawHub](https://clawhub.ai).
 
-## MCP
-
-OpenClaw speaks MCP natively:
+## Install: MCP
 
 ```bash
 openclaw mcp add schoolsoft --transport stdio -- npx -y -p schoolsoft-agent schoolsoft-agent-mcp
 ```
 
-Set `SCHOOLSOFT_SCHOOL` in the server's env, or run `npx -y schoolsoft-agent configure --query "<school>"` once.
+Then find your school once: `npx -y schoolsoft-agent configure --query "Rösjöskolan"` (or set `SCHOOLSOFT_SCHOOL=<slug>` in the server's environment). OpenClaw's docs: [MCP](https://docs.openclaw.ai/mcp).
 
-## Sandbox note
+## First use
 
-In Docker sandbox mode OpenClaw blocks network and cannot open a browser. Run `schoolsoft-agent login` on the host once; the session is stored in the host config directory and the sandboxed process needs that directory mounted. Alternatively use OpenClaw's own `browser.*` tool to open the URL the CLI prints.
+Ask: **"Logga in på SchoolSoft."** A browser tab opens SchoolSoft's login; complete BankID there.
 
-## Optional: headless browser
+**Sandbox note.** In Docker sandbox mode OpenClaw blocks network and cannot open a browser. Run `npx -y schoolsoft-agent login` on the host once; the session is saved in your config directory, which the sandboxed process needs mounted. Or let OpenClaw open the URL the tool prints with its own browser tool.
 
-Contact lists, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead. Grades, student documents, unreported absence, the attendance report, assessment criteria and Avstämning are behind SchoolSoft's "log in again" gate and additionally need one `npx -y schoolsoft-agent login --web` (the normal web login opens in a browser window; nothing is automated), after which they read through the same headless browser.
+## Try asking
+
+- "Vad har Ella på schemat på fredag?"
+- "Vad är det till lunch i veckan?"
+- "Har vi fått några meddelanden från skolan?"
+
+## Optional: contact lists, bookings, files, grades
+
+Run `npx -y schoolsoft-agent browser install` once. For grades, documents, absence and assessment criteria also run `npx -y schoolsoft-agent login --web` once. Details in [Get started](README.md#4-optional-extras-only-if-you-want-them).
+
+## Update and remove
+
+`openclaw skills update @grimen/schoolsoft` or re-run `openclaw mcp add`. Remove with `openclaw skills remove @grimen/schoolsoft` / `openclaw mcp remove schoolsoft`; `npx -y schoolsoft-agent logout` deletes the saved session.
+
+Problems? [Troubleshooting](../troubleshooting.md).
+
+## For developers
+
+`make install-openclaw` copies the OpenClaw variant of the skill to `~/.openclaw/skills/schoolsoft` from a checkout.
