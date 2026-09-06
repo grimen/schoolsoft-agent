@@ -12,6 +12,7 @@
 import type { BrowserEngine } from "./session.js";
 import { defaultLoader, type PlaywrightLoader } from "./playwright.js";
 import type { WebLoginSpec } from "../provider/types.js";
+import { AgentError } from "../errors/index.js";
 
 export interface WebCookie {
   name: string;
@@ -94,9 +95,12 @@ export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
       }
       await new Promise((r) => setTimeout(r, pollMs));
     }
-    throw new Error(
-      `Web login timed out after ${Math.round(timeoutMs / 1000)} s without reaching the school portal. Run login --web again.`,
-    );
+    throw new AgentError({
+      kind: "not_authenticated",
+      key: "web_login_timeout",
+      params: { seconds: Math.round(timeoutMs / 1000) },
+      hint: "login_web",
+    });
   } finally {
     await browser.close().catch(() => {});
   }

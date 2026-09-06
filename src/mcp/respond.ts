@@ -1,5 +1,5 @@
 /** Shared response formatting for all tools. */
-import { CHARACTER_LIMIT, NotAuthenticatedError, NotConfiguredError } from "../core/index.js";
+import { CHARACTER_LIMIT, describeError, type Lang } from "../core/index.js";
 
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -22,14 +22,15 @@ export function ok(data: Record<string, unknown>): ToolResult {
   };
 }
 
-export function fail(error: unknown): ToolResult {
-  const message = error instanceof Error ? error.message : String(error ?? "Unknown error");
-  const hint =
-    error instanceof NotAuthenticatedError || error instanceof NotConfiguredError
-      ? ""
-      : "\nIf this looks like an auth problem, try schoolsoft_auth_status.";
+/** One line for the problem, one for what the agent should do next; kind and retryability as structured content. */
+export function fail(error: unknown, lang: Lang = "en"): ToolResult {
+  const d = describeError(error, lang, "mcp");
+  const text = d.hint ? `Error: ${d.message}\nNext: ${d.hint}` : `Error: ${d.message}`;
   return {
-    content: [{ type: "text", text: `Error: ${message}${hint}` }],
+    content: [{ type: "text", text }],
+    structuredContent: {
+      error: { kind: d.kind, message: d.message, hint: d.hint, retryable: d.retryable },
+    },
     isError: true,
   };
 }

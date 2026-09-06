@@ -7,7 +7,7 @@
  * Chromium), absence by `scripts/pack-smoke.sh` (installed with
  * --omit=optional, browser-backed tools must fail with the install hint).
  */
-import { BrowserRequiredError } from "../portal/types.js";
+import { AgentError } from "../errors/index.js";
 
 /** The slice of the playwright module we use; injectable for tests. */
 export interface PlaywrightLike {
@@ -23,10 +23,13 @@ export async function loadPlaywright(): Promise<PlaywrightLike> {
   try {
     return (await import("playwright")) as unknown as PlaywrightLike;
   } catch (e) {
-    throw new BrowserRequiredError(
-      "browser",
-      `playwright is not installed: ${(e as Error).message}`,
-    );
+    throw new AgentError({
+      kind: "not_available",
+      key: "playwright_missing",
+      params: { detail: `playwright is not installed: ${(e as Error).message}` },
+      hint: "browser_install",
+      cause: e,
+    });
   }
 }
 /* c8 ignore stop */

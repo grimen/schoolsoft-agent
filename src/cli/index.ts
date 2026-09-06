@@ -3,6 +3,7 @@
  * schoolsoft-agent — CLI entry point (also what the skill's scripts call).
  */
 import { homedir } from "node:os";
+import { spawn } from "node:child_process";
 import { createInterface } from "node:readline/promises";
 import { runCli } from "./program.js";
 import { loadContext } from "../shared/bootstrap.js";
@@ -22,6 +23,15 @@ async function main(): Promise<void> {
     platform: process.platform,
     version: PACKAGE_VERSION,
     prompt: rl ? (q) => rl.question(q) : undefined,
+    detach: (argv) => {
+      const child = spawn(process.execPath, [process.argv[1], ...argv], {
+        detached: true,
+        stdio: "ignore",
+        env: process.env,
+      });
+      child.unref();
+      return child.pid ?? 0;
+    },
   });
   rl?.close();
   process.exitCode = code;

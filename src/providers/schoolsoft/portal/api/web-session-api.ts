@@ -5,6 +5,7 @@
  * session keeps its own child in focus, so gated reads align it first.
  */
 import { SessionLostError, WebLoginRequiredError } from "../../../../core/portal/types.js";
+import { UpstreamError } from "../../../../core/errors/index.js";
 import type { SchoolsoftHttp } from "./transport.js";
 
 /** Shape of GET /rest-api/parent/header/parent (web session): who is selected. */
@@ -57,9 +58,7 @@ export class WebSessionApi {
     const status = await this.http.put(path, cookie);
     if (status === 401 || status === 403) throw new SessionLostError(path, true);
     if (status < 200 || status >= 300)
-      throw new Error(
-        `SchoolSoft returned HTTP ${status} when selecting child ${childId} in the web session.`,
-      );
+      throw new UpstreamError(status, `selecting child ${childId} in the web session`);
   }
 
   /** Align the web session's child with the wanted one (no-op when already there or no target). */

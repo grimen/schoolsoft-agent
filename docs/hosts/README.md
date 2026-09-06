@@ -41,6 +41,8 @@ Everything else works without either step.
 
 ## 5. When something does not work
 
+Every message the tool shows has two lines: what went wrong, and "Next: what to do". Messages come in Swedish when your computer's language is Swedish (or with `SCHOOLSOFT_LANG=sv`). If your assistant gives up while you are doing BankID, ask it to start the login in the background; it then waits for you instead of timing out.
+
 [Troubleshooting](../troubleshooting.md) covers the messages you may see, in plain language: not configured, not logged in, "Vi kunde inte hitta användaren", the browser did not open, the session expired, and the pages that need the second login.
 
 ## Words you will meet

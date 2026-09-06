@@ -48,7 +48,7 @@ npx -y schoolsoft-agent login                              # BankID in your brow
 npx -y schoolsoft-agent get-schedule --pretty              # this week's schedule
 ```
 
-Every command is in the [command reference](docs/reference/commands.md); every crucial one is also a `make` target in a checkout (`make help`).
+Every command is in the [command reference](docs/reference/commands.md); every crucial one is also a `make` target in a checkout (`make help`). Messages come in Swedish when your system language is Swedish (or with `SCHOOLSOFT_LANG=sv`), always as "what went wrong" plus "Next: what to do".
 
 ## What you can ask
 

@@ -86,7 +86,7 @@ test("browser capabilities without a browser fail with the install hint and the 
   });
   await assert.rejects(portal.getFiles(), (e: unknown) => {
     assert.ok(e instanceof BrowserRequiredError);
-    assert.match(e.message, /schoolsoft-agent browser install/);
+    assert.match(e.message, /headless browser/);
     assert.match(e.message, /playwright is not installed/);
     assert.match(e.message, /getFiles/);
     return true;
@@ -127,6 +127,6 @@ test("Portal type and CAPABILITIES agree (compile-time contract exercised at run
 
 test("BrowserRequiredError without a reason has no parenthetical", async () => {
   const e = new BrowserRequiredError("getContacts");
-  assert.match(e.message, /CDP endpoint\.$/);
-  assert.match(new BrowserRequiredError("getContacts", "tests").message, /\(tests\)$/);
+  assert.match(e.message, /headless browser\.$/);
+  assert.match(new BrowserRequiredError("getContacts", "tests").message, /\(tests\)\.$/);
 });

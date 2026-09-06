@@ -34,7 +34,9 @@ The server exposes one tool per capability, all prefixed `schoolsoft_`; see the 
 
 ## First use
 
-Ask the assistant to call `schoolsoft_login`. A browser tab opens SchoolSoft's login; complete BankID there. If the host cannot open a browser, the tool result contains the URL to open yourself.
+Ask the assistant to call `schoolsoft_login`. A browser tab opens SchoolSoft's login; complete BankID there. If the host cannot open a browser, the tool result contains the URL to open yourself. Hosts that time out long tool calls should call `schoolsoft_login` with `background: true`: it returns at once with the URL, and `schoolsoft_auth_status` reports `loginInProgress` until the login is done.
+
+Every error the server returns has two lines, the problem and "Next: what to do", plus a structured `error.kind` (`not_authenticated`, `not_configured`, `network`, `not_available`, `input`, `upstream`, `internal`) and `retryable` flag, so an agent can act without parsing prose.
 
 ## Optional extras and problems
 
@@ -50,5 +52,6 @@ Same as for every host: [Get started](README.md#4-optional-extras-only-if-you-wa
 | `SCHOOLSOFT_STATE_DIR`      | Where the encrypted session lives                            |
 | `SCHOOLSOFT_BROWSER_ENGINE` | `chromium` (default) or `cdp` for an external browser engine |
 | `SCHOOLSOFT_BROWSER_CDP`    | The CDP endpoint when the engine is `cdp`                    |
+| `SCHOOLSOFT_LANG`           | `en` or `sv` for messages; defaults from the system locale   |
 
 `npx -y schoolsoft-agent doctor` shows the effective values and where files are.

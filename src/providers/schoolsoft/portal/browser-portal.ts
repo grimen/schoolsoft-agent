@@ -22,6 +22,7 @@ import {
 } from "./extractors.js";
 import type { PageSpec } from "../../../core/portal/page-spec.js";
 import { PAGES } from "./pages.js";
+import { AgentError } from "../../../core/errors/index.js";
 
 export { PAGES } from "./pages.js";
 
@@ -117,10 +118,14 @@ export class BrowserPortal implements BrowserPortalPart {
     const hit =
       links.find((l) => normalizeSubject(l.subject) === wanted) ??
       links.find((l) => normalizeSubject(l.subject).includes(wanted));
+    if (links.length === 0) throw new AgentError({ kind: "upstream", key: "subject_menu_empty" });
     if (!hit || hit.subjectId === null) {
-      throw new Error(
-        `No subject matching "${subject}" for this child. Available: ${links.map((l) => l.subject).join(", ") || "(none)"}.`,
-      );
+      throw new AgentError({
+        kind: "input",
+        key: "subject_not_found",
+        params: { subject, available: links.map((l) => l.subject).join(", ") },
+        hint: "subject_rooms",
+      });
     }
     const table = await this.table(
       "getAssessmentCriteria",

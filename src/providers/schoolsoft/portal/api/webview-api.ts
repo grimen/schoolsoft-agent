@@ -5,6 +5,7 @@
  */
 import type { SubjectRoom } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
+import { AgentError } from "../../../../core/errors/index.js";
 
 export class WebviewApi {
   constructor(
@@ -14,7 +15,13 @@ export class WebviewApi {
 
   private async cookie<T>(path: string): Promise<T> {
     const cookie = this.cookieHeader();
-    if (!cookie) throw new Error("No session cookies — log in first.");
+    if (!cookie)
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "no session cookies" },
+        hint: "login",
+      });
     return this.http.get<T>(path, { Cookie: cookie });
   }
 

@@ -194,7 +194,7 @@ test("missing playwright surfaces as BrowserRequiredError; missing cookies as Se
   });
   await assert.rejects(
     s.withPage(async () => 1),
-    /schoolsoft-agent browser install/,
+    /headless browser/,
   );
   const t = new PlaywrightSession({
     school: "taby",
@@ -283,7 +283,7 @@ test("web-login cookies are used only when a call asks for them (gated pages)", 
   });
   await assert.rejects(
     noWeb.withPage(async () => 0, { web: true }),
-    /login --web/,
+    /web login session/,
   );
 });
 
@@ -353,7 +353,7 @@ test("headless default, cookie expiry, allowWrites, web-session loss and waitFor
   });
   await assert.rejects(
     s3.withPage((p) => p.goto("/jsp/student/x.jsp"), { web: true }),
-    /login --web/,
+    /web login session/,
   );
 });
 

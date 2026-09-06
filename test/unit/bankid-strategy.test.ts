@@ -144,7 +144,7 @@ test("focusChild re-exchanges cookies for the other child and rejects unknown id
   assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 101);
   assert.equal(log.filter((l) => l.url.includes("/eva-apps/auth/login/parent")).length, 2);
-  await assert.rejects(strategy.focusChild(client, 555), /Unknown child id 555/);
+  await assert.rejects(strategy.focusChild(client, 555), /No child with id 555/);
 });
 
 test("restore: unknown expiry refreshes up front", async () => {
@@ -281,7 +281,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
   // focusChild before any login
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(new SchoolsoftSession("taby"), 100),
-    /log in first/,
+    /Not logged in/,
   );
   // no children
   await assert.rejects(

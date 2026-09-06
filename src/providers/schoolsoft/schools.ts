@@ -8,6 +8,7 @@ import { dirname } from "node:path";
 
 export const SCHOOL_LIST_URL = "https://sms.schoolsoft.se/internal/rest-api/login/schoollist";
 
+import { AgentError, UpstreamError, guardNetwork } from "../../core/errors/index.js";
 import {
   rankSchools,
   type RankedSchool,
@@ -50,8 +51,8 @@ interface CacheShape {
 }
 
 export async function defaultFetch(url: string): Promise<unknown> {
-  const res = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!res.ok) throw new Error(`School list request failed: HTTP ${res.status}`);
+  const res = await guardNetwork(() => fetch(url, { headers: { Accept: "application/json" } }));
+  if (!res.ok) throw new UpstreamError(res.status, "the public school list");
   return res.json();
 }
 
@@ -90,7 +91,13 @@ export class SchoolDirectory implements SchoolDirectoryPort {
     if (cached && this.now() - cached.fetchedAt < this.ttlMs) return cached.schools;
     try {
       const schools = parseSchoolList(await this.fetchImpl(SCHOOL_LIST_URL));
-      if (schools.length === 0) throw new Error("School list was empty");
+      if (schools.length === 0)
+        throw new AgentError({
+          kind: "upstream",
+          key: "school_list_empty",
+          hint: "retry",
+          retryable: true,
+        });
       this.writeCache(schools);
       return schools;
     } catch (e) {

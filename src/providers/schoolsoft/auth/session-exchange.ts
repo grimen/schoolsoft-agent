@@ -12,6 +12,7 @@
  */
 import { schoolsoftFetch, ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
+import { AgentError, guardNetwork } from "../../../core/errors/index.js";
 
 /** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
 export type ExchangeFetch = (
@@ -48,7 +49,12 @@ export async function exchangeTokenForCookies(
 ): Promise<void> {
   const token = client.accessToken;
   if (!token) {
-    throw new Error("No access token on client — complete the login flow first.");
+    throw new AgentError({
+      kind: "not_authenticated",
+      key: "not_authenticated",
+      params: { reason: "no access token yet" },
+      hint: "login",
+    });
   }
   /* c8 ignore next: live default, exercised by make e2e (A1) */
   const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as ExchangeFetch);
@@ -67,25 +73,30 @@ export async function exchangeTokenForCookies(
     headers.childInFocus = String(options.childInFocus);
   }
 
-  const result = await fetchImpl(
-    ssUrl(school, `/eva-apps/auth/login/${userType}`),
-    school,
-    { method: "GET", headers, followRedirects: false, responseType: "text" },
-    APP_UA,
+  const result = await guardNetwork(() =>
+    fetchImpl(
+      ssUrl(school, `/eva-apps/auth/login/${userType}`),
+      school,
+      { method: "GET", headers, followRedirects: false, responseType: "text" },
+      APP_UA,
+    ),
   );
 
   const jsessionid = extractCookie(result.setCookies, "JSESSIONID");
   const hash = extractCookie(result.setCookies, "hash");
   const usertype = extractCookie(result.setCookies, "usertype") ?? "1";
   if (!jsessionid || !hash) {
-    const location = result.headers.location;
-    throw new Error(
-      `Session exchange failed for user type "${userType}" — SchoolSoft ` +
-        `did not return JSESSIONID/hash cookies (status ${result.status}` +
-        (location ? `, redirect ${String(location)}` : "") +
-        `). The access token may be expired, or the user/org/child ids ` +
-        `do not match this account.`,
-    );
+    throw new AgentError({
+      kind: "not_authenticated",
+      key: "cookie_exchange_failed",
+      params: {
+        userType,
+        status: result.status,
+        location:
+          result.headers.location === undefined ? undefined : String(result.headers.location),
+      },
+      hint: "login",
+    });
   }
   client.setSessionCookies(jsessionid, hash, usertype);
 }

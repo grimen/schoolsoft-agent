@@ -49,7 +49,7 @@ test("state mismatch is rejected (CSRF protection)", async () => {
       void fetch(`http://127.0.0.1:${port}/callback?code=EVIL&state=wrong-state`);
     },
   });
-  await assert.rejects(login, /state mismatch/i);
+  await assert.rejects(login, /did not match the request/);
 });
 
 test("provider error param is surfaced", async () => {
@@ -74,7 +74,7 @@ test("missing code is rejected", async () => {
       void fetch(`http://127.0.0.1:${port}/callback?state=${encodeURIComponent(state)}`);
     },
   });
-  await assert.rejects(login, /missing code/i);
+  await assert.rejects(login, /no authorization code/);
 });
 
 test("occupied port produces an actionable error", async () => {
@@ -84,7 +84,7 @@ test("occupied port produces an actionable error", async () => {
   try {
     await assert.rejects(
       runBrowserLogin({ school: "testskola", port, openBrowser: () => {} }),
-      /Could not start callback server/,
+      /Could not start the login callback server/,
     );
   } finally {
     blocker.close();
@@ -125,7 +125,7 @@ test("timeout rejects and closes the server; a non-callback path gets 404", asyn
   const port = usePort();
   await assert.rejects(
     runBrowserLogin({ school: "testskola", port, timeoutMs: 30, openBrowser: () => {} }),
-    /timed out/,
+    /not completed within/,
   );
   const port2 = usePort();
   const login = runBrowserLogin({

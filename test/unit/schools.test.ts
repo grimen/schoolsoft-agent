@@ -123,7 +123,7 @@ test("SchoolDirectory: corrupt or mis-shaped cache is ignored; an empty upstream
   assert.equal((await d1.list()).length, 4, "corrupt cache → refetched");
   writeFileSync(cacheFile, JSON.stringify({ schools: "x", fetchedAt: "y" }));
   const d2 = new SchoolDirectory({ cacheFile, fetchImpl: async () => [] });
-  await assert.rejects(d2.list(), /School list was empty/);
+  await assert.rejects(d2.list(), /school list came back empty/);
 });
 
 test("defaultFetch: JSON on success, error on non-2xx", async () => {

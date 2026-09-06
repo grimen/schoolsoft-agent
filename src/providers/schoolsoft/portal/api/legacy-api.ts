@@ -5,6 +5,7 @@
  */
 import type { ActivityEntry } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
+import { AgentError } from "../../../../core/errors/index.js";
 
 interface Block {
   blockType: string;
@@ -34,7 +35,13 @@ export class LegacyApi {
   /** Verksamhetslogg: `POST /rest/blogpost/getbyloggedinuser`, the page's own generic filter with paging. */
   async getActivityLog(limit = 20): Promise<ActivityEntry[]> {
     const cookie = this.cookieHeader();
-    if (!cookie) throw new Error("No session cookies — log in first.");
+    if (!cookie)
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "no session cookies" },
+        hint: "login",
+      });
     const rows = await this.http.postJson<Row[]>("/rest/blogpost/getbyloggedinuser", cookie, {
       userId: -1,
       userType: -1,

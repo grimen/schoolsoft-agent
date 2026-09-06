@@ -7,6 +7,7 @@
  */
 import { createServer } from "node:http";
 import { defaultOpenInBrowser } from "./open-browser.js";
+import { AgentError } from "../errors/index.js";
 
 export const DEFAULT_CALLBACK_PORT = 43117;
 
@@ -47,14 +48,19 @@ export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
   /* c8 ignore next: the real opener would launch the user's browser */
   const openBrowser = options.openBrowser ?? defaultOpenInBrowser;
   const { port } = options;
+  const timeoutMs = options.timeoutMs ?? 5 * 60 * 1000;
   return new Promise<string>((resolve, reject) => {
-    const timeout = setTimeout(
-      () => {
-        server.close();
-        reject(new Error("Login timed out after 5 minutes. Run schoolsoft_login again."));
-      },
-      options.timeoutMs ?? 5 * 60 * 1000,
-    );
+    const timeout = setTimeout(() => {
+      server.close();
+      reject(
+        new AgentError({
+          kind: "not_authenticated",
+          key: "login_timeout",
+          params: { minutes: Math.round(timeoutMs / 60_000) },
+          hint: "login",
+        }),
+      );
+    }, timeoutMs);
 
     const server = createServer((req, res) => {
       const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
@@ -74,17 +80,26 @@ export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
       };
       if (err) {
         html(ERROR_HTML(err));
-        reject(new Error(`Identity provider returned error: ${err}`));
+        reject(
+          new AgentError({
+            kind: "not_authenticated",
+            key: "login_denied",
+            params: { error: err },
+            hint: "login",
+          }),
+        );
         return;
       }
       if (gotState !== options.expectedState) {
         html(ERROR_HTML("State mismatch — possible CSRF, try again."));
-        reject(new Error("OAuth state mismatch."));
+        reject(
+          new AgentError({ kind: "not_authenticated", key: "login_state_mismatch", hint: "login" }),
+        );
         return;
       }
       if (!gotCode) {
         html(ERROR_HTML("No authorization code in callback."));
-        reject(new Error("Callback missing code parameter."));
+        reject(new AgentError({ kind: "not_authenticated", key: "login_no_code", hint: "login" }));
         return;
       }
       html(SUCCESS_HTML);
@@ -94,10 +109,13 @@ export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
     server.on("error", (e) => {
       clearTimeout(timeout);
       reject(
-        new Error(
-          `Could not start callback server on port ${port}: ${e.message}. ` +
-            `Configure a free callbackPort.`,
-        ),
+        new AgentError({
+          kind: "not_available",
+          key: "callback_port_busy",
+          params: { port, detail: e.message },
+          hint: "free_port",
+          cause: e,
+        }),
       );
     });
 

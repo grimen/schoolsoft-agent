@@ -187,7 +187,7 @@ test("guards: no strategies, unknown strategy id, explicit strategy id, unknown 
     /at least one AuthStrategy/,
   );
   const { manager, store, strategy } = makeManager();
-  await assert.rejects(manager.login("nope"), /Unknown auth strategy "nope"\. Available: fake/);
+  await assert.rejects(manager.login("nope"), /unknown auth strategy "nope"; available: fake/);
   await manager.login("fake");
   assert.equal(strategy.loginCalls, 1);
   store.save({ ...store.load()!, authMethod: "vanished" });

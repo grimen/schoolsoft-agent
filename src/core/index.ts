@@ -22,6 +22,28 @@ export {
   providerIds,
   type PortalDeps,
 } from "./wiring.js";
+export {
+  AgentError,
+  NetworkError,
+  UpstreamError,
+  InputError,
+  EXIT_CODE_BY_KIND,
+  describeError,
+  detectLang,
+  guardNetwork,
+  MESSAGES,
+  HINTS,
+} from "./errors/index.js";
+export type {
+  ErrorKind,
+  ErrorDescription,
+  Lang,
+  Surface,
+  MessageKey,
+  HintKey,
+} from "./errors/index.js";
+export { withSessionRecovery, isRecoverable } from "./portal/recovering.js";
+export { ChildNotFoundError, ChildHasNoSchoolError } from "./portal/guardian.js";
 export { CHARACTER_LIMIT, SCHOOLSOFT_USER_TYPES, type SchoolsoftUserType } from "./constants.js";
 export { DEFAULT_CALLBACK_PORT, awaitCallbackCode } from "./auth/callback-server.js";
 export { defaultOpenInBrowser, openerCommand } from "./auth/open-browser.js";
@@ -36,6 +58,12 @@ export type {
 export { SessionManager, NotAuthenticatedError } from "./session/session-manager.js";
 export type { PersistedSession, SessionStore } from "./session/store.js";
 export { MemorySessionStore } from "./session/store.js";
+export {
+  MemoryPendingLoginStore,
+  FilePendingLoginStore,
+  PENDING_LOGIN_TTL_MS,
+} from "./session/pending-login.js";
+export type { PendingLogin, PendingLoginStore } from "./session/pending-login.js";
 export { FileSessionStore } from "./session/file-store.js";
 export type { AuthStrategy, LoginInfo } from "./auth/strategy.js";
 export { childOf, orgIdOf } from "./portal/guardian.js";

@@ -3,7 +3,7 @@
  * `schoolsoft_` prefix so hosts and E2E tests stay stable.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { operations, type OperationContext } from "../core/index.js";
+import { operations, type Lang, type OperationContext } from "../core/index.js";
 import { ok, fail } from "./respond.js";
 
 export const TOOL_PREFIX = "schoolsoft_";
@@ -12,6 +12,8 @@ export interface McpServerOptions {
   /** Resolves the operation context; may throw NotConfiguredError. */
   getContext: () => Promise<OperationContext> | OperationContext;
   version?: string;
+  /** Language for error text; default English. */
+  lang?: Lang;
 }
 
 export function createMcpServer(options: McpServerOptions): McpServer {
@@ -36,7 +38,7 @@ export function createMcpServer(options: McpServerOptions): McpServer {
           const result = await op.run(ctx, args as never);
           return ok(result as Record<string, unknown>);
         } catch (e) {
-          return fail(e);
+          return fail(e, options.lang);
         }
       },
     );

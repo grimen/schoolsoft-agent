@@ -94,7 +94,7 @@ test("exchangeCode surfaces SchoolSoft's userMessage on failure", async () => {
   });
   await assert.rejects(
     exchangeCode({ school: "taby", clientId: "eApp", code: "C", verifier: "V", fetchImpl }),
-    /status 404.*Ingen aktiv inloggnings-session/,
+    /Ingen aktiv inloggnings-session/,
   );
 });
 
@@ -148,11 +148,11 @@ test("token response parsing: userMessage, missing access_token, no refresh/expi
   const base = { school: "taby", clientId: "vApp", code: "c", verifier: "v" };
   await assert.rejects(
     exchangeCode({ ...base, fetchImpl: fetchWith(400, { userMessage: "Ogiltig kod" }) }),
-    /status 400\. SchoolSoft says: Ogiltig kod/,
+    /Ogiltig kod/,
   );
   await assert.rejects(
     exchangeCode({ ...base, fetchImpl: fetchWith(500, "nope") }),
-    /status 500\.$/,
+    /status 500\)\.$/,
   );
   await assert.rejects(
     exchangeCode({ ...base, fetchImpl: fetchWith(200, null) }),

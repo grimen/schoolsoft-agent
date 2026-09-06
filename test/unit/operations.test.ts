@@ -19,7 +19,7 @@ test("read operations before login throw NotAuthenticatedError", async () => {
   await assert.rejects(run("get_schedule", ctx), NotAuthenticatedError);
   const status = await run("auth_status", ctx);
   assert.equal(status.authenticated, false);
-  assert.match(status.reason, /login/);
+  assert.match(status.reason, /Not logged in/);
 });
 
 test("login → schedule defaults to the child in focus", async () => {
@@ -40,7 +40,7 @@ test("child_id switches focus, list_children reflects it, unknown ids are reject
   const kids = await run("list_children", ctx);
   assert.equal(kids.children.length, 2);
   assert.equal(kids.childInFocus, 101);
-  await assert.rejects(run("get_lunch_menu", ctx, { child_id: 999 }), /Unknown child id 999/);
+  await assert.rejects(run("get_lunch_menu", ctx, { child_id: 999 }), /No child with id 999/);
   assert.equal(strategy.context?.childInFocus, 101, "focus unchanged after rejection");
 });
 
@@ -168,7 +168,26 @@ test("list_children copes with a child without a school; auth_status: cleared st
   await assert.rejects(run("auth_status", broken.ctx), /disk on fire/);
 });
 
-test("isoWeek treats Sunday as the last day of its week (the branch only the calendar used to cover)", async () => {
+test("login with background: true returns the URL and auth_status reports the login in progress and its outcome", async () => {
+  const { MemoryPendingLoginStore } = await import("../../src/core/index.js");
+  const pending = new MemoryPendingLoginStore();
+  const { ctx } = makeContext({ pending });
+  const before = await run("auth_status", ctx);
+  assert.equal(before.loginInProgress, null);
+  const started = await run("login", ctx, { background: true });
+  assert.equal(started.status, "login_started");
+  assert.match(started.next, /auth_status/);
+  await new Promise((r) => setImmediate(r));
+  const after = await run("auth_status", ctx);
+  assert.equal(after.authenticated, true);
+  assert.equal(after.loginInProgress, null, "the fake login finished at once");
+  pending.write({ state: "failed", startedAt: Date.now(), error: "cancelled" });
+  const failed = await run("auth_status", ctx);
+  assert.equal(failed.loginInProgress.state, "failed");
+  assert.equal(failed.loginInProgress.error, "cancelled");
+});
+
+test("isoWeek treats Sunday as the last day of its week", async () => {
   const { isoWeek } = await import("../../src/core/operations/_shared.js");
   assert.equal(isoWeek(new Date(2026, 8, 6)), 36, "Sunday 2026-09-06 is still week 36");
   assert.equal(isoWeek(new Date(2026, 8, 7)), 37);
