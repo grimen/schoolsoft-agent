@@ -11,30 +11,16 @@
  *    being followed (loading Login.jsp invalidates the cookie session).
  */
 import type { Browser, BrowserContext, Page, Route } from "playwright";
-import { BrowserRequiredError, PortalGatedError, SessionLostError } from "../portal/types.js";
+import { PortalGatedError, SessionLostError } from "../portal/types.js";
 import type { BrowserEngine, BrowserSession, PortalPage, WithPageOptions } from "./session.js";
 import type { WebCookie } from "./web-login.js";
 
-/** The slice of the playwright module we use; injectable for tests. */
-export interface PlaywrightLike {
-  chromium: {
-    launch(o: { headless: boolean }): Promise<Browser>;
-    connectOverCDP(endpoint: string): Promise<Browser>;
-  };
-}
+import { loadPlaywright, type PlaywrightLike } from "./optional-playwright.js";
 
+export type { PlaywrightLike } from "./optional-playwright.js";
 export type PlaywrightLoader = () => Promise<PlaywrightLike>;
 
-export const defaultLoader: PlaywrightLoader = async () => {
-  try {
-    return (await import("playwright")) as unknown as PlaywrightLike;
-  } catch (e) {
-    throw new BrowserRequiredError(
-      "browser",
-      `playwright is not installed: ${(e as Error).message}`,
-    );
-  }
-};
+export const defaultLoader: PlaywrightLoader = loadPlaywright;
 
 export interface PlaywrightSessionOptions {
   school: string;
@@ -61,8 +47,8 @@ export class PlaywrightSession implements BrowserSession {
     this.origin = o.origin ?? "https://sms.schoolsoft.se";
   }
 
+  /** One browser per call (see withPage); kept on the instance only so close() can reach it. */
   private async getBrowser(): Promise<Browser> {
-    if (this.browser) return this.browser;
     const pw = await this.loader();
     this.browser =
       this.engine.kind === "cdp"
@@ -96,7 +82,7 @@ export class PlaywrightSession implements BrowserSession {
               httpOnly: c.httpOnly,
               secure: c.secure,
             }))
-          : (cookie ?? "")
+          : (cookie as string) // guarded above: no web cookies means cookie is set
               .split(";")
               .map((s) => s.trim())
               .filter(Boolean)

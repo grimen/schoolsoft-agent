@@ -119,3 +119,51 @@ test("browser-backed and web-gated operations return the child plus the portal p
   const crit = await run("get_assessment_criteria", ctx, { subject: "Bild" });
   assert.equal(crit.page.title, "Kriterier Bild");
 });
+
+test("defaults and explicit inputs: activity log limit, assignments week/year, lunch week, news limit, contacts", async () => {
+  const { ctx } = makeContext();
+  await run("login", ctx);
+  assert.ok(Array.isArray((await run("get_activity_log", ctx)).entries));
+  const a = await run("get_assignments", ctx);
+  assert.ok(Array.isArray(a.assignments));
+  const l = await run("get_lunch_menu", ctx, { week: 40 });
+  assert.equal(l.menu[0].week, 40);
+  const thisWeek = await run("get_lunch_menu", ctx);
+  assert.ok(thisWeek.menu[0].week >= 1 && thisWeek.menu[0].week <= 53);
+  const n = await run("get_news", ctx);
+  assert.equal(n.news.length, 1);
+  const c = await run("get_contacts", ctx);
+  assert.ok(Array.isArray(c.groups));
+});
+
+test("list_children copes with a child without a school; auth_status: cleared store while live, and non-auth errors propagate", async () => {
+  const { ctx, store } = makeContext();
+  await run("login", ctx);
+  const saved = store.load()!;
+  store.save({
+    ...saved,
+    guardian: {
+      ...saved.guardian!,
+      children: [
+        ...saved.guardian!.children,
+        { studentId: 7, firstName: "Ny", lastName: "X", schools: [] },
+      ],
+    },
+  });
+  const fresh = makeContext({ store });
+  await fresh.ctx.manager.ensureSession();
+  const kids = await run("list_children", fresh.ctx);
+  const ny = kids.children.find((k: { studentId: number }) => k.studentId === 7);
+  assert.deepEqual(ny, { studentId: 7, firstName: "Ny", school: null, className: null });
+
+  store.clear();
+  const st = await run("auth_status", fresh.ctx);
+  assert.equal(st.authenticated, true);
+  assert.equal(st.savedAt, undefined);
+
+  const broken = makeContext();
+  broken.ctx.manager.ensureSession = async () => {
+    throw new Error("disk on fire");
+  };
+  await assert.rejects(run("auth_status", broken.ctx), /disk on fire/);
+});

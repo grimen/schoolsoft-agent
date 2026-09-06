@@ -16,7 +16,7 @@ import type {
 } from "../../src/core/browser/session.js";
 import { WebLoginRequiredError } from "../../src/core/portal/types.js";
 
-export function fakeSession(evaluateResults: Record<string, unknown>) {
+function fakeSession(evaluateResults: Record<string, unknown>) {
   const visited: string[] = [];
   const options: WithPageOptions[] = [];
   let current = "";
@@ -143,4 +143,15 @@ test("assessment criteria resolves the subject by name from the menu, then loads
   );
   assert.equal(visited.length, 7, "unknown subject: menu read, gated page never loaded");
   assert.equal(normalizeSubject("  Svenska som Andraspråk "), "svenska som andrasprak");
+});
+
+test("criteria with an empty subject menu says so; the example-query resolver rejects an empty menu", async () => {
+  const { session } = fakeSession({ extractSubjectLinks: [] });
+  const portal = new BrowserPortal({ session, hasWebSession: () => true });
+  await assert.rejects(portal.getAssessmentCriteria("Bild"), /Available: \(none\)\./);
+  const page = { evaluate: async () => [] } as never;
+  await assert.rejects(
+    PAGES.assessmentCriteria.exampleQuery!.resolve(page),
+    /no subject with an id/,
+  );
 });

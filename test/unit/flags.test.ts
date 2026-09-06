@@ -61,3 +61,10 @@ test("kebab/camel helpers", () => {
   assert.equal(camel("child_id"), "childId");
   assert.equal(camel("unread-only"), "unreadOnly");
 });
+
+test("a schema with a default is an optional flag", async () => {
+  const flags = flagsFromSchema({ limit: z.number().int().default(5) });
+  assert.equal(flags.length, 1);
+  assert.equal(flags[0].flag, "--limit <number>");
+  assert.equal(flags[0].required, false);
+});

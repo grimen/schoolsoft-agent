@@ -235,3 +235,123 @@ test("subject rooms come from the subjectroom REST (app cookies): list, then tea
     "/rest-api/parent/ps/subjectroom/13/teachers cookie=JSESSIONID=app",
   ]);
 });
+
+test("orgIdOf rejects a child without schools; focusWebChild surfaces other HTTP failures; rooms without groupNames", async () => {
+  assert.throws(
+    () => orgIdOf({ studentId: 9, firstName: "x", lastName: "y", schools: [] }),
+    /Child 9 has no school/,
+  );
+  const api500 = new ApiPortal({
+    school: "taby",
+    accessToken: () => "T",
+    cookieHeader: () => "JSESSIONID=app",
+    webCookieHeader: () => "JSESSIONID=web",
+    fetchImpl: async (url) =>
+      /subjectroom\/all/.test(url)
+        ? { status: 200, data: [{ activityId: 1, subject: "Bild" }] }
+        : { status: 500, data: "" },
+  });
+  await assert.rejects(api500.focusWebChild(1, 20), /HTTP 500 when selecting child 1/);
+  const rooms = await api500.getSubjectRooms().catch(() => null);
+  assert.equal(rooms, null, "teachers call failed with 500");
+  const apiRooms = new ApiPortal({
+    school: "taby",
+    accessToken: () => "T",
+    cookieHeader: () => "JSESSIONID=app",
+    fetchImpl: async (url) =>
+      /subjectroom\/all/.test(url)
+        ? { status: 200, data: [{ activityId: 1, subject: "Bild" }] }
+        : { status: 200, data: [] },
+  });
+  assert.deepEqual(await apiRooms.getSubjectRooms(), [
+    { subject: "Bild", subjectId: 1, groups: [], teachers: [] },
+  ]);
+});
+
+test("calendar event and session endpoints; activity log maps the legacy POST and its errors", async () => {
+  const { api, calls } = harness(200, { next: 1 });
+  await api.getNextCalendarEvent(21, 20, 100);
+  assert.match(
+    calls[0].url,
+    /\/eva\/api\/v1\/parent\/21\/schools\/20\/news\/calendarevent\/next\?studentId=100$/,
+  );
+  assert.equal(calls[0].headers.Authorization, "Bearer TOK");
+  await api.getSession();
+  assert.match(calls[1].url, /\/rest-api\/session$/);
+  assert.match(calls[1].headers.Cookie, /JSESSIONID=a/);
+
+  const rows = [
+    {
+      blogPost: {
+        id: 1,
+        creDate: 1_700_000_000_000,
+        name: "Utflykt",
+        description: "<p>Kort &nbsp;text</p>",
+      },
+      author: "Lärare",
+      recipientsNamesString: "4B",
+      numberOfComments: 2,
+      content: [
+        {
+          contentBlockDTOList: [
+            {
+              blockType: "text",
+              contentBlocks: [{ content: "<b>Hej</b> alla" }, { content: "" }, {}],
+            },
+            { blockType: "image", contentBlocks: [{}, {}] },
+            { blockType: "image" },
+            { blockType: "text" },
+            { blockType: "other" },
+          ],
+        },
+        {},
+      ],
+    },
+    {
+      blogPost: { id: 2, creDate: "2026-09-01", name: "Bara rubrik", description: "Samma" },
+      content: [
+        { contentBlockDTOList: [{ blockType: "text", contentBlocks: [{ content: "Samma" }] }] },
+      ],
+    },
+    { blogPost: { id: 3, creDate: 1, name: "Tom" } },
+  ];
+  const posts: { url: string; body: string; method: string }[] = [];
+  const mk = (status: number, data: unknown, cookie: string | null = "JSESSIONID=a") =>
+    new ApiPortal({
+      school: "taby",
+      accessToken: () => "T",
+      cookieHeader: () => cookie,
+      fetchImpl: async (url, _s, options) => {
+        const o = options as { method?: string; body?: string };
+        posts.push({ url, body: o.body ?? "", method: o.method ?? "GET" });
+        return { status, data };
+      },
+    });
+  const entries = await mk(200, rows).getActivityLog(3);
+  assert.equal(posts[0].method, "POST");
+  assert.match(posts[0].url, /\/rest\/blogpost\/getbyloggedinuser$/);
+  assert.equal(JSON.parse(posts[0].body).row_count, 3);
+  assert.deepEqual(entries[0], {
+    id: 1,
+    date: "2023-11-14T22:13:20.000Z",
+    title: "Utflykt",
+    author: "Lärare",
+    text: "Hej alla",
+    summary: "Kort text",
+    images: 2,
+    recipients: "4B",
+    comments: 2,
+  });
+  assert.deepEqual(entries[1], {
+    id: 2,
+    date: "2026-09-01",
+    title: "Bara rubrik",
+    text: "Samma",
+    comments: 0,
+  });
+  assert.equal(entries[2].text, "");
+  assert.deepEqual(await mk(200, { not: "array" }).getActivityLog(), []);
+  await assert.rejects(mk(401, null).getActivityLog(), /rejected the session \(HTTP 401\)/);
+  await assert.rejects(mk(500, null).getActivityLog(), /HTTP 500/);
+  await assert.rejects(mk(200, [], null).getActivityLog(), /No session cookies/);
+});

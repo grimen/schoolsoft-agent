@@ -168,3 +168,38 @@ test("login persists the access token expiry (JWT exp, unix seconds)", async () 
   await manager.login();
   assert.equal(store.load()?.accessTokenExpiresAt, 1_800_000_000);
 });
+
+test("guards: no strategies, unknown strategy id, explicit strategy id, unknown saved authMethod falls back", async () => {
+  assert.throws(
+    () => new SessionManager({ school: "s", store: new MemorySessionStore(), strategies: [] }),
+    /at least one AuthStrategy/,
+  );
+  const { manager, store, strategy } = makeManager();
+  await assert.rejects(manager.login("nope"), /Unknown auth strategy "nope"\. Available: fake/);
+  await manager.login("fake");
+  assert.equal(strategy.loginCalls, 1);
+  store.save({ ...store.load()!, authMethod: "vanished" });
+  const fresh = makeManager({ store, strategy });
+  await fresh.manager.ensureSession();
+  assert.equal(strategy.restoreCalls, 1, "default strategy restored the session");
+});
+
+test("persist copes with a client without tokens; a non-Error restore failure is stringified; focusChild needs a capable strategy", async () => {
+  const { manager, store } = makeManager({
+    client: fakeClient({ accessToken: null as never, refreshToken: null as never }),
+  });
+  await manager.login();
+  const saved = store.load()!;
+  assert.equal(saved.accessToken, undefined);
+  assert.equal(saved.refreshToken, undefined);
+  assert.equal(saved.accessTokenExpiresAt, undefined);
+  await assert.rejects(manager.focusChild(1), /cannot switch child/);
+
+  class Weird extends FakeStrategy {
+    override async restore(): Promise<void> {
+      throw "plain string";
+    }
+  }
+  const weird = makeManager({ store, strategy: new Weird() });
+  await assert.rejects(weird.manager.ensureSession(), /restore failed: plain string/);
+});

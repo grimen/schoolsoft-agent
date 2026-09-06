@@ -93,3 +93,9 @@ test("Portal type and PROVIDERS agree (compile-time contract exercised at runtim
   const keys = Object.keys(portal).sort();
   assert.deepEqual(keys, (Object.keys(PROVIDERS) as (keyof Portal)[]).sort());
 });
+
+test("BrowserRequiredError without a reason has no parenthetical", async () => {
+  const e = new BrowserRequiredError("getContacts");
+  assert.match(e.message, /CDP endpoint\.$/);
+  assert.match(new BrowserRequiredError("getContacts", "tests").message, /\(tests\)$/);
+});

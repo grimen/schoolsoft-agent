@@ -37,6 +37,7 @@ export async function verifyPages(
   o: VerifyOptions,
 ): Promise<PageReport[]> {
   const known = o.fingerprints ?? FINGERPRINTS;
+  const syncWebChild = o.syncWebChild ?? (async () => {});
   const out: PageReport[] = [];
   let synced = false;
   for (const key of o.pages ?? PAGE_KEYS) {
@@ -48,8 +49,8 @@ export async function verifyPages(
     }
     try {
       if (spec.web && !synced) {
-        await o.syncWebChild?.();
         synced = true;
+        await syncWebChild();
       }
       const query = spec.exampleQuery
         ? await session.withPage(

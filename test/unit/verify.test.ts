@@ -105,3 +105,24 @@ test("missing anchors → broken; changed fingerprint → drift; a page error is
   assert.equal(by.files.status, "error");
   assert.match(by.files.reason ?? "", /boom/);
 });
+
+test("without a sync hook gated pages still verify; an inspection lacking an anchor key counts as missing", async () => {
+  const { session } = fakeSession((_path, anchors) => ({
+    title: "T",
+    anchors: Object.fromEntries(anchors.slice(1).map((a) => [a, 1])),
+    fingerprint: "0",
+    nodes: 1,
+  }));
+  const reports = await verifyPages(session, {
+    hasWebSession: true,
+    pages: ["grades", "contacts"],
+    fingerprints: {},
+  });
+  assert.deepEqual(
+    reports.map((r) => [r.page, r.status, r.missing]),
+    [
+      ["grades", "broken", ["#content .h1"]],
+      ["contacts", "broken", ["#content .h1"]],
+    ],
+  );
+});

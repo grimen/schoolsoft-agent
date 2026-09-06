@@ -42,6 +42,7 @@ function fakePw(
         state.launched.push(o);
         return browser as never;
       },
+      executablePath: () => "/fake/chromium",
       connectOverCDP: async () => browser as never,
     },
   };
@@ -146,4 +147,18 @@ test("webLogin also accepts the portal appearing in another tab or popup", async
     "https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp",
   );
   assert.equal(state.closed, 1);
+});
+
+test("cdp engine connects instead of launching; default poll interval is used when omitted", async () => {
+  const { pw, state } = fakePw(
+    ["https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp"],
+    [{ name: "JSESSIONID", value: "w", domain: "sms.schoolsoft.se", path: "/", expires: -1 }],
+  );
+  const session = await webLogin({
+    school: "taby",
+    engine: { kind: "cdp", endpoint: "ws://obscura" },
+    loader: async () => pw,
+  });
+  assert.equal(session.cookies.length, 1);
+  assert.equal(state.launched.length, 0, "no launch with a CDP engine");
 });

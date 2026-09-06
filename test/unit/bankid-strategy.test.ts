@@ -184,11 +184,121 @@ test("restore: a 401 on the profile call triggers one refresh-and-retry", async 
     accessToken: "stale",
     refreshToken: "R1",
     accessTokenExpiresAt: 9_999_999_999, // looks valid, but server says 401
+    guardian: { userId: 21, parentName: "x", children: PARENT.children, childInFocus: 101 },
     savedAt: 0,
     authMethod: "bankid-browser",
   });
   assert.equal(parentCalls, 2);
   assert.equal(log.filter((l) => l.url.includes("grantType=refresh_token")).length, 1);
   assert.equal(client.refreshToken, "R2");
-  assert.equal(client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+  assert.equal(
+    client.cookieHeader,
+    "JSESSIONID=js-101; hash=h; usertype=2",
+    "remembered child re-bound after the retry",
+  );
+});
+
+test("edge cases: tokens without refresh/expiry, restore guards, no children, child without school", async () => {
+  const { fetchImpl: inner } = fakeSchoolsoft();
+  const variant = (o: { tokenData?: unknown; parent?: unknown; parentStatus?: number }) => {
+    const fetchImpl = async (
+      url: string,
+      school: string,
+      options: { headers?: Record<string, string> },
+    ) => {
+      const path = url.replace("https://sms.schoolsoft.se/taby", "");
+      if (o.tokenData !== undefined && path.startsWith("/rest-api/login/token"))
+        return { status: 200, data: o.tokenData, headers: {}, setCookies: [] };
+      if (path === "/eva/api/v1/parent" && (o.parent !== undefined || o.parentStatus !== undefined))
+        return {
+          status: o.parentStatus ?? 200,
+          data: o.parent ?? null,
+          headers: {},
+          setCookies: [],
+        };
+      return inner(url, school, options);
+    };
+    return new BankIdBrowserStrategy({
+      fetchImpl,
+      callbackPort: port++,
+      openBrowser: (authUrl) => {
+        const state = /[?&]state=([^&]+)/.exec(authUrl)![1];
+        const redirect = decodeURIComponent(/redirect_uri=([^&]+)/.exec(authUrl)![1]);
+        void fetch(`${redirect}?code=CODE&state=${state}`);
+      },
+    });
+  };
+  const saved = (extra: Record<string, unknown>) => ({
+    school: "taby",
+    savedAt: 0,
+    authMethod: "bankid-browser",
+    ...extra,
+  });
+
+  // login with an opaque token: no refresh token, no expiry
+  const opaque = variant({ tokenData: { access_token: "opaque" } });
+  const c1 = new SchoolsoftClient({ school: "taby" });
+  await opaque.login(c1);
+  assert.equal(c1.refreshToken, null);
+
+  // restore guards
+  await assert.rejects(
+    new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
+      new SchoolsoftClient({ school: "taby" }),
+      saved({}) as never,
+    ),
+    /no access token/,
+  );
+  await assert.rejects(
+    new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
+      new SchoolsoftClient({ school: "taby" }),
+      saved({ accessToken: "old", accessTokenExpiresAt: 1 }) as never,
+    ),
+    /no refresh token saved/,
+  );
+  // profile 500: not a 401, rethrown without refresh
+  await assert.rejects(
+    variant({ parentStatus: 500 }).restore(
+      new SchoolsoftClient({ school: "taby" }),
+      saved({ accessToken: "t", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 }) as never,
+    ),
+    /HTTP 500/,
+  );
+  // profile 401 but no refresh token: rethrown
+  const c2 = new SchoolsoftClient({ school: "taby" });
+  await assert.rejects(
+    variant({ parentStatus: 401 }).restore(
+      c2,
+      saved({ accessToken: "t", accessTokenExpiresAt: 9_999_999_999 }) as never,
+    ),
+    /HTTP 401/,
+  );
+  // refresh response without rotation keeps the old refresh token
+  const keep = variant({ tokenData: { access_token: "fresh" } });
+  const c3 = new SchoolsoftClient({ school: "taby" });
+  await keep.restore(
+    c3,
+    saved({ accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 }) as never,
+  );
+  assert.equal(c3.refreshToken, "R1");
+  // focusChild before any login
+  await assert.rejects(
+    new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(
+      new SchoolsoftClient({ school: "taby" }),
+      100,
+    ),
+    /log in first/,
+  );
+  // no children
+  await assert.rejects(
+    variant({ parent: { ...PARENT, children: [] } }).login(
+      new SchoolsoftClient({ school: "taby" }),
+    ),
+    /no children/,
+  );
+  // child without school: schoolName null (and the exchange has no orgId)
+  const noSchool = variant({
+    parent: { ...PARENT, children: [{ ...PARENT.children[0], schools: [] }] },
+  });
+  await assert.rejects(noSchool.login(new SchoolsoftClient({ school: "taby" })), /has no school/);
 });

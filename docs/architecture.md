@@ -93,7 +93,7 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | Packaging  | `test/packaging`   | every host manifest validates; skill follows the Agent Skills spec; per-host skill builds                               | none                  |
 | E2E        | `test/e2e` (gated) | the real thing: BankID once, then silent restore, forced refresh, every operation over stdio and CLI, child switching   | SchoolSoft            |
 
-`make check` runs everything but E2E with coverage thresholds. `make e2e` runs the live suite; findings accumulate in a gitignored report.
+`make check` runs everything but E2E with a 100% coverage gate (lines, branches, functions, statements) over the offline suites. What the gate deliberately leaves out, each named in `.c8rc.json` or an inline `c8 ignore` with its reason: barrel files, the HTTP transport skeleton, types-only modules, the in-page extractors (run only inside Chromium, covered by `make e2e-artifact`), the single optional `playwright` import (presence covered by `make e2e-artifact`, absence by the pack smoke), and the live-network defaults for token exchange and the real browser opener (covered by `make e2e`). Environment defaults such as the OS browser opener and the Chromium installer take an injectable spawn so the unit tests cover their branches. `make e2e` runs the live suite; findings accumulate in a gitignored report.
 
 ## What lives where at runtime
 

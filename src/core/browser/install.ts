@@ -7,6 +7,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import type { BrowserEngine } from "./session.js";
+import { loadPlaywright } from "./optional-playwright.js";
 
 export interface BrowserStatus {
   engine: BrowserEngine["kind"];
@@ -33,13 +34,7 @@ export async function browserStatus(
 ): Promise<BrowserStatus> {
   const resolve = probes.resolvePlaywright ?? (() => require.resolve("playwright/package.json"));
   const chromiumPath =
-    probes.chromiumPath ??
-    (async () => {
-      const pw = (await import("playwright")) as unknown as {
-        chromium: { executablePath(): string };
-      };
-      return pw.chromium.executablePath();
-    });
+    probes.chromiumPath ?? (async () => (await loadPlaywright()).chromium.executablePath());
   let playwrightInstalled = false;
   try {
     resolve();
@@ -84,9 +79,10 @@ export async function browserStatus(
 
 export type Spawner = (cmd: string, args: string[]) => Promise<number>;
 
-const defaultSpawner: Spawner = (cmd, args) =>
-  new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: "inherit" });
+/** Runs a command inheriting stdio and resolves with its exit code (1 when killed by a signal). */
+export const defaultSpawner = (cmd: string, args: string[], spawnImpl: typeof spawn = spawn) =>
+  new Promise<number>((resolve, reject) => {
+    const child = spawnImpl(cmd, args, { stdio: "inherit" });
     child.on("error", reject);
     child.on("exit", (code) => resolve(code ?? 1));
   });

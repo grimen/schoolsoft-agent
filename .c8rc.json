@@ -6,12 +6,13 @@
     "src/http/**",
     "src/core/auth/strategy.ts",
     "src/shared/version.ts",
-    "src/core/portal/extractors.ts"
+    "src/core/portal/extractors.ts",
+    "src/core/browser/session.ts"
   ],
   "reporter": ["text", "lcov", "json-summary", "html"],
   "check-coverage": true,
-  "lines": 90,
-  "branches": 80,
-  "functions": 90,
-  "statements": 90
+  "lines": 100,
+  "branches": 100,
+  "functions": 100,
+  "statements": 100
 }

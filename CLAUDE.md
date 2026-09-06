@@ -32,7 +32,7 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   `e2e-session-dump.json`, state dirs are ignored. Probes that print API
   responses must redact names, subjects and message bodies.
 - **Gates before any push:** `make check` (lint, typecheck, format, boundaries,
-  manifests, tests with coverage), `make check-ci`, `make e2e-artifact`. `make e2e`
+  manifests, tests with a 100% coverage gate), `make check-ci`, `make e2e-artifact`. `make e2e`
   runs the live suite locally only, never in CI. Hooks (lefthook) run the cheap
   ones on commit/push; CI (`ci.yml`) stages Checks → Unit → E2E → Publish.
 - **Independence:** SchoolSoft is a trademark of SchoolSoft AB and BankID of
@@ -42,6 +42,10 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 - **Commits:** Conventional Commits, scopes from `commitlint.config.mjs`; the
   type drives release-please's version bump (see `docs/releasing.md`). No
   session links or trailers.
+- **Coverage is 100% and stays there.** New code ships with the tests that
+  cover every branch. The only exclusions are the ones listed in
+  `.c8rc.json` and inline `c8 ignore` comments, each with the shipped-artifact
+  or live test that covers it; never add one without that pointer.
 - **Diagrams:** sources in `docs/diagrams/src/*.mmd`, rendered SVGs in `dist/`
   via `make diagrams`; never inline Mermaid in Markdown.
 

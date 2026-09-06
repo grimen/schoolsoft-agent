@@ -3,6 +3,7 @@
  * for capabilities SchoolSoft only offers as web pages.
  */
 import type { Command } from "commander";
+import type { BrowserSession, OperationContext } from "../../core/index.js";
 import {
   browserStatus,
   createApiPortal,
@@ -58,9 +59,7 @@ export function registerBrowser(program: Command, deps: CliDeps, emit: (d: unkno
     .action(async () => {
       const ctx = await deps.getContext(globalOverrides(program.opts()));
       await ctx.manager.ensureSession();
-      const session = deps.browserSession
-        ? deps.browserSession(ctx)
-        : createBrowserSession(ctx.manager, { engine: ctx.config.browser });
+      const session = (deps.browserSession ?? defaultBrowserSession)(ctx);
       try {
         const pages = await verifyPages(session, {
           hasWebSession: ctx.manager.getWebSession() !== null,
@@ -80,6 +79,11 @@ export function registerBrowser(program: Command, deps: CliDeps, emit: (d: unkno
         await session.close();
       }
     });
+}
+
+/** Production browser session for `browser verify`: the manager's cookies, the configured engine. */
+export function defaultBrowserSession(ctx: OperationContext): BrowserSession {
+  return createBrowserSession(ctx.manager, { engine: ctx.config.browser });
 }
 
 function engineFor(deps: CliDeps, opts: Record<string, unknown>) {

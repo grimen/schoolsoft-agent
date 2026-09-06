@@ -163,7 +163,7 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     const child = childOf(context, childInFocus);
     return {
       name: context.parentName,
-      schoolName: child.schools[0]?.name ?? null,
+      schoolName: child.schools[0].name, // orgIdOf() above guarantees a school
       userType: this.userType,
       children: parent.children.map((c) => ({ studentId: c.studentId, firstName: c.firstName })),
     };

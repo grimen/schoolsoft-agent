@@ -53,6 +53,7 @@ export function isPortalUrl(url: string, origin: string, school: string): boolea
 
 export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
   const origin = o.origin ?? "https://sms.schoolsoft.se";
+  /* c8 ignore next: real playwright default, exercised by make login-web */
   const loader = o.loader ?? defaultLoader;
   const engine = o.engine ?? { kind: "chromium", headless: false };
   const timeoutMs = o.timeoutMs ?? 5 * 60_000;

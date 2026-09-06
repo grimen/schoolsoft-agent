@@ -20,6 +20,7 @@ function harness(
     prompt?: CliDeps["prompt"];
     env?: Record<string, string>;
     home?: string;
+    platform?: NodeJS.Platform;
     browserSession?: CliDeps["browserSession"];
   } = {},
 ) {
@@ -35,7 +36,7 @@ function harness(
     stderr: (s) => err.push(s),
     env: opts.env ?? {},
     home: opts.home ?? mkdtempSync(join(tmpdir(), "home-")),
-    platform: "linux",
+    platform: opts.platform ?? "linux",
     version: "9.9.9",
     prompt: opts.prompt,
     fetchImpl: async () => ({ status: 200 }),
@@ -292,4 +293,235 @@ test("browser verify reports every page, exit 0 when ok/drift and 1 when a page 
   const b = await broken.run("browser", "verify");
   assert.equal(b.code, EXIT.ERROR);
   assert.match(b.err, /contacts/);
+});
+
+test("unexpected errors exit 1 with the message; configure edge cases; doctor details", async () => {
+  const boom = makeContext({
+    portal: {
+      ...fakePortal,
+      getScheduleWeek: async () => {
+        throw new Error("upstream exploded");
+      },
+    } as never,
+  });
+  const h = harness({ ctx: boom.ctx });
+  await h.run("login");
+  const r = await h.run("get-schedule");
+  assert.equal(r.code, EXIT.ERROR);
+  assert.match(r.err, /Error: upstream exploded/);
+
+  // configure: config dir from env, then from the platform default; school only (no org id)
+  const home = mkdtempSync(join(tmpdir(), "home-"));
+  const envDir = join(home, "envcfg");
+  const viaEnv = harness({ home, env: { SCHOOLSOFT_CONFIG_DIR: envDir } });
+  const c1 = await viaEnv.run("--school", "taby", "configure");
+  assert.equal(c1.code, EXIT.OK, c1.err);
+  assert.deepEqual(c1.json().config, { school: "taby" });
+  assert.ok(existsSync(join(envDir, "config.json")));
+  const viaDefault = harness({ home });
+  const c2 = await viaDefault.run("--school", "taby", "configure");
+  assert.match(c2.json().file, /\.config\/schoolsoft-agent\/config\.json$/);
+
+  // configure: no match, default pick, invalid pick
+  const dir = mkdtempSync(join(tmpdir(), "cfg-"));
+  writeFileSync(
+    join(dir, "schools.json"),
+    JSON.stringify({
+      fetchedAt: Date.now(),
+      schools: [
+        { name: "Täby kommun - Rösjöskolan", slug: "taby", orgId: 20 },
+        { name: "Täby kommun - Skolhagenskolan", slug: "taby", orgId: 18 },
+      ],
+    }),
+  );
+  const none = await harness().run("--config-dir", dir, "configure", "--query", "zzzz");
+  assert.equal(none.code, EXIT.ERROR);
+  assert.match(none.err, /No school matched/);
+  const answers = ["täby", ""];
+  const dflt = harness({ prompt: async () => answers.shift() ?? "" });
+  const d = await dflt.run("--config-dir", dir, "configure");
+  assert.equal(d.code, EXIT.OK, d.err);
+  assert.equal(d.json().config.orgId, "20", "empty answer picks the first hit");
+  const bad = ["täby", "9"];
+  const invalid = harness({ prompt: async () => bad.shift() ?? "" });
+  const i = await invalid.run("--config-dir", dir, "configure");
+  assert.equal(i.code, EXIT.ERROR);
+  assert.match(i.err, /Invalid choice/);
+
+  // doctor: invalid config (not a NotConfiguredError), saved session detail, network failure, browser ready detail
+  const bogus = harness({ env: { SCHOOLSOFT_CALLBACK_PORT: "abc" } });
+  const dr = await bogus.run("--config-dir", dir, "--school", "taby", "doctor");
+  const cfgCheck = dr.json().checks.find((c: { name: string }) => c.name === "config");
+  assert.equal(cfgCheck.ok, false);
+  assert.doesNotMatch(cfgCheck.detail, /not configured/);
+
+  const { FileSessionStore } = await import("../../src/core/index.js");
+  const stateDir = join(dir, "state");
+  new FileSessionStore(stateDir).save({ school: "taby", savedAt: 1, authMethod: "bankid-browser" });
+  const ok = harness();
+  ok.deps.fetchImpl = async () => {
+    throw new Error("offline");
+  };
+  ok.deps.browserProbes = {
+    resolvePlaywright: () => "/x/package.json",
+    chromiumPath: async () => process.execPath,
+  };
+  const d2 = await ok.run("--config-dir", dir, "--school", "taby", "doctor");
+  const by = Object.fromEntries(
+    d2.json().checks.map((c: { name: string; detail: string; ok: boolean }) => [c.name, c]),
+  );
+  assert.match(
+    by.session.detail,
+    /saved 1970-01-01T00:00:00\.001Z via bankid-browser, children=\?/,
+  );
+  assert.match(by.network.detail, /unreachable: offline/);
+  assert.match(
+    by["headless-browser"].detail,
+    new RegExp(`ready \\(chromium, ${process.execPath.replace(/[/\\]/g, "[/\\\\]")}\\)`),
+  );
+  assert.equal(by.network.ok, false);
+});
+
+test("browser install: failing spawner exits 1, ready chromium reports installed; engineFor survives a bad config; defaultBrowserSession builds a session", async () => {
+  const { run, deps } = harness();
+  deps.browserProbes = {
+    resolvePlaywright: () => "/x/playwright/package.json",
+    chromiumPath: async () => process.execPath,
+  };
+  deps.spawner = async () => 2;
+  const bad = await run("browser", "install");
+  assert.equal(bad.code, EXIT.ERROR);
+  assert.match(bad.err, /exited with 2/);
+  deps.spawner = async () => 0;
+  const good = await run("browser", "install");
+  assert.equal(good.json().status, "installed");
+  const broken = harness({ env: { SCHOOLSOFT_CALLBACK_PORT: "abc" } });
+  broken.deps.browserProbes = deps.browserProbes;
+  const st = await broken.run("browser", "status");
+  assert.equal(
+    st.json().engine,
+    "chromium",
+    "unparseable config falls back to the chromium engine",
+  );
+  const { defaultBrowserSession } = await import("../../src/cli/commands/browser.js");
+  const ctx = makeContext().ctx;
+  const session = defaultBrowserSession(ctx);
+  assert.equal(typeof session.withPage, "function");
+  await session.close();
+});
+
+test("non-Error throws, doctor platform/engine/session variants, verify without drift and the production session", async () => {
+  const stringy = makeContext({
+    portal: {
+      ...fakePortal,
+      getScheduleWeek: async () => {
+        throw "not an error object";
+      },
+    } as never,
+  });
+  const h = harness({ ctx: stringy.ctx });
+  await h.run("login");
+  const r = await h.run("get-schedule");
+  assert.equal(r.code, EXIT.ERROR);
+  assert.match(r.err, /Error: not an error object/);
+
+  const dir = mkdtempSync(join(tmpdir(), "cfg-"));
+  const { FileSessionStore } = await import("../../src/core/index.js");
+  new FileSessionStore(join(dir, "state")).save({
+    school: "taby",
+    savedAt: 1,
+    authMethod: "bankid-browser",
+    guardian: {
+      userId: 1,
+      parentName: "P",
+      childInFocus: 100,
+      children: [{ studentId: 100, firstName: "A", lastName: "B", schools: [] }],
+    },
+  });
+  for (const platform of ["darwin", "win32"] as const) {
+    const d = harness({
+      platform,
+      env: { SCHOOLSOFT_BROWSER_ENGINE: "cdp", SCHOOLSOFT_BROWSER_CDP: "ws://x" },
+    });
+    d.deps.fetchImpl = async () => {
+      throw "offline";
+    };
+    d.deps.browserProbes = { resolvePlaywright: () => "/x/package.json" };
+    const out = await d.run("--config-dir", dir, "--school", "taby", "doctor");
+    const by = Object.fromEntries(
+      out.json().checks.map((c: { name: string; detail: string }) => [c.name, c.detail]),
+    );
+    assert.match(by.session, /children=1/);
+    assert.match(by.network, /unreachable: offline/);
+    assert.equal(by["headless-browser"], "ready (cdp)");
+    assert.match(by.browser, platform === "darwin" ? /"open"/ : /"cmd"/);
+  }
+
+  // browser not installed: doctor stays ok but says so
+  const nb = harness();
+  nb.deps.browserProbes = {
+    resolvePlaywright: () => "/x/package.json",
+    chromiumPath: async () => "/nonexistent",
+  };
+  const nbOut = await nb.run("--config-dir", dir, "--school", "taby", "doctor");
+  assert.match(
+    nbOut.json().checks.find((c: { name: string }) => c.name === "headless-browser").detail,
+    /not installed — only contact lists.*browser install/,
+  );
+
+  // default network probe goes through globalThis.fetch
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async () => ({ status: 200 })) as never;
+  try {
+    const d = harness();
+    d.deps.fetchImpl = undefined;
+    const out = await d.run("--config-dir", dir, "--school", "taby", "doctor");
+    assert.equal(out.json().checks.find((c: { name: string }) => c.name === "network").ok, true);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+
+  // verify: fake returns the recorded fingerprints → ok
+  const { PAGES, FINGERPRINTS } = await import("../../src/core/index.js");
+  const byPath = Object.fromEntries(Object.entries(PAGES).map(([k, s]) => [s.path, k]));
+  const okSession = {
+    withPage: async (fn: (p: unknown) => Promise<unknown>) => {
+      let current = "";
+      return fn({
+        goto: async (p: string) => {
+          current = p.split("?")[0];
+        },
+        url: () => current,
+        evaluate: async (f: { name: string }, arg?: string[]) =>
+          f.name === "extractSubjectLinks"
+            ? [{ subject: "Bild", url: "x", subjectId: 1 }]
+            : {
+                title: "T",
+                anchors: Object.fromEntries((arg ?? []).map((a) => [a, 1])),
+                fingerprint:
+                  FINGERPRINTS[byPath[current] as keyof typeof FINGERPRINTS]?.fingerprint ?? "none",
+                nodes: 1,
+              },
+        waitForJson: async () => ({}),
+      });
+    },
+    close: async () => {},
+  };
+  const ok = harness({ ctx: makeContext().ctx, browserSession: () => okSession as never });
+  await ok.run("login");
+  const v = await ok.run("browser", "verify");
+  assert.equal(v.code, EXIT.OK, v.err);
+  assert.equal(v.json().status, "ok");
+
+  // production session: a CDP endpoint nobody listens on → every page reports an error, exit 1, no network
+  const prod = harness({
+    ctx: makeContext({ config: { browser: { kind: "cdp", endpoint: "ws://127.0.0.1:1" } } }).ctx,
+  });
+  await prod.run("login");
+  const p = await prod.run("browser", "verify");
+  assert.equal(p.code, EXIT.ERROR);
+  assert.ok(
+    p.json().pages.every((x: { status: string }) => x.status === "error" || x.status === "skipped"),
+    p.out,
+  );
 });

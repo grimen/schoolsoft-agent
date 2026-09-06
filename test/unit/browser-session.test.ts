@@ -34,7 +34,10 @@ function fakePlaywright(state: FakeState): PlaywrightLike {
     },
     url: () => state.landing,
     evaluate: async (fn: () => unknown) => fn(),
-    waitForResponse: async () => ({ json: async () => ({ ok: true }) }),
+    waitForResponse: async (pred: (r: { url: () => string }) => boolean) => {
+      pred({ url: () => "https://sms.schoolsoft.se/x" });
+      return { json: async () => ({ ok: true }) };
+    },
     // test hook: simulate a request through the route handler
     simulateRequest: (method: string, url: string) => {
       const decisions = state.routeDecisions;
@@ -66,6 +69,7 @@ function fakePlaywright(state: FakeState): PlaywrightLike {
         state.launched.push(o);
         return browser as never;
       },
+      executablePath: () => "/fake/chromium",
       connectOverCDP: async (endpoint: string) => {
         state.connected.push(endpoint);
         return browser as never;
@@ -280,5 +284,143 @@ test("web-login cookies are used only when a call asks for them (gated pages)", 
   await assert.rejects(
     noWeb.withPage(async () => 0, { web: true }),
     /login --web/,
+  );
+});
+
+test("headless default, cookie expiry, allowWrites, web-session loss and waitForJson", async () => {
+  const state = fresh();
+  const pw = fakePlaywright(state);
+  const s = new PlaywrightSession({
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=app",
+    webCookies: () => [
+      {
+        name: "JSESSIONID",
+        value: "web",
+        domain: "sms.schoolsoft.se",
+        path: "/",
+        expires: 1_900_000_000,
+      },
+      { name: "hash", value: "h", domain: "sms.schoolsoft.se", path: "/", expires: -1 },
+    ],
+    engine: { kind: "chromium" },
+    loader: async () => pw,
+  });
+  const json = await s.withPage(
+    async (p) => {
+      const page = (await (await pw.chromium.launch({ headless: true })).newContext()).newPage();
+      const fake = (await page) as unknown as { simulateRequest: (m: string, u: string) => void };
+      fake.simulateRequest("POST", "https://sms.schoolsoft.se/taby/anything");
+      return p.waitForJson<{ ok: boolean }>(/x/);
+    },
+    { web: true, allowWrites: true },
+  );
+  assert.deepEqual(json, { ok: true });
+  assert.deepEqual(
+    state.launched,
+    [{ headless: true }, { headless: true }],
+    "headless defaults to true",
+  );
+  assert.deepEqual(
+    state.cookies.map((c) => (c as { expires?: number }).expires),
+    [1_900_000_000, undefined],
+    "positive expiry kept, session cookies get none",
+  );
+  assert.deepEqual(state.routeDecisions, ["continue POST https://sms.schoolsoft.se/taby/anything"]);
+
+  // web cookies present but empty → app cookies
+  const st2 = fresh();
+  const s2 = new PlaywrightSession({
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=app",
+    webCookies: () => [],
+    loader: async () => fakePlaywright(st2),
+  });
+  await s2.withPage(async () => 0, { web: false });
+  assert.deepEqual(
+    st2.cookies.map((c) => c.value),
+    ["app"],
+  );
+
+  // landing on Login.jsp with web cookies names login --web
+  const st3 = fresh();
+  st3.landing = "https://sms.schoolsoft.se/taby/jsp/Login.jsp";
+  const s3 = new PlaywrightSession({
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=app",
+    webCookies: () => [{ name: "JSESSIONID", value: "w", domain: "sms.schoolsoft.se", path: "/" }],
+    loader: async () => fakePlaywright(st3),
+  });
+  await assert.rejects(
+    s3.withPage((p) => p.goto("/jsp/student/x.jsp"), { web: true }),
+    /login --web/,
+  );
+});
+
+test("browserStatus without probes resolves the real playwright; chromiumPath failures and cdp without playwright are reported", async () => {
+  const real = await browserStatus({ kind: "chromium" });
+  assert.equal(real.playwrightInstalled, true);
+  assert.equal(typeof real.executablePath, "string");
+  const unresolved = await browserStatus(
+    { kind: "chromium" },
+    {
+      resolvePlaywright: () => "/x/playwright/package.json",
+      chromiumPath: async () => {
+        throw new Error("no browser");
+      },
+    },
+  );
+  assert.equal(unresolved.ready, false);
+  assert.equal(unresolved.executablePath, undefined);
+  const cdpNoPw = await browserStatus(
+    { kind: "cdp", endpoint: "ws://x" },
+    {
+      resolvePlaywright: () => {
+        throw new Error("nope");
+      },
+    },
+  );
+  assert.equal(cdpNoPw.ready, false);
+  assert.match(cdpNoPw.hint ?? "", /install playwright/);
+  const calls: string[][] = [];
+  const code = await installChromium(async (cmd, args) => {
+    calls.push([cmd, ...args]);
+    return 0;
+  });
+  assert.equal(code, 0);
+  assert.match(calls[0][1], /playwright\/cli\.js$/);
+});
+
+test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn error", async () => {
+  const { defaultSpawner } = await import("../../src/core/browser/install.js");
+  const { EventEmitter } = await import("node:events");
+  const mk = (fire: (c: InstanceType<typeof EventEmitter>) => void) => {
+    const child = new EventEmitter();
+    queueMicrotask(() => fire(child));
+    return (() => child) as never;
+  };
+  assert.equal(
+    await defaultSpawner(
+      "x",
+      [],
+      mk((c) => c.emit("exit", 3)),
+    ),
+    3,
+  );
+  assert.equal(
+    await defaultSpawner(
+      "x",
+      [],
+      mk((c) => c.emit("exit", null)),
+    ),
+    1,
+  );
+  await assert.rejects(
+    defaultSpawner(
+      "x",
+      [],
+      mk((c) => c.emit("error", new Error("ENOENT"))),
+    ),
+    /ENOENT/,
   );
 });
