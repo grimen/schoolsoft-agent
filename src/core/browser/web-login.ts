@@ -70,7 +70,12 @@ export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
     await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
-      const url = page.url();
+      // The identity provider may continue in a new tab or popup; watch every page.
+      const url =
+        context
+          .pages()
+          .map((p) => p.url())
+          .find((u) => isPortalUrl(u, origin, o.school)) ?? page.url();
       if (isPortalUrl(url, origin, o.school)) {
         const host = new URL(origin).hostname;
         const cookies = (await context.cookies()).filter(

@@ -22,7 +22,14 @@ function fakePw(
     },
     url: () => urls[Math.min(i++, urls.length - 1)],
   };
-  const context = { newPage: async () => page, cookies: async () => cookies };
+  const extra = {
+    url: () => "https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp",
+  };
+  const context = {
+    newPage: async () => page,
+    cookies: async () => cookies,
+    pages: () => (urls[0] === "POPUP" ? [page, extra] : [page]),
+  };
   const browser = {
     newContext: async () => context,
     close: async () => {
@@ -126,4 +133,17 @@ test("SessionManager stores, exposes, and clears the web session next to the app
   again.clearWebSession();
   assert.equal(store.load()?.web, undefined);
   await assert.rejects(again.webLogin(), /not available/);
+});
+
+test("webLogin also accepts the portal appearing in another tab or popup", async () => {
+  const { pw, state } = fakePw(
+    ["POPUP"],
+    [{ name: "JSESSIONID", value: "web", domain: "sms.schoolsoft.se", path: "/", expires: -1 }],
+  );
+  const web = await webLogin({ school: "taby", loader: async () => pw, pollMs: 1, timeoutMs: 200 });
+  assert.equal(
+    web.landedOn,
+    "https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp",
+  );
+  assert.equal(state.closed, 1);
 });
