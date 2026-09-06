@@ -21,7 +21,12 @@ import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { platform } from "node:os";
 import { SchoolsoftClient } from "@elias4044/ssp-node";
-import { DEFAULT_CALLBACK_PORT, CALLBACK_PORT_ENV } from "../constants.js";
+import {
+  DEFAULT_CALLBACK_PORT,
+  CALLBACK_PORT_ENV,
+  DEFAULT_USER_TYPE,
+  type SchoolsoftUserType,
+} from "../constants.js";
 
 export interface BrowserFlowResult {
   code: string;
@@ -70,6 +75,15 @@ function defaultOpenInBrowser(url: string): void {
 export async function runBrowserLogin(options: {
   school: string;
   orgid?: string;
+  /**
+   * SchoolSoft login route: "parent" | "student" | "teacher". Every login
+   * page (password, SAML, BankID) lives under `#/login/<userType>/…` and
+   * the backend resolves the authenticated identity *as that user type*.
+   * ssp-node hardcodes "student"; guardians must use "parent" or they get
+   * "Användaren … är inte aktiv på den här skolan" after a successful
+   * BankID. Defaults to "parent".
+   */
+  userType?: SchoolsoftUserType;
   timeoutMs?: number;
   /** Injectable for tests; defaults to opening the OS default browser. */
   openBrowser?: (url: string) => void;
@@ -80,11 +94,20 @@ export async function runBrowserLogin(options: {
   );
   const redirectUri = `http://127.0.0.1:${port}/callback`;
 
-  const flow = SchoolsoftClient.startMobileFlow({
+  const userType = options.userType ?? DEFAULT_USER_TYPE;
+  const mobileFlow = SchoolsoftClient.startMobileFlow({
     school: options.school,
     orgid: options.orgid,
     redirectUri,
   });
+  // ssp-node only knows the student route; swap in the requested one.
+  const flow = {
+    ...mobileFlow,
+    authUrl: mobileFlow.authUrl.replace(
+      "/react/#/login/student",
+      `/react/#/login/${userType}`,
+    ),
+  };
 
   const code = await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(

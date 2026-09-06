@@ -7,6 +7,14 @@ export const DEFAULT_STATE_DIR_ENV = "SCHOOLSOFT_STATE_DIR";
 /** School slug, e.g. "taby" from https://sms.schoolsoft.se/taby/... */
 export const SCHOOL_ENV = "SCHOOLSOFT_SCHOOL";
 
+/** SchoolSoft user types, as used in `#/login/<userType>/…` routes. */
+export const SCHOOLSOFT_USER_TYPES = ["parent", "student", "teacher"] as const;
+export type SchoolsoftUserType = (typeof SCHOOLSOFT_USER_TYPES)[number];
+
+/** Which login route to use. This server targets guardians. */
+export const USER_TYPE_ENV = "SCHOOLSOFT_USER_TYPE";
+export const DEFAULT_USER_TYPE: SchoolsoftUserType = "parent";
+
 /** Optional org id (defaults to ssp-node's default). */
 export const ORGID_ENV = "SCHOOLSOFT_ORGID";
 

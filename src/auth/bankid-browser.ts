@@ -7,16 +7,23 @@ import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "./strategy.js";
 import type { PersistedSession } from "../services/store.js";
 import { runBrowserLogin } from "./browser-flow.js";
+import type { SchoolsoftUserType } from "../constants.js";
 
 export class BankIdBrowserStrategy implements AuthStrategy {
   readonly id = "bankid-browser";
 
-  constructor(private readonly options: { orgid?: string } = {}) {}
+  constructor(
+    private readonly options: {
+      orgid?: string;
+      userType?: SchoolsoftUserType;
+    } = {},
+  ) {}
 
   async login(client: SchoolsoftClient): Promise<LoginInfo> {
     const { result } = await runBrowserLogin({
       school: client.school,
       orgid: this.options.orgid,
+      userType: this.options.userType,
     });
     await client.completeMobileFlow(result.code, result.verifier);
     return this.exchange(client);

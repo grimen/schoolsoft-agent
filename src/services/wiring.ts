@@ -6,7 +6,15 @@
 import { FileSessionStore } from "./file-store.js";
 import { SessionManager } from "./session-manager.js";
 import { BankIdBrowserStrategy } from "../auth/bankid-browser.js";
-import { SCHOOL_ENV, ORGID_ENV, DEFAULT_STATE_DIR_ENV } from "../constants.js";
+import {
+  SCHOOL_ENV,
+  ORGID_ENV,
+  DEFAULT_STATE_DIR_ENV,
+  USER_TYPE_ENV,
+  DEFAULT_USER_TYPE,
+  SCHOOLSOFT_USER_TYPES,
+  type SchoolsoftUserType,
+} from "../constants.js";
 
 export function requiredSchool(): string {
   const school = process.env[SCHOOL_ENV];
@@ -20,6 +28,18 @@ export function requiredSchool(): string {
   return school;
 }
 
+export function userTypeFromEnv(): SchoolsoftUserType {
+  const raw = process.env[USER_TYPE_ENV];
+  if (raw === undefined || raw === "") return DEFAULT_USER_TYPE;
+  if ((SCHOOLSOFT_USER_TYPES as readonly string[]).includes(raw)) {
+    return raw as SchoolsoftUserType;
+  }
+  throw new Error(
+    `Invalid ${USER_TYPE_ENV}="${raw}". Expected one of: ` +
+      SCHOOLSOFT_USER_TYPES.join(", "),
+  );
+}
+
 let manager: SessionManager | null = null;
 
 /** Lazily built process-wide SessionManager (one user per stdio server). */
@@ -29,7 +49,10 @@ export function sessionManager(): SessionManager {
       school: requiredSchool(),
       store: FileSessionStore.fromEnv(DEFAULT_STATE_DIR_ENV),
       strategies: [
-        new BankIdBrowserStrategy({ orgid: process.env[ORGID_ENV] }),
+        new BankIdBrowserStrategy({
+          orgid: process.env[ORGID_ENV],
+          userType: userTypeFromEnv(),
+        }),
       ],
     });
   }

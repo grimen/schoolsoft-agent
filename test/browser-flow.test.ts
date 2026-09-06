@@ -93,3 +93,35 @@ test("occupied port produces an actionable error", async () => {
     blocker.close();
   }
 });
+
+test("auth URL targets the parent login route by default (guardians, not students)", async () => {
+  const port = usePort();
+  const login = runBrowserLogin({
+    school: "testskola",
+    openBrowser: (authUrl) => {
+      const state = stateFrom(authUrl);
+      void fetch(
+        `http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`,
+      );
+    },
+  });
+  const { authUrl } = await login;
+  assert.match(authUrl, /\/testskola\/react\/#\/login\/parent\?/);
+  assert.doesNotMatch(authUrl, /login\/student/);
+});
+
+test("auth URL honours an explicit userType", async () => {
+  const port = usePort();
+  const login = runBrowserLogin({
+    school: "testskola",
+    userType: "student",
+    openBrowser: (authUrl) => {
+      const state = stateFrom(authUrl);
+      void fetch(
+        `http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`,
+      );
+    },
+  });
+  const { authUrl } = await login;
+  assert.match(authUrl, /\/react\/#\/login\/student\?/);
+});
