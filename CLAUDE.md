@@ -17,6 +17,11 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   GDPR-gated capabilities (`WEB_SESSION_CAPABILITIES`) need the web-login
   session from `login --web`; they must fail before navigating without it.
   The web session's only non-GET is the child-in-focus PUT (`syncWebChild`).
+- **Browser pages are declared, not scattered.** A page the browser reads
+  lives in `src/core/portal/pages.ts` (path, gate, anchors) with its extractor
+  in `extractors.ts` and a fixture in `test/fixtures/jsp/`. After a SchoolSoft
+  change: `make browser-verify`, fix the named extractor + fixture, then
+  `make fingerprints`. Tool inputs take names, never SchoolSoft ids.
 - **One definition per capability.** New capability = one file in
   `src/core/operations/` + one line in `registry.ts`. Never hand-write an MCP
   tool or CLI command. Then `make docs && make skills` and commit the output;

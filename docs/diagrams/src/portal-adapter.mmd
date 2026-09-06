@@ -8,11 +8,13 @@ flowchart LR
   PW -->|kind: chromium| CH[(bundled Chromium)]
   PW -->|kind: cdp| CDP[(any CDP endpoint,<br/>e.g. Obscura)]
   API --> EVA[Eva API]
-  API --> REST[Webview REST]
+  API --> REST[Webview REST<br/>incl. subject rooms, child header]
   API --> LEG[legacy /rest<br/>read-only POST]
-  CH & CDP --> JSP[JSP pages<br/>contacts · subjects · bookings · files]
+  CH & CDP --> JSP[JSP pages<br/>contacts · bookings · files]
   CH & CDP --> GATED[GDPR-gated JSP pages<br/>grades · documents · absence · criteria]
   WEB[[login --web<br/>headed browser, user does BankID,<br/>cookies stored encrypted]] -.->|web cookies preferred| SESS
   WEB -.->|same cookie header| REST
+  PAGESPEC[[pages.ts<br/>path · gate · anchors]] -.-> BP
+  PAGESPEC -.-> VERIFY[browser verify / make fingerprints<br/>anchors + structural fingerprint per page]
   classDef opt stroke-dasharray: 4 3
-  class PW,CH,CDP,JSP,GATED,BP,SESS,WEB opt
+  class PW,CH,CDP,JSP,GATED,BP,SESS,WEB,PAGESPEC,VERIFY opt
