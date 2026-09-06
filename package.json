@@ -1,6 +1,6 @@
 {
   "name": "schoolsoft-agent",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SchoolSoft for AI agents (independent project, not affiliated with SchoolSoft AB): MCP server and CLI/skill for guardians — BankID login, schedule, lunch, news, messages",
   "scripts": {
     "build": "tsc",
