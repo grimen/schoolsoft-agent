@@ -13,6 +13,7 @@
 import type { Browser, BrowserContext, Page, Route } from "playwright";
 import { BrowserRequiredError, PortalGatedError, SessionLostError } from "../portal/types.js";
 import type { BrowserEngine, BrowserSession, PortalPage, WithPageOptions } from "./session.js";
+import type { WebCookie } from "./web-login.js";
 
 /** The slice of the playwright module we use; injectable for tests. */
 export interface PlaywrightLike {
@@ -39,6 +40,8 @@ export interface PlaywrightSessionOptions {
   school: string;
   /** Fresh cookie header on every page: the session may have been refreshed. */
   cookieHeader: () => string | null;
+  /** Cookies from a real web login; when present they are used instead of cookieHeader. */
+  webCookies?: () => WebCookie[] | null;
   engine?: BrowserEngine;
   loader?: PlaywrightLoader;
   origin?: string;
@@ -72,25 +75,36 @@ export class PlaywrightSession implements BrowserSession {
     fn: (page: PortalPage) => Promise<T>,
     options: WithPageOptions = {},
   ): Promise<T> {
+    const web = this.o.webCookies?.() ?? null;
     const cookie = this.o.cookieHeader();
-    if (!cookie) throw new SessionLostError("(no web session cookies)");
+    if (!web?.length && !cookie) throw new SessionLostError("(no web session cookies)");
     const browser = await this.getBrowser();
     const context: BrowserContext = await browser.newContext({ locale: "sv-SE" });
     try {
       const origin = new URL(this.origin);
       const host = origin.hostname;
       // Cookies only make sense for an http(s) origin; fixtures load from file://.
-      if (origin.protocol.startsWith("http"))
-        await context.addCookies(
-          cookie
-            .split(";")
-            .map((p) => p.trim())
-            .filter(Boolean)
-            .map((p) => {
-              const i = p.indexOf("=");
-              return { name: p.slice(0, i), value: p.slice(i + 1), domain: host, path: "/" };
-            }),
-        );
+      if (origin.protocol.startsWith("http")) {
+        const specs = web?.length
+          ? web.map((c) => ({
+              name: c.name,
+              value: c.value,
+              domain: c.domain,
+              path: c.path,
+              ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+              httpOnly: c.httpOnly,
+              secure: c.secure,
+            }))
+          : (cookie ?? "")
+              .split(";")
+              .map((s) => s.trim())
+              .filter(Boolean)
+              .map((s) => {
+                const i = s.indexOf("=");
+                return { name: s.slice(0, i), value: s.slice(i + 1), domain: host, path: "/" };
+              });
+        await context.addCookies(specs);
+      }
       const page = await context.newPage();
       // Bundlers (tsx/esbuild keepNames) decorate serialised function sources
       // with `__name(fn, "name")`; give the page an identity helper so

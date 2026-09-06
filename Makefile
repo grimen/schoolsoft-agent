@@ -85,6 +85,9 @@ e2e: build ## Live E2E against SchoolSoft (needs `configure` + one BankID login;
 login: build ## Interactive BankID login (opens your browser)
 	node dist/cli/index.js login
 
+login-web: build ## Web login in a visible browser window (BankID/SAML); needed once for grades, documents, attendance
+	node dist/cli/index.js login --web
+
 status: build ## Show session status
 	node dist/cli/index.js auth-status
 
@@ -171,6 +174,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact e2e login status logout configure doctor browser docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact e2e login login-web status logout configure doctor browser docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

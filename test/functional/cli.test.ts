@@ -202,3 +202,21 @@ test("a browser-backed command without a browser fails with the install hint (ex
   assert.equal(ok.code, EXIT.OK, "activity log is api-backed and still works");
   assert.equal(ok.json().entries.length, 1);
 });
+
+test("login --web runs the web login and auth-status reports the web session", async () => {
+  const h = makeContext({
+    webLogin: async () => ({
+      cookies: [{ name: "JSESSIONID", value: "w", domain: "sms.schoolsoft.se", path: "/" }],
+      savedAt: Date.now(),
+      landedOn: "https://sms.schoolsoft.se/testskola/jsp/student/right_student_startpage.jsp",
+    }),
+  });
+  const { run } = harness({ ctx: h.ctx });
+  assert.equal((await run("login")).code, EXIT.OK);
+  const w = await run("login", "--web");
+  assert.equal(w.code, EXIT.OK, w.err);
+  assert.equal(w.json().status, "web_logged_in");
+  assert.equal(w.json().cookies, 1);
+  const st = await run("auth-status");
+  assert.equal(st.json().webSession.cookies, 1);
+});

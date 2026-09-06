@@ -120,6 +120,7 @@ export const testConfig: Config = {
 export function makeContext(
   opts: {
     browserUnavailable?: string;
+    webLogin?: (school: string) => Promise<import("../../src/core/index.js").WebSession>;
     store?: MemorySessionStore;
     portal?: Portal;
     config?: Partial<Config>;
@@ -132,6 +133,7 @@ export function makeContext(
     store,
     strategies: [strategy],
     clientFactory: () => fakeSchoolsoftClient(),
+    webLogin: opts.webLogin,
   });
   const logs: string[] = [];
   const ctx: OperationContext = {

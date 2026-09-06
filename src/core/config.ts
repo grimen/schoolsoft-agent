@@ -21,6 +21,7 @@ import type { Portal } from "./portal/types.js";
 import type { BrowserEngine } from "./browser/session.js";
 import { PlaywrightSession, type PlaywrightLoader } from "./browser/playwright.js";
 import { BrowserPortal } from "./portal/browser-portal.js";
+import { webLogin, type WebSession } from "./browser/web-login.js";
 
 export interface Config {
   /** School slug, e.g. "taby" from https://sms.schoolsoft.se/taby/... */
@@ -167,6 +168,9 @@ export interface SessionDeps {
   store?: SessionStore;
   fetchImpl?: BankIdBrowserOptions["fetchImpl"];
   openBrowser?: BankIdBrowserOptions["openBrowser"];
+  /** Override the interactive web login (tests); default opens a headed Playwright window. */
+  webLogin?: (school: string) => Promise<WebSession>;
+  playwrightLoader?: PlaywrightLoader;
 }
 
 /** Production wiring of a SessionManager for a resolved Config. */
@@ -174,6 +178,17 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
   return new SessionManager({
     school: config.school,
     store: deps.store ?? new FileSessionStore(config.stateDir),
+    webLogin:
+      deps.webLogin ??
+      ((school) =>
+        webLogin({
+          school,
+          engine:
+            config.browser.kind === "cdp" ? config.browser : { kind: "chromium", headless: false },
+          loader: deps.playwrightLoader,
+          onOpen: (url) =>
+            console.error(`Web login: complete BankID/SAML in the browser window (${url})`),
+        })),
     strategies: [
       new BankIdBrowserStrategy({
         orgid: config.orgId,

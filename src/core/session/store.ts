@@ -7,6 +7,7 @@
  * or an in-memory fake for tests without touching orchestration code.
  */
 import type { GuardianContext } from "../portal/api-portal.js";
+import type { WebSession } from "../browser/web-login.js";
 
 export interface PersistedSession {
   school: string;
@@ -21,6 +22,8 @@ export interface PersistedSession {
   usertype?: string;
   /** Guardian profile + child in focus (see src/api/guardian.ts). */
   guardian?: GuardianContext;
+  /** Browser cookies from a real web login (passes the GDPR gate). */
+  web?: WebSession;
   /** Bookkeeping. */
   savedAt: number;
   authMethod: string;

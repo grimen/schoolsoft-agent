@@ -351,6 +351,10 @@ in the diagnostics.
 Args:
   - strategy (string, optional): auth strategy id. Defaults to
     "bankid-browser".
+  - web (boolean, optional): perform the WEB login in a visible browser
+    window instead. Required once before grades, student documents,
+    assessment and attendance (SchoolSoft's GDPR gate); the app session
+    covers everything else.
 
 Returns: { status: "logged_in", user: { name, schoolName, userType, children } }.
 
@@ -360,6 +364,7 @@ Don't use when: a session is already active (check auth_status).
 | Flag | Required | Description |
 |---|---|---|
 | `--strategy <value>` | no | Auth strategy id, defaults to "bankid-browser" |
+| `--web` | no | Web login instead: opens a browser window for SchoolSoft's normal login; needed once for grades, documents and attendance (GDPR-gated pages). |
 
 ```bash
 schoolsoft-agent login

@@ -73,3 +73,5 @@ export type {
   BrowserEngine,
   WithPageOptions,
 } from "./browser/session.js";
+export { webLogin, isPortalUrl } from "./browser/web-login.js";
+export type { WebSession, WebCookie, WebLoginOptions } from "./browser/web-login.js";

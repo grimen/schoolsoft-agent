@@ -248,3 +248,20 @@ test("browserStatus reports the three states and installChromium spawns playwrig
     /playwright is not installed/,
   );
 });
+
+test("web-login cookies are preferred over the app cookie header", async () => {
+  const state = fresh();
+  const s = new PlaywrightSession({
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=app; hash=h",
+    webCookies: () => [
+      { name: "JSESSIONID", value: "web", domain: "sms.schoolsoft.se", path: "/", expires: -1 },
+    ],
+    loader: async () => fakePlaywright(state),
+  });
+  await s.withPage(async () => 0);
+  assert.deepEqual(
+    state.cookies.map((c) => c.value),
+    ["web"],
+  );
+});
