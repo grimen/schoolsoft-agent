@@ -12,6 +12,8 @@ import {
   DEFAULT_STATE_DIR_ENV,
   USER_TYPE_ENV,
   DEFAULT_USER_TYPE,
+  CLIENT_ID_ENV,
+  DEFAULT_CLIENT_ID,
   SCHOOLSOFT_USER_TYPES,
   type SchoolsoftUserType,
 } from "../constants.js";
@@ -52,6 +54,7 @@ export function sessionManager(): SessionManager {
         new BankIdBrowserStrategy({
           orgid: process.env[ORGID_ENV],
           userType: userTypeFromEnv(),
+          clientId: process.env[CLIENT_ID_ENV] || DEFAULT_CLIENT_ID,
         }),
       ],
     });

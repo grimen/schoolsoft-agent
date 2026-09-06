@@ -20,13 +20,14 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import { platform } from "node:os";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   DEFAULT_CALLBACK_PORT,
   CALLBACK_PORT_ENV,
   DEFAULT_USER_TYPE,
+  DEFAULT_CLIENT_ID,
   type SchoolsoftUserType,
 } from "../constants.js";
+import { buildAuthUrl } from "./oauth.js";
 
 export interface BrowserFlowResult {
   code: string;
@@ -84,6 +85,8 @@ export async function runBrowserLogin(options: {
    * BankID. Defaults to "parent".
    */
   userType?: SchoolsoftUserType;
+  /** OAuth client id; see CLIENT_ID_ENV in constants.ts. Defaults to eApp. */
+  clientId?: string;
   timeoutMs?: number;
   /** Injectable for tests; defaults to opening the OS default browser. */
   openBrowser?: (url: string) => void;
@@ -94,20 +97,13 @@ export async function runBrowserLogin(options: {
   );
   const redirectUri = `http://127.0.0.1:${port}/callback`;
 
-  const userType = options.userType ?? DEFAULT_USER_TYPE;
-  const mobileFlow = SchoolsoftClient.startMobileFlow({
+  const flow = buildAuthUrl({
     school: options.school,
-    orgid: options.orgid,
+    userType: options.userType ?? DEFAULT_USER_TYPE,
+    clientId: options.clientId ?? DEFAULT_CLIENT_ID,
     redirectUri,
+    orgid: options.orgid,
   });
-  // ssp-node only knows the student route; swap in the requested one.
-  const flow = {
-    ...mobileFlow,
-    authUrl: mobileFlow.authUrl.replace(
-      "/react/#/login/student",
-      `/react/#/login/${userType}`,
-    ),
-  };
 
   const code = await new Promise<string>((resolve, reject) => {
     const timeout = setTimeout(

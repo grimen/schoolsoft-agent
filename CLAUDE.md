@@ -37,28 +37,52 @@ Goal: seamless read/write access from Claude/ChatGPT/other MCP clients.
   `MemorySessionStore` and fakes — see `test/session-manager.test.ts`
   (6 passing, `npm test`, zero disk/network).
 
-## ⚠️ Verify live first (cannot be tested without real SchoolSoft access)
+## Live findings (Täby, guardian account, 2026-09-06)
 
-1. **Does SchoolSoft's OAuth server accept a localhost redirect_uri?**
-   Default is the app deep-link `com.schoolsoftplus.app://` (hardcoded in
-   ssp-node's `auth/mobile.js`; auth URL goes to
-   `https://sms.schoolsoft.se/<school>/react/#/login/student`). If
-   localhost is rejected: fallbacks A–C are documented at the bottom of
-   `src/auth/browser-flow.ts` (Playwright interception, cookie capture,
-   or one-time BankID bootstrap → username/password via "Min profil" +
-   "Åtkomst från app").
-2. **Guardian vs student login route.** The auth URL path says
-   `/login/student` — check whether guardians need a different path/orgid
-   for the BankID option to appear, and whether Täby's slug is `taby`.
-3. **Multi-child accounts.** Guardians switch between children after
-   login; ssp-node's endpoints may need a child/org selector. Inspect
-   `getSession()` output for available orgs/students.
-4. **Token/session lifetimes.** How long does the refresh token live?
-   Decide whether a keep-alive is needed.
+Answered:
+
+1. **Localhost redirect_uri: ACCEPTED.** SchoolSoft delivered the code to
+   `http://127.0.0.1:43117/callback` (green "Inloggad" page). No fallback
+   strategy needed for the callback.
+2. **Login route is per user type**, and it matters. SchoolSoft's login app
+   routes everything under `#/login/<parent|student|teacher>/…`; ssp-node
+   hardcodes `student`. Guardians on the student route get "Användaren …
+   är inte aktiv på den här skolan" after a successful BankID. orgid is
+   irrelevant for SAML/BankID (only the password flows send it). Täby's
+   slug is `taby`; Rösjöskolan is orgId 20 in the public school list
+   (`/internal/rest-api/login/schoollist`, 3414 schools).
+   - Täby app login methods (`/rest-api/login/methods/?client_id=eApp&usertype=parent`):
+     SAML (3) + app username/password (4). No direct BankID (11) — BankID
+     comes via Täby's SAML IdP (`etjanst.taby.se/wa/auth/saml`).
+   - ssp-node's token→cookie exchange also hardcodes
+     `/eva-apps/auth/login/student`; replaced by `src/auth/session-exchange.ts`.
+
+Still open (blocks everything):
+
+- **SchoolSoft stamps `user_type` into the access token and resolves the
+  user at use time.** With the parent route + client_id `eApp`, the JWT
+  still came back `user_type: STUDENT` (`login_method: SAML`, `sub` is a
+  UUID from `https://schoolsoft.se/core/login`), so refresh, `/rest-api/session`
+  (Bearer) and the cookie exchange all fail with "Vi kunde inte hitta
+  användaren". Hypotheses, in order:
+  a. client_id decides the type: `eApp` = student app, `vApp` = guardian
+     app (the login bundle special-cases both). Test: `SCHOOLSOFT_CLIENT_ID=vApp`.
+     The token endpoint accepts any clientId string, so only a real login tells.
+  b. Guardian needs "Åtkomst från app" enabled under Min profil on the web
+     before app logins resolve.
+  c. SchoolSoft's SAML return handler drops the route's user type.
+  The strategy now logs the token's claims to stderr right after the code
+  exchange, so one BankID round answers this. All OAuth pieces
+  (`src/auth/oauth.ts`) are ours now; ssp-node is only used for its HTTP
+  helpers and data endpoints.
+3. **Multi-child accounts.** Unknown until a guardian token works.
+4. **Token/session lifetimes.** Access token JWT exp was 15 min
+   (`iat`→`exp`); token response had no `expires` field, so we fall back
+   to the JWT exp. Refresh-token lifetime unknown.
 
 ## Roadmap
 
-- [ ] Live-test auth flow end to end (items above) against real account
+- [ ] Live-test auth flow end to end — Q1/Q2 done; user_type stamping open (see above)
 - [ ] Add `schoolsoft_get_messages` (inbox) — check if ssp-node covers it,
       else map endpoint via HAR recording
 - [ ] **Write ops (the differentiator, nothing open source has these):**
@@ -110,5 +134,8 @@ Goal: seamless read/write access from Claude/ChatGPT/other MCP clients.
 - `npm run inspect` — MCP Inspector against source
 - Smoke test: pipe initialize + tools/list JSON-RPC into `node dist/index.js`
 
-Env: `SCHOOLSOFT_SCHOOL` (required, e.g. `taby`), `SCHOOLSOFT_ORGID`,
-`SCHOOLSOFT_CALLBACK_PORT`, `SCHOOLSOFT_STATE_DIR`.
+Env: `SCHOOLSOFT_SCHOOL` (required, e.g. `taby`), `SCHOOLSOFT_USER_TYPE`
+(parent|student|teacher, default parent), `SCHOOLSOFT_CLIENT_ID` (default
+eApp), `SCHOOLSOFT_ORGID`, `SCHOOLSOFT_CALLBACK_PORT`, `SCHOOLSOFT_STATE_DIR`.
+
+Gotcha: the rtk shell hook rewrites `npx tsx`; call `./node_modules/.bin/tsx`.
