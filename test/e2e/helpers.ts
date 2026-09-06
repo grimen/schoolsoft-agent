@@ -11,13 +11,15 @@
 import { appendFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { FileSessionStore, type PersistedSession, type OperationContext } from "../../src/core/index.js";
+import {
+  FileSessionStore,
+  type PersistedSession,
+  type OperationContext,
+} from "../../src/core/index.js";
 import { loadConfig, loadContext } from "../../src/shared/bootstrap.js";
 
 export const LIVE = process.env.SCHOOLSOFT_E2E === "1";
-export const skip = LIVE
-  ? false
-  : "set SCHOOLSOFT_E2E=1 (and SCHOOLSOFT_SCHOOL) to run live e2e";
+export const skip = LIVE ? false : "set SCHOOLSOFT_E2E=1 (and SCHOOLSOFT_SCHOOL) to run live e2e";
 
 export const REPORT_PATH = join(process.cwd(), "e2e-report.md");
 

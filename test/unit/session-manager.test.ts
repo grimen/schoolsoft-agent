@@ -5,10 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
-import {
-  SessionManager,
-  NotAuthenticatedError,
-} from "../../src/core/session/session-manager.js";
+import { SessionManager, NotAuthenticatedError } from "../../src/core/session/session-manager.js";
 import { MemorySessionStore } from "../../src/core/session/store.js";
 import type { AuthStrategy, LoginInfo } from "../../src/core/auth/strategy.js";
 import type { PersistedSession } from "../../src/core/session/store.js";
@@ -36,20 +33,19 @@ class FakeStrategy implements AuthStrategy {
     return { name: "Test Testsson", schoolName: "Testskolan", userType: "2" };
   }
 
-  async restore(
-    _client: SchoolsoftClient,
-    _saved: PersistedSession,
-  ): Promise<void> {
+  async restore(_client: SchoolsoftClient, _saved: PersistedSession): Promise<void> {
     this.restoreCalls++;
     if (this.restoreShouldFail) throw new Error("boom");
   }
 }
 
-function makeManager(opts: {
-  store?: MemorySessionStore;
-  strategy?: FakeStrategy;
-  client?: SchoolsoftClient;
-} = {}) {
+function makeManager(
+  opts: {
+    store?: MemorySessionStore;
+    strategy?: FakeStrategy;
+    client?: SchoolsoftClient;
+  } = {},
+) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = opts.strategy ?? new FakeStrategy();
   const manager = new SessionManager({
@@ -165,7 +161,10 @@ test("login persists the access token expiry (JWT exp, unix seconds)", async () 
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
   const jwt = `${b64({ alg: "RS256" })}.${b64({ exp: 1_800_000_000 })}.sig`;
   const store = new MemorySessionStore();
-  const { manager } = makeManager({ store, client: fakeClient({ accessToken: jwt } as Partial<SchoolsoftClient>) });
+  const { manager } = makeManager({
+    store,
+    client: fakeClient({ accessToken: jwt } as Partial<SchoolsoftClient>),
+  });
   await manager.login();
   assert.equal(store.load()?.accessTokenExpiresAt, 1_800_000_000);
 });

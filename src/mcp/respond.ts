@@ -23,8 +23,7 @@ export function ok(data: Record<string, unknown>): ToolResult {
 }
 
 export function fail(error: unknown): ToolResult {
-  const message =
-    error instanceof Error ? error.message : String(error ?? "Unknown error");
+  const message = error instanceof Error ? error.message : String(error ?? "Unknown error");
   const hint =
     error instanceof NotAuthenticatedError || error instanceof NotConfiguredError
       ? ""
@@ -36,9 +35,7 @@ export function fail(error: unknown): ToolResult {
 }
 
 /** Wrap a handler with uniform error handling. */
-export function guarded<A>(
-  fn: (args: A) => Promise<ToolResult>,
-): (args: A) => Promise<ToolResult> {
+export function guarded<A>(fn: (args: A) => Promise<ToolResult>): (args: A) => Promise<ToolResult> {
   return async (args: A) => {
     try {
       return await fn(args);

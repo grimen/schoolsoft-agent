@@ -61,7 +61,10 @@ export function buildProgram(deps: CliDeps): Command {
     .option("--state-dir <dir>", "Session state directory")
     .option("--pretty", "Pretty-print JSON output")
     .exitOverride()
-    .configureOutput({ writeOut: (s) => deps.stdout(s.trimEnd()), writeErr: (s) => deps.stderr(s.trimEnd()) });
+    .configureOutput({
+      writeOut: (s) => deps.stdout(s.trimEnd()),
+      writeErr: (s) => deps.stderr(s.trimEnd()),
+    });
 
   const emit = (data: unknown) => {
     const pretty = Boolean(program.opts().pretty);

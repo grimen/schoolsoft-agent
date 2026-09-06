@@ -32,7 +32,13 @@ export const ChildSchema = z
   .optional()
   .describe("Child's student id from list_children. Defaults to the child currently in focus.");
 
-export const LimitSchema = z.number().int().min(1).max(100).optional().describe("Max items, default 20");
+export const LimitSchema = z
+  .number()
+  .int()
+  .min(1)
+  .max(100)
+  .optional()
+  .describe("Max items, default 20");
 
 export interface ChildScope {
   guardian: GuardianContext;

@@ -14,9 +14,15 @@ test("checker catches core → adapter, core → process, adapter → core inter
   const root = mkdtempSync(join(tmpdir(), "bounds-"));
   mkdirSync(join(root, "src/core/x"), { recursive: true });
   mkdirSync(join(root, "src/mcp"), { recursive: true });
-  writeFileSync(join(root, "src/core/x/a.ts"), `import { y } from "../../mcp/y.js";\nconst p = process.env.X;\nimport proc from "node:process";\n`);
+  writeFileSync(
+    join(root, "src/core/x/a.ts"),
+    `import { y } from "../../mcp/y.js";\nconst p = process.env.X;\nimport proc from "node:process";\n`,
+  );
   writeFileSync(join(root, "src/core/index.ts"), `export {};\n`);
-  writeFileSync(join(root, "src/mcp/y.ts"), `import { z } from "../core/x/a.js";\nimport { ok } from "../core/index.js";\n`);
+  writeFileSync(
+    join(root, "src/mcp/y.ts"),
+    `import { z } from "../core/x/a.js";\nimport { ok } from "../core/index.js";\n`,
+  );
   const msgs = checkBoundaries(root).map((v) => v.message);
   assert.ok(msgs.some((m) => m.includes("core imports adapter mcp/y.js")));
   assert.ok(msgs.some((m) => m.includes("process.env")));

@@ -10,12 +10,7 @@
   "homepage": "https://github.com/grimen/schoolsoft-agent",
   "repository": "https://github.com/grimen/schoolsoft-agent",
   "license": "MIT",
-  "keywords": [
-    "schoolsoft",
-    "school",
-    "bankid",
-    "sweden"
-  ],
+  "keywords": ["schoolsoft", "school", "bankid", "sweden"],
   "mcpServers": "./.mcp.json",
   "userConfig": {
     "school": {

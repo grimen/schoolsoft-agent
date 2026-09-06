@@ -4,7 +4,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { GuardianApi, childOf, orgIdOf, type ApiFetch, type GuardianContext } from "../../src/core/api/guardian.js";
+import {
+  GuardianApi,
+  childOf,
+  orgIdOf,
+  type ApiFetch,
+  type GuardianContext,
+} from "../../src/core/api/guardian.js";
 
 function harness(status = 200, data: unknown = []) {
   const calls: { url: string; headers: Record<string, string> }[] = [];
@@ -84,8 +90,18 @@ test("childOf/orgIdOf resolve the child in focus and reject unknown ids", () => 
     parentName: "P",
     childInFocus: 2,
     children: [
-      { studentId: 2, firstName: "A", lastName: "X", schools: [{ orgId: 20, name: "S", className: "4B" }] },
-      { studentId: 3, firstName: "B", lastName: "X", schools: [{ orgId: 21, name: "T", className: "1A" }] },
+      {
+        studentId: 2,
+        firstName: "A",
+        lastName: "X",
+        schools: [{ orgId: 20, name: "S", className: "4B" }],
+      },
+      {
+        studentId: 3,
+        firstName: "B",
+        lastName: "X",
+        schools: [{ orgId: 21, name: "T", className: "1A" }],
+      },
     ],
   };
   assert.equal(childOf(ctx).studentId, 2);

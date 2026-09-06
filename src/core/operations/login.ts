@@ -25,7 +25,9 @@ Returns: { status: "logged_in", user: { name, schoolName, userType, children } }
 
 Use when: any other operation reported "Not authenticated".
 Don't use when: a session is already active (check auth_status).`,
-  input: { strategy: z.string().optional().describe('Auth strategy id, defaults to "bankid-browser"') },
+  input: {
+    strategy: z.string().optional().describe('Auth strategy id, defaults to "bankid-browser"'),
+  },
   annotations: { readOnly: false, destructive: false, idempotent: false, requiresAuth: false },
   async run(ctx, { strategy }) {
     const user = await ctx.manager.login(strategy);

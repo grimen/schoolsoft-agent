@@ -32,11 +32,17 @@ export function mergeFrontmatter(skillMd: string, extraMetadata: Record<string, 
 function renderYaml(value: unknown, indent: number): string[] {
   const pad = " ".repeat(indent);
   if (Array.isArray(value)) {
-    return value.map((v) => (typeof v === "object" && v !== null ? [`${pad}-`, ...renderYaml(v, indent + 2).map((l) => l.replace(/^ {2}/, ""))].join("\n") : `${pad}- ${scalar(v)}`));
+    return value.map((v) =>
+      typeof v === "object" && v !== null
+        ? [`${pad}-`, ...renderYaml(v, indent + 2).map((l) => l.replace(/^ {2}/, ""))].join("\n")
+        : `${pad}- ${scalar(v)}`,
+    );
   }
   if (value && typeof value === "object") {
     return Object.entries(value as Record<string, unknown>).flatMap(([k, v]) =>
-      v && typeof v === "object" ? [`${pad}${k}:`, ...renderYaml(v, indent + 2)] : [`${pad}${k}: ${scalar(v)}`],
+      v && typeof v === "object"
+        ? [`${pad}${k}:`, ...renderYaml(v, indent + 2)]
+        : [`${pad}${k}: ${scalar(v)}`],
     );
   }
   return [`${pad}${scalar(value)}`];
@@ -51,14 +57,22 @@ export function buildSkills(root: string): string[] {
   const src = join(root, "skills", "schoolsoft");
   const skillMd = readFileSync(join(src, "SKILL.md"), "utf8");
   const written: string[] = [];
-  const targets: Array<[Host, string]> = HOSTS.map((h) => [h, join(root, "dist", "skills", h, "schoolsoft")]);
-  targets.push(["claude", join(root, "plugins", "claude", "schoolsoft-skill", "skills", "schoolsoft")]);
+  const targets: Array<[Host, string]> = HOSTS.map((h) => [
+    h,
+    join(root, "dist", "skills", h, "schoolsoft"),
+  ]);
+  targets.push([
+    "claude",
+    join(root, "plugins", "claude", "schoolsoft-skill", "skills", "schoolsoft"),
+  ]);
   for (const [host, dest] of targets) {
     rmSync(dest, { recursive: true, force: true });
     mkdirSync(dest, { recursive: true });
     cpSync(src, dest, { recursive: true });
     const metaFile = join(root, "plugins", host, "skill-metadata.json");
-    const md = existsSync(metaFile) ? mergeFrontmatter(skillMd, JSON.parse(readFileSync(metaFile, "utf8"))) : skillMd;
+    const md = existsSync(metaFile)
+      ? mergeFrontmatter(skillMd, JSON.parse(readFileSync(metaFile, "utf8")))
+      : skillMd;
     writeFileSync(join(dest, "SKILL.md"), md);
     written.push(dest);
   }

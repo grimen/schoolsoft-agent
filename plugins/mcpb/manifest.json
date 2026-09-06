@@ -37,7 +37,11 @@
       "default": "${HOME}/Library/Application Support/schoolsoft-agent"
     }
   },
-  "compatibility": { "claude_desktop": ">=0.10.0", "platforms": ["darwin", "win32", "linux"], "runtimes": { "node": ">=22" } },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=22" }
+  },
   "privacy_policies": ["https://github.com/grimen/schoolsoft-agent#privacy"],
   "tools": []
 }

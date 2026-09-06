@@ -3,13 +3,30 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { parseSchoolList, normalize, rankSchools, SchoolDirectory } from "../../src/core/api/schools.js";
+import {
+  parseSchoolList,
+  normalize,
+  rankSchools,
+  SchoolDirectory,
+} from "../../src/core/api/schools.js";
 
 const RAW = [
   { name: "Täby kommun - Rösjöskolan", orgId: 20, evaUrl: "https://sms.schoolsoft.se/taby/eva" },
-  { name: "Täby kommun - Skolhagenskolan", orgId: 18, evaUrl: "https://sms.schoolsoft.se/taby/eva" },
-  { name: "Täby friskola - Enhagen", orgId: 1, evaUrl: "https://sms.schoolsoft.se/tabyfriskola/eva" },
-  { name: "Nacka kommun - Björknässkolan", orgId: 7, evaUrl: "https://sms.schoolsoft.se/nacka/eva" },
+  {
+    name: "Täby kommun - Skolhagenskolan",
+    orgId: 18,
+    evaUrl: "https://sms.schoolsoft.se/taby/eva",
+  },
+  {
+    name: "Täby friskola - Enhagen",
+    orgId: 1,
+    evaUrl: "https://sms.schoolsoft.se/tabyfriskola/eva",
+  },
+  {
+    name: "Nacka kommun - Björknässkolan",
+    orgId: 7,
+    evaUrl: "https://sms.schoolsoft.se/nacka/eva",
+  },
   { name: "broken", orgId: "x", evaUrl: "nope" },
 ];
 
@@ -68,6 +85,11 @@ test("SchoolDirectory caches, respects TTL, and falls back to stale cache on fet
 
 test("SchoolDirectory without cache propagates fetch errors", async () => {
   const dir = mkdtempSync(join(tmpdir(), "schools-"));
-  const d = new SchoolDirectory({ cacheFile: join(dir, "c.json"), fetchImpl: async () => { throw new Error("offline"); } });
+  const d = new SchoolDirectory({
+    cacheFile: join(dir, "c.json"),
+    fetchImpl: async () => {
+      throw new Error("offline");
+    },
+  });
   await assert.rejects(d.list(), /offline/);
 });

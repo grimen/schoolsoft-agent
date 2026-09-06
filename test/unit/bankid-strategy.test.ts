@@ -20,14 +20,28 @@ const PARENT = {
   firstName: "Förälder",
   lastName: "Test",
   children: [
-    { studentId: 100, firstName: "Ett", lastName: "Test", schools: [{ orgId: 20, name: "Skolan", className: "4B" }] },
-    { studentId: 101, firstName: "Två", lastName: "Test", schools: [{ orgId: 20, name: "Skolan", className: "1A" }] },
+    {
+      studentId: 100,
+      firstName: "Ett",
+      lastName: "Test",
+      schools: [{ orgId: 20, name: "Skolan", className: "4B" }],
+    },
+    {
+      studentId: 101,
+      firstName: "Två",
+      lastName: "Test",
+      schools: [{ orgId: 20, name: "Skolan", className: "1A" }],
+    },
   ],
 };
 
 function fakeSchoolsoft() {
   const log: { url: string; headers: Record<string, string> }[] = [];
-  const fetchImpl = async (url: string, _school: string, options: { headers?: Record<string, string> }) => {
+  const fetchImpl = async (
+    url: string,
+    _school: string,
+    options: { headers?: Record<string, string> },
+  ) => {
     log.push({ url, headers: options.headers ?? {} });
     const path = url.replace("https://sms.schoolsoft.se/taby", "");
     if (path.startsWith("/rest-api/login/token")) {
@@ -42,13 +56,18 @@ function fakeSchoolsoft() {
         setCookies: [],
       };
     }
-    if (path === "/eva/api/v1/parent") return { status: 200, data: PARENT, headers: {}, setCookies: [] };
+    if (path === "/eva/api/v1/parent")
+      return { status: 200, data: PARENT, headers: {}, setCookies: [] };
     if (path === "/eva-apps/auth/login/parent") {
       return {
         status: 303,
         data: "",
         headers: {},
-        setCookies: [`JSESSIONID=js-${options.headers?.childInFocus}; Path=/`, "hash=h; Path=/", "usertype=2; Path=/"],
+        setCookies: [
+          `JSESSIONID=js-${options.headers?.childInFocus}; Path=/`,
+          "hash=h; Path=/",
+          "usertype=2; Path=/",
+        ],
       };
     }
     return { status: 404, data: null, headers: {}, setCookies: [] };
@@ -57,7 +76,9 @@ function fakeSchoolsoft() {
 }
 
 let port = 43300;
-function strategyWithFakes(prev = { log: [] as { url: string; headers: Record<string, string> }[] }) {
+function strategyWithFakes(
+  prev = { log: [] as { url: string; headers: Record<string, string> }[] },
+) {
   const { fetchImpl, log } = fakeSchoolsoft();
   prev.log = log;
   const strategy = new BankIdBrowserStrategy({
@@ -89,7 +110,11 @@ test("login: code → token (vApp) → parent profile → cookies bound to first
   assert.equal(strategy.context?.childInFocus, 100);
 
   const paths = log.map((l) => l.url.replace("https://sms.schoolsoft.se/taby", "").split("?")[0]);
-  assert.deepEqual(paths, ["/rest-api/login/token", "/eva/api/v1/parent", "/eva-apps/auth/login/parent"]);
+  assert.deepEqual(paths, [
+    "/rest-api/login/token",
+    "/eva/api/v1/parent",
+    "/eva-apps/auth/login/parent",
+  ]);
   assert.match(log[0].url, /clientId=vApp&grantType=code&code=CODE/);
   assert.equal(log[2].headers.userId, "21");
   assert.equal(log[2].headers.orgId, "20");
@@ -142,7 +167,11 @@ test("restore: unknown expiry refreshes up front", async () => {
 test("restore: a 401 on the profile call triggers one refresh-and-retry", async () => {
   const { fetchImpl: inner, log } = fakeSchoolsoft();
   let parentCalls = 0;
-  const fetchImpl = async (url: string, school: string, options: { headers?: Record<string, string> }) => {
+  const fetchImpl = async (
+    url: string,
+    school: string,
+    options: { headers?: Record<string, string> },
+  ) => {
     if (url.endsWith("/eva/api/v1/parent") && parentCalls++ === 0) {
       return { status: 401, data: null, headers: {}, setCookies: [] };
     }

@@ -31,8 +31,10 @@ export function camel(s: string): string {
 }
 
 function unwrap(schema: z.ZodTypeAny): { inner: z.ZodTypeAny; optional: boolean } {
-  if (schema instanceof z.ZodOptional) return { inner: schema.unwrap() as z.ZodTypeAny, optional: true };
-  if (schema instanceof z.ZodDefault) return { inner: schema.def.innerType as z.ZodTypeAny, optional: true };
+  if (schema instanceof z.ZodOptional)
+    return { inner: schema.unwrap() as z.ZodTypeAny, optional: true };
+  if (schema instanceof z.ZodDefault)
+    return { inner: schema.def.innerType as z.ZodTypeAny, optional: true };
   return { inner: schema, optional: false };
 }
 
@@ -43,14 +45,43 @@ export function flagsFromSchema(shape: z.ZodRawShape): FlagSpec[] {
     const description = (raw as z.ZodTypeAny).description ?? inner.description ?? "";
     const name = kebab(key);
     if (inner instanceof z.ZodNumber) {
-      specs.push({ key, flag: `--${name} <number>`, optionName: camel(key), kind: "number", required: !optional, description });
+      specs.push({
+        key,
+        flag: `--${name} <number>`,
+        optionName: camel(key),
+        kind: "number",
+        required: !optional,
+        description,
+      });
     } else if (inner instanceof z.ZodString) {
-      specs.push({ key, flag: `--${name} <value>`, optionName: camel(key), kind: "string", required: !optional, description });
+      specs.push({
+        key,
+        flag: `--${name} <value>`,
+        optionName: camel(key),
+        kind: "string",
+        required: !optional,
+        description,
+      });
     } else if (inner instanceof z.ZodBoolean) {
-      specs.push({ key, flag: `--${name}`, optionName: camel(key), kind: "boolean", required: false, description });
+      specs.push({
+        key,
+        flag: `--${name}`,
+        optionName: camel(key),
+        kind: "boolean",
+        required: false,
+        description,
+      });
     } else if (inner instanceof z.ZodEnum) {
       const choices = Object.values(inner.enum as Record<string, string>);
-      specs.push({ key, flag: `--${name} <choice>`, optionName: camel(key), kind: "enum", required: !optional, description, choices });
+      specs.push({
+        key,
+        flag: `--${name} <choice>`,
+        optionName: camel(key),
+        kind: "enum",
+        required: !optional,
+        description,
+        choices,
+      });
     } else {
       throw new Error(`Unsupported input schema for "${key}": ${inner.constructor.name}`);
     }
@@ -59,14 +90,18 @@ export function flagsFromSchema(shape: z.ZodRawShape): FlagSpec[] {
 }
 
 /** Turn commander's parsed options into operation args (snake_case keys). */
-export function parseFlags(specs: FlagSpec[], opts: Record<string, unknown>): Record<string, unknown> {
+export function parseFlags(
+  specs: FlagSpec[],
+  opts: Record<string, unknown>,
+): Record<string, unknown> {
   const args: Record<string, unknown> = {};
   for (const s of specs) {
     const v = opts[s.optionName];
     if (v === undefined) continue;
     if (s.kind === "number") {
       const n = Number(v);
-      if (!Number.isFinite(n)) throw new Error(`--${kebab(s.key)} must be a number, got "${String(v)}"`);
+      if (!Number.isFinite(n))
+        throw new Error(`--${kebab(s.key)} must be a number, got "${String(v)}"`);
       args[s.key] = n;
     } else if (s.kind === "boolean") {
       args[s.key] = Boolean(v);

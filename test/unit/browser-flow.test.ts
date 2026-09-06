@@ -46,9 +46,7 @@ test("state mismatch is rejected (CSRF protection)", async () => {
     school: "testskola",
     port,
     openBrowser: () => {
-      void fetch(
-        `http://127.0.0.1:${port}/callback?code=EVIL&state=wrong-state`,
-      );
+      void fetch(`http://127.0.0.1:${port}/callback?code=EVIL&state=wrong-state`);
     },
   });
   await assert.rejects(login, /state mismatch/i);
@@ -73,9 +71,7 @@ test("missing code is rejected", async () => {
     port,
     openBrowser: (authUrl) => {
       const state = stateFrom(authUrl);
-      void fetch(
-        `http://127.0.0.1:${port}/callback?state=${encodeURIComponent(state)}`,
-      );
+      void fetch(`http://127.0.0.1:${port}/callback?state=${encodeURIComponent(state)}`);
     },
   });
   await assert.rejects(login, /missing code/i);
@@ -102,9 +98,7 @@ test("auth URL targets the parent login route by default (guardians, not student
     port,
     openBrowser: (authUrl) => {
       const state = stateFrom(authUrl);
-      void fetch(
-        `http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`,
-      );
+      void fetch(`http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`);
     },
   });
   const { authUrl } = await login;
@@ -120,9 +114,7 @@ test("auth URL honours an explicit userType", async () => {
     userType: "student",
     openBrowser: (authUrl) => {
       const state = stateFrom(authUrl);
-      void fetch(
-        `http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`,
-      );
+      void fetch(`http://127.0.0.1:${port}/callback?code=X&state=${encodeURIComponent(state)}`);
     },
   });
   const { authUrl } = await login;

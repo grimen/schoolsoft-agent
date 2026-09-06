@@ -25,10 +25,7 @@ interface ToolCallResult {
   content: { type: string; text: string }[];
 }
 
-async function call(
-  name: string,
-  args: Record<string, unknown> = {},
-): Promise<ToolCallResult> {
+async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolCallResult> {
   return (await client.callTool({ name, arguments: args })) as ToolCallResult;
 }
 
@@ -100,9 +97,16 @@ test("M5: get_news returns items", { skip }, async () => {
 test("M6: list_children + get_messages work for the guardian", { skip }, async () => {
   const kids = await call("schoolsoft_list_children");
   assert.notEqual(kids.isError, true, kids.content[0]?.text);
-  const data = kids.structuredContent as { children: { studentId: number }[]; childInFocus: number };
+  const data = kids.structuredContent as {
+    children: { studentId: number }[];
+    childInFocus: number;
+  };
   assert.ok(data.children.length >= 1);
-  record("Q3", "Multi-child accounts", `${data.children.length} children, focus=${data.childInFocus}`);
+  record(
+    "Q3",
+    "Multi-child accounts",
+    `${data.children.length} children, focus=${data.childInFocus}`,
+  );
 
   const msgs = await call("schoolsoft_get_messages", { limit: 5 });
   assert.notEqual(msgs.isError, true, msgs.content[0]?.text);

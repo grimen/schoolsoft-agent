@@ -94,11 +94,16 @@ export async function exchangeCode(options: {
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=code&code=${encodeURIComponent(options.code)}` +
     `&codeVerifier=${encodeURIComponent(options.verifier)}`;
-  const r = await fetchImpl(url, options.school, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    responseType: "json",
-  }, MOBILE_UA);
+  const r = await fetchImpl(
+    url,
+    options.school,
+    {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      responseType: "json",
+    },
+    MOBILE_UA,
+  );
   return parseTokenResponse(r.status, r.data, "Token exchange");
 }
 
@@ -114,11 +119,16 @@ export async function refreshTokens(options: {
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=refresh_token` +
     `&refreshToken=${encodeURIComponent(options.refreshToken)}`;
-  const r = await fetchImpl(url, options.school, {
-    method: "POST",
-    headers: { Accept: "application/json" },
-    responseType: "json",
-  }, MOBILE_UA);
+  const r = await fetchImpl(
+    url,
+    options.school,
+    {
+      method: "POST",
+      headers: { Accept: "application/json" },
+      responseType: "json",
+    },
+    MOBILE_UA,
+  );
   return parseTokenResponse(r.status, r.data, "Token refresh");
 }
 

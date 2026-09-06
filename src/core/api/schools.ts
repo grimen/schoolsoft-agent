@@ -25,7 +25,8 @@ export function parseSchoolList(raw: unknown): SchoolEntry[] {
   const arr: unknown[] = Array.isArray(raw)
     ? raw
     : raw && typeof raw === "object"
-      ? (Object.values(raw as Record<string, unknown>).find(Array.isArray) as unknown[] | undefined) ?? []
+      ? ((Object.values(raw as Record<string, unknown>).find(Array.isArray) as
+          unknown[] | undefined) ?? [])
       : [];
   const out: SchoolEntry[] = [];
   for (const item of arr) {
@@ -117,7 +118,10 @@ export class SchoolDirectory {
 
   private writeCache(schools: SchoolEntry[]): void {
     mkdirSync(dirname(this.o.cacheFile), { recursive: true });
-    writeFileSync(this.o.cacheFile, JSON.stringify({ fetchedAt: this.now(), schools } satisfies CacheShape));
+    writeFileSync(
+      this.o.cacheFile,
+      JSON.stringify({ fetchedAt: this.now(), schools } satisfies CacheShape),
+    );
   }
 
   /** All schools, from cache when fresh; falls back to a stale cache if the fetch fails. */

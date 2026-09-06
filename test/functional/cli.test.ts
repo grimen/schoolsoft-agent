@@ -13,7 +13,15 @@ import { EXIT } from "../../src/cli/exit-codes.js";
 import { NotConfiguredError, type ConfigSource } from "../../src/core/index.js";
 import { makeContext } from "../helpers/fakes.js";
 
-function harness(opts: { ctx?: ReturnType<typeof makeContext>["ctx"]; unconfigured?: boolean; prompt?: CliDeps["prompt"]; env?: Record<string, string>; home?: string } = {}) {
+function harness(
+  opts: {
+    ctx?: ReturnType<typeof makeContext>["ctx"];
+    unconfigured?: boolean;
+    prompt?: CliDeps["prompt"];
+    env?: Record<string, string>;
+    home?: string;
+  } = {},
+) {
   const out: string[] = [];
   const err: string[] = [];
   const h = makeContext();
@@ -35,7 +43,12 @@ function harness(opts: { ctx?: ReturnType<typeof makeContext>["ctx"]; unconfigur
     out.length = 0;
     err.length = 0;
     const code = await runCli(argv, deps);
-    return { code, out: out.join("\n"), err: err.join("\n"), json: () => JSON.parse(out.join("\n")) };
+    return {
+      code,
+      out: out.join("\n"),
+      err: err.join("\n"),
+      json: () => JSON.parse(out.join("\n")),
+    };
   };
   return { run, deps, h };
 }
@@ -64,7 +77,10 @@ test("operation commands: flags map to args, JSON on stdout, child in output", a
   const u = await run("get-messages", "--unread-only", "--pretty");
   assert.equal(u.code, EXIT.OK);
   assert.match(u.out, /\n  "messages"/, "pretty output is indented");
-  assert.deepEqual(u.json().messages.map((m: { id: number }) => m.id), [5]);
+  assert.deepEqual(
+    u.json().messages.map((m: { id: number }) => m.id),
+    [5],
+  );
 });
 
 test("exit codes: not authenticated → 2, not configured → 3, error → 1, usage → 1", async () => {
@@ -102,10 +118,16 @@ test("configure: non-interactive with --school/--org-id writes config.json", asy
 
 test("configure: --query resolves via the cached school list; interactive picks by number", async () => {
   const dir = mkdtempSync(join(tmpdir(), "cfg-"));
-  writeFileSync(join(dir, "schools.json"), JSON.stringify({ fetchedAt: Date.now(), schools: [
-    { name: "Täby kommun - Rösjöskolan", slug: "taby", orgId: 20 },
-    { name: "Täby kommun - Skolhagenskolan", slug: "taby", orgId: 18 },
-  ] }));
+  writeFileSync(
+    join(dir, "schools.json"),
+    JSON.stringify({
+      fetchedAt: Date.now(),
+      schools: [
+        { name: "Täby kommun - Rösjöskolan", slug: "taby", orgId: 20 },
+        { name: "Täby kommun - Skolhagenskolan", slug: "taby", orgId: 18 },
+      ],
+    }),
+  );
   const { run } = harness();
   const r = await run("--config-dir", dir, "configure", "--query", "rösjö");
   assert.equal(r.code, EXIT.OK, r.err);

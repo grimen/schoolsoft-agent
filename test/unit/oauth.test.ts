@@ -13,8 +13,7 @@ import {
 } from "../../src/core/auth/oauth.js";
 
 function jwt(payload: Record<string, unknown>): string {
-  const b64 = (o: unknown) =>
-    Buffer.from(JSON.stringify(o)).toString("base64url");
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
   return `${b64({ alg: "RS256", typ: "JWT" })}.${b64(payload)}.sig`;
 }
 
@@ -53,10 +52,22 @@ test("exchangeCode posts to the token endpoint with the given client id", async 
   let seen = "";
   const fetchImpl: TokenFetch = async (url) => {
     seen = url;
-    return { status: 200, data: { access_token: jwt({ exp: 123 }), refresh_token: "R", expires: 900 } };
+    return {
+      status: 200,
+      data: { access_token: jwt({ exp: 123 }), refresh_token: "R", expires: 900 },
+    };
   };
-  const t = await exchangeCode({ school: "taby", clientId: "vApp", code: "C", verifier: "V", fetchImpl });
-  assert.match(seen, /\/taby\/rest-api\/login\/token\?clientId=vApp&grantType=code&code=C&codeVerifier=V$/);
+  const t = await exchangeCode({
+    school: "taby",
+    clientId: "vApp",
+    code: "C",
+    verifier: "V",
+    fetchImpl,
+  });
+  assert.match(
+    seen,
+    /\/taby\/rest-api\/login\/token\?clientId=vApp&grantType=code&code=C&codeVerifier=V$/,
+  );
   assert.equal(t.refreshToken, "R");
   assert.ok(t.expiresAt! > Math.floor(Date.now() / 1000) + 800);
 });
@@ -66,7 +77,13 @@ test("exchangeCode falls back to the JWT exp when expires is missing", async () 
     status: 200,
     data: { access_token: jwt({ exp: 1788706637 }), refresh_token: "R" },
   });
-  const t = await exchangeCode({ school: "taby", clientId: "eApp", code: "C", verifier: "V", fetchImpl });
+  const t = await exchangeCode({
+    school: "taby",
+    clientId: "eApp",
+    code: "C",
+    verifier: "V",
+    fetchImpl,
+  });
   assert.equal(t.expiresAt, 1788706637);
 });
 
@@ -85,16 +102,41 @@ test("refreshTokens uses the refresh grant with the same client id", async () =>
   let seen = "";
   const fetchImpl: TokenFetch = async (url) => {
     seen = url;
-    return { status: 200, data: { access_token: jwt({ exp: 5 }), refresh_token: "R2", expires: 10 } };
+    return {
+      status: 200,
+      data: { access_token: jwt({ exp: 5 }), refresh_token: "R2", expires: 10 },
+    };
   };
-  const t = await refreshTokens({ school: "taby", clientId: "vApp", refreshToken: "R1", fetchImpl });
+  const t = await refreshTokens({
+    school: "taby",
+    clientId: "vApp",
+    refreshToken: "R1",
+    fetchImpl,
+  });
   assert.match(seen, /clientId=vApp&grantType=refresh_token&refreshToken=R1$/);
   assert.equal(t.refreshToken, "R2");
 });
 
 test("decodeJwtClaims returns only non-identifying claims", () => {
-  const c = decodeJwtClaims(jwt({ sub: "secret-uuid", user_type: "STUDENT", login_method: "SAML", client_id: "eApp", exp: 1, iat: 0 }));
-  assert.deepEqual(c, { user_type: "STUDENT", login_method: "SAML", client_id: "eApp", aud: undefined, iss: undefined, exp: 1, iat: 0 });
+  const c = decodeJwtClaims(
+    jwt({
+      sub: "secret-uuid",
+      user_type: "STUDENT",
+      login_method: "SAML",
+      client_id: "eApp",
+      exp: 1,
+      iat: 0,
+    }),
+  );
+  assert.deepEqual(c, {
+    user_type: "STUDENT",
+    login_method: "SAML",
+    client_id: "eApp",
+    aud: undefined,
+    iss: undefined,
+    exp: 1,
+    iat: 0,
+  });
   assert.ok(!JSON.stringify(c).includes("secret-uuid"));
   assert.equal(decodeJwtClaims("not-a-jwt"), null);
 });

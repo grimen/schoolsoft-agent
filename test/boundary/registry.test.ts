@@ -20,14 +20,22 @@ test("every operation has title, 'Use when:' guidance and complete annotations",
 });
 
 test("only find_school, auth_status, login and logout skip the auth requirement", () => {
-  const noAuth = operations.filter((o) => !o.annotations.requiresAuth).map((o) => o.name).sort();
+  const noAuth = operations
+    .filter((o) => !o.annotations.requiresAuth)
+    .map((o) => o.name)
+    .sort();
   assert.deepEqual(noAuth, ["auth_status", "find_school", "login", "logout"]);
 });
 
 test("input keys are snake_case and every field is a supported Zod type", () => {
   const supported = (s: z.ZodTypeAny): boolean => {
     const t = s instanceof z.ZodOptional ? s.unwrap() : s;
-    return t instanceof z.ZodNumber || t instanceof z.ZodString || t instanceof z.ZodBoolean || t instanceof z.ZodEnum;
+    return (
+      t instanceof z.ZodNumber ||
+      t instanceof z.ZodString ||
+      t instanceof z.ZodBoolean ||
+      t instanceof z.ZodEnum
+    );
   };
   for (const op of operations) {
     for (const [k, v] of Object.entries(op.input)) {

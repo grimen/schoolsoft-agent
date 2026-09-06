@@ -82,12 +82,17 @@ export function defaultConfigDir(
   platform: NodeJS.Platform,
   env: Record<string, string | undefined> = {},
 ): string {
-  if (platform === "darwin") return join(home, "Library", "Application Support", "schoolsoft-agent");
-  if (platform === "win32") return join(env.APPDATA ?? join(home, "AppData", "Roaming"), "schoolsoft-agent");
+  if (platform === "darwin")
+    return join(home, "Library", "Application Support", "schoolsoft-agent");
+  if (platform === "win32")
+    return join(env.APPDATA ?? join(home, "AppData", "Roaming"), "schoolsoft-agent");
   return join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "schoolsoft-agent");
 }
 
-function first<K extends keyof ConfigSource>(sources: ConfigSource[], key: K): ConfigSource[K] | undefined {
+function first<K extends keyof ConfigSource>(
+  sources: ConfigSource[],
+  key: K,
+): ConfigSource[K] | undefined {
   for (const s of sources) {
     const v = s[key];
     if (v !== undefined && v !== "") return v;

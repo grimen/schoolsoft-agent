@@ -49,8 +49,7 @@ export class SessionManager {
     this.store = options.store;
     this.strategies = new Map(options.strategies.map((s) => [s.id, s]));
     this.defaultStrategy = options.strategies[0];
-    this.clientFactory =
-      options.clientFactory ?? ((school) => new SchoolsoftClient({ school }));
+    this.clientFactory = options.clientFactory ?? ((school) => new SchoolsoftClient({ school }));
   }
 
   getClient(): SchoolsoftClient {
@@ -83,9 +82,7 @@ export class SessionManager {
 
   /** Interactive login via the given (or default) strategy. */
   async login(strategyId?: string): Promise<LoginInfo> {
-    const strategy = strategyId
-      ? this.strategies.get(strategyId)
-      : this.defaultStrategy;
+    const strategy = strategyId ? this.strategies.get(strategyId) : this.defaultStrategy;
     if (!strategy) {
       throw new Error(
         `Unknown auth strategy "${strategyId}". Available: ` +
@@ -132,8 +129,7 @@ export class SessionManager {
       );
     }
 
-    const strategy =
-      this.strategies.get(saved.authMethod) ?? this.defaultStrategy;
+    const strategy = this.strategies.get(saved.authMethod) ?? this.defaultStrategy;
     this.activeStrategy = strategy;
     try {
       await strategy.restore(this.getClient(), saved);
@@ -141,9 +137,7 @@ export class SessionManager {
     } catch (e) {
       this.store.clear();
       this.reset();
-      throw new NotAuthenticatedError(
-        `restore failed: ${e instanceof Error ? e.message : e}`,
-      );
+      throw new NotAuthenticatedError(`restore failed: ${e instanceof Error ? e.message : e}`);
     }
 
     const alive = await this.getClient().verifySession();

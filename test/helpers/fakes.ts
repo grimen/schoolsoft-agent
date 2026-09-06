@@ -26,8 +26,18 @@ export const CONTEXT: GuardianContext = {
   parentName: "Test Testsson",
   childInFocus: 100,
   children: [
-    { studentId: 100, firstName: "Ett", lastName: "T", schools: [{ orgId: 20, name: "Testskolan", className: "4B" }] },
-    { studentId: 101, firstName: "Två", lastName: "T", schools: [{ orgId: 20, name: "Testskolan", className: "1A" }] },
+    {
+      studentId: 100,
+      firstName: "Ett",
+      lastName: "T",
+      schools: [{ orgId: 20, name: "Testskolan", className: "4B" }],
+    },
+    {
+      studentId: 101,
+      firstName: "Två",
+      lastName: "T",
+      schools: [{ orgId: 20, name: "Testskolan", className: "1A" }],
+    },
   ],
 };
 
@@ -84,7 +94,9 @@ export const testConfig: Config = {
   configDir: "/tmp/unused",
 };
 
-export function makeContext(opts: { store?: MemorySessionStore; api?: GuardianApi; config?: Partial<Config> } = {}) {
+export function makeContext(
+  opts: { store?: MemorySessionStore; api?: GuardianApi; config?: Partial<Config> } = {},
+) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = new FakeAuth();
   const manager = new SessionManager({

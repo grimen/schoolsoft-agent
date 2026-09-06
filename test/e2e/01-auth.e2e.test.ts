@@ -78,7 +78,10 @@ test("A3: forced access-token expiry triggers silent refresh", { skip }, async (
   const { createSessionManager } = await import("../../src/core/index.js");
   const { loadConfig } = await import("../../src/shared/bootstrap.js");
   const { homedir } = await import("node:os");
-  const cold = createSessionManager(loadConfig({ env: process.env, home: homedir(), platform: process.platform }), { store: e2eStore() });
+  const cold = createSessionManager(
+    loadConfig({ env: process.env, home: homedir(), platform: process.platform }),
+    { store: e2eStore() },
+  );
   const client = await cold.ensureSession(); // must NOT prompt for BankID
   assert.ok(await client.verifySession());
   const refreshed = loadPersisted();
@@ -98,7 +101,10 @@ test("A4: garbage session fails closed with actionable error", { skip }, async (
     const { createSessionManager } = await import("../../src/core/index.js");
     const { loadConfig } = await import("../../src/shared/bootstrap.js");
     const { homedir } = await import("node:os");
-    const cold = createSessionManager(loadConfig({ env: process.env, home: homedir(), platform: process.platform }), { store });
+    const cold = createSessionManager(
+      loadConfig({ env: process.env, home: homedir(), platform: process.platform }),
+      { store },
+    );
     await assert.rejects(() => cold.ensureSession(), NotAuthenticatedError);
     assert.equal(store.load(), null, "bad session must be cleared");
   } finally {

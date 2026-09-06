@@ -10,12 +10,7 @@
  * headers, so it can never work for guardians. Header names follow
  * sebdanielsson/better-schoolsoft.
  */
-import {
-  schoolsoftFetch,
-  ssUrl,
-  extractCookie,
-  type SchoolsoftClient,
-} from "@elias4044/ssp-node";
+import { schoolsoftFetch, ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../constants.js";
 
 /** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */

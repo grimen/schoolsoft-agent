@@ -43,19 +43,31 @@ export function checkBoundaries(root: string): Violation[] {
           violations.push({ file: rel, line, message: "core must not import node:process" });
         }
         if (spec.startsWith(".")) {
-          const target = relative(src, resolve(dirname(file), spec)).split("\\").join("/");
+          const target = relative(src, resolve(dirname(file), spec))
+            .split("\\")
+            .join("/");
           if (/^(mcp|cli|http)\//.test(target)) {
             violations.push({ file: rel, line, message: `core imports adapter ${target}` });
           }
         }
       } else if (["mcp", "cli", "http", "shared"].includes(layer) && spec.startsWith(".")) {
-        const target = relative(src, resolve(dirname(file), spec)).split("\\").join("/");
+        const target = relative(src, resolve(dirname(file), spec))
+          .split("\\")
+          .join("/");
         if (target.startsWith("core/") && target !== "core/index.js") {
-          violations.push({ file: rel, line, message: `adapter must import core via core/index.js, not ${target}` });
+          violations.push({
+            file: rel,
+            line,
+            message: `adapter must import core via core/index.js, not ${target}`,
+          });
         }
         const other = ["mcp", "cli", "http"].filter((l) => l !== layer);
         if (other.some((l) => target.startsWith(l + "/"))) {
-          violations.push({ file: rel, line, message: `adapter ${layer} imports sibling adapter ${target}` });
+          violations.push({
+            file: rel,
+            line,
+            message: `adapter ${layer} imports sibling adapter ${target}`,
+          });
         }
       }
     });

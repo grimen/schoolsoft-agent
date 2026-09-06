@@ -133,9 +133,7 @@ export class GuardianApi {
   }
 
   getInbox(userId: number, orgId: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(
-      `/eva/api/v1/parent/${userId}/schools/${orgId}/messages/inbox`,
-    );
+    return this.bearer<unknown[]>(`/eva/api/v1/parent/${userId}/schools/${orgId}/messages/inbox`);
   }
 
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown> {

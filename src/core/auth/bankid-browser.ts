@@ -147,9 +147,7 @@ export class BankIdBrowserStrategy implements AuthStrategy {
   ): Promise<LoginInfo> {
     const parent = await this.api(client).getParent();
     if (!parent.children?.length) {
-      throw new Error(
-        "SchoolSoft returned a guardian profile with no children — nothing to show.",
-      );
+      throw new Error("SchoolSoft returned a guardian profile with no children — nothing to show.");
     }
     const childInFocus =
       parent.children.find((c) => c.studentId === preferredChild)?.studentId ??

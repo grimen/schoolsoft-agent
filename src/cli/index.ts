@@ -9,7 +9,9 @@ import { loadContext } from "../shared/bootstrap.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
 
 async function main(): Promise<void> {
-  const rl = process.stdin.isTTY ? createInterface({ input: process.stdin, output: process.stderr }) : null;
+  const rl = process.stdin.isTTY
+    ? createInterface({ input: process.stdin, output: process.stderr })
+    : null;
   const code = await runCli(process.argv.slice(2), {
     getContext: (overrides) =>
       loadContext({ env: process.env, home: homedir(), platform: process.platform, overrides })(),

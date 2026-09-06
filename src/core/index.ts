@@ -21,8 +21,19 @@ export { MemorySessionStore } from "./session/store.js";
 export { FileSessionStore } from "./session/file-store.js";
 export type { AuthStrategy, LoginInfo } from "./auth/strategy.js";
 export { GuardianApi, childOf, orgIdOf } from "./api/guardian.js";
-export type { GuardianApiOptions, GuardianContext, GuardianChild, GuardianParent } from "./api/guardian.js";
-export { SchoolDirectory, rankSchools, normalize, parseSchoolList, SCHOOL_LIST_URL } from "./api/schools.js";
+export type {
+  GuardianApiOptions,
+  GuardianContext,
+  GuardianChild,
+  GuardianParent,
+} from "./api/guardian.js";
+export {
+  SchoolDirectory,
+  rankSchools,
+  normalize,
+  parseSchoolList,
+  SCHOOL_LIST_URL,
+} from "./api/schools.js";
 export type { SchoolEntry, RankedSchool } from "./api/schools.js";
 export { decodeJwtClaims } from "./auth/oauth.js";
 export { operations, getOperation } from "./operations/registry.js";

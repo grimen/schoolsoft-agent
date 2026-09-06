@@ -51,7 +51,10 @@ test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
     }
   }
   record("D2", "Guardian API coverage", results.join("; "));
-  assert.ok(results.every((r) => !r.includes("FAIL")), results.join("; "));
+  assert.ok(
+    results.every((r) => !r.includes("FAIL")),
+    results.join("; "),
+  );
 });
 
 test("D3: token lifetime snapshot for longitudinal tracking", { skip }, async () => {

@@ -8,8 +8,11 @@ import { getOperation, NotAuthenticatedError, type Operation } from "../../src/c
 import { makeContext } from "../helpers/fakes.js";
 
 const op = (name: string) => getOperation(name) as Operation;
-const run = (name: string, ctx: Parameters<Operation["run"]>[0], args: Record<string, unknown> = {}) =>
-  op(name).run(ctx, args as never) as Promise<Record<string, any>>;
+const run = (
+  name: string,
+  ctx: Parameters<Operation["run"]>[0],
+  args: Record<string, unknown> = {},
+) => op(name).run(ctx, args as never) as Promise<Record<string, any>>;
 
 test("read operations before login throw NotAuthenticatedError", async () => {
   const { ctx } = makeContext();
@@ -58,7 +61,10 @@ test("messages: unread filter, limit, single fetch", async () => {
   const { ctx } = makeContext();
   await run("login", ctx);
   assert.equal((await run("get_messages", ctx)).messages.length, 2);
-  assert.deepEqual((await run("get_messages", ctx, { unread_only: true })).messages.map((m: any) => m.id), [5]);
+  assert.deepEqual(
+    (await run("get_messages", ctx, { unread_only: true })).messages.map((m: any) => m.id),
+    [5],
+  );
   assert.equal((await run("get_messages", ctx, { limit: 1 })).messages.length, 1);
   assert.equal((await run("get_message", ctx, { id: 5 })).message.message, "Full text");
 });
@@ -80,7 +86,13 @@ test("find_school works without a session and uses the config dir cache", async 
   const { join } = await import("node:path");
   const { writeFileSync } = await import("node:fs");
   const configDir = mkdtempSync(join(tmpdir(), "cfg-"));
-  writeFileSync(join(configDir, "schools.json"), JSON.stringify({ fetchedAt: Date.now(), schools: [{ name: "Täby kommun - Rösjöskolan", slug: "taby", orgId: 20 }] }));
+  writeFileSync(
+    join(configDir, "schools.json"),
+    JSON.stringify({
+      fetchedAt: Date.now(),
+      schools: [{ name: "Täby kommun - Rösjöskolan", slug: "taby", orgId: 20 }],
+    }),
+  );
   const { ctx } = makeContext({ config: { configDir } });
   const r = await run("find_school", ctx, { query: "rösjö" });
   assert.equal(r.schools[0].slug, "taby");

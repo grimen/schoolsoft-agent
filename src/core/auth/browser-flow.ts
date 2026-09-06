@@ -105,11 +105,7 @@ export async function runBrowserLogin(options: {
     const timeout = setTimeout(
       () => {
         server.close();
-        reject(
-          new Error(
-            "Login timed out after 5 minutes. Run schoolsoft_login again.",
-          ),
-        );
+        reject(new Error("Login timed out after 5 minutes. Run schoolsoft_login again."));
       },
       options.timeoutMs ?? 5 * 60 * 1000,
     );
