@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Cancel runs for the PR head commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,7 +30,7 @@ jobs:
     timeout-minutes: 5
     if: github.event.pull_request.head.repo.full_name == github.repository
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Delete badges/<branch>
         env:
           BRANCH: ${{ github.event.pull_request.head.ref }}

@@ -33,7 +33,7 @@ jobs:
     steps:
       - name: Update the release PR, or tag the merged one
         id: release
-        uses: googleapis/release-please-action@v4
+        uses: googleapis/release-please-action@v5
 
       - name: Start the release run of ci.yml at the new tag
         if: steps.release.outputs.release_created == 'true'
