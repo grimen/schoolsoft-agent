@@ -7,7 +7,7 @@
     "src/core/auth/strategy.ts",
     "src/shared/version.ts"
   ],
-  "reporter": ["text", "lcov"],
+  "reporter": ["text", "lcov", "json-summary", "html"],
   "check-coverage": true,
   "lines": 90,
   "branches": 80,

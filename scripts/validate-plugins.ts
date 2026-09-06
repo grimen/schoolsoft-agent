@@ -12,7 +12,9 @@ export interface Problem {
   message: string;
 }
 
-const json = (p: string) => JSON.parse(readFileSync(p, "utf8")) as Record<string, any>;
+// oxlint-disable-next-line typescript/no-explicit-any
+type Json = Record<string, any>;
+const json = (p: string) => JSON.parse(readFileSync(p, "utf8")) as Json;
 
 export function validatePlugins(root: string): Problem[] {
   const problems: Problem[] = [];
@@ -30,13 +32,13 @@ export function validatePlugins(root: string): Problem[] {
   );
   need(
     m.plugins
-      ?.map((p: any) => p.name)
+      ?.map((p: { name: string }) => p.name)
       .sort()
       .join(",") === "schoolsoft-mcp,schoolsoft-skill",
     mp,
     "must list exactly schoolsoft-mcp and schoolsoft-skill",
   );
-  for (const p of m.plugins ?? []) {
+  for (const p of (m.plugins ?? []) as { name: string; source: string }[]) {
     need(
       typeof p.source === "string" && existsSync(join(root, "plugins/claude", p.source)),
       mp,

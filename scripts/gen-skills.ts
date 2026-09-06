@@ -49,7 +49,7 @@ function renderYaml(value: unknown, indent: number): string[] {
 }
 
 function scalar(v: unknown): string {
-  if (typeof v === "string") return /[:#\[\]{}]|^\s|\s$/.test(v) ? JSON.stringify(v) : v;
+  if (typeof v === "string") return /[:#[\]{}]|^\s|\s$/.test(v) ? JSON.stringify(v) : v;
   return JSON.stringify(v);
 }
 

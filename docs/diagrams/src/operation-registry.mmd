@@ -1,0 +1,8 @@
+flowchart TB
+  OP["src/core/operations/get_schedule.ts<br/>name · description · input schema · annotations · run()"]
+  REG[registry.ts<br/>ordered list of operations]
+  OP --> REG
+  REG -->|registerTool per op| MCP["MCP tool<br/>schoolsoft_get_schedule<br/>inputSchema = Zod shape<br/>readOnlyHint / destructiveHint"]
+  REG -->|command per op| CLI["CLI command<br/>schoolsoft-agent get-schedule --week 37<br/>flags derived from the schema<br/>exit codes 0/1/2/3"]
+  REG -->|make docs| DOCS["docs/reference/tools.md<br/>docs/reference/commands.md<br/>skills/schoolsoft/references/commands.md"]
+  DOCS -.->|drift test fails if stale| REG

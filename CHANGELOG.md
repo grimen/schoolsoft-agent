@@ -1,8 +1,10 @@
 # Changelog
 
-## 0.2.0 — 2026-09-06
+## [0.2.0](https://github.com/grimen/schoolsoft-agent/releases/tag/v0.2.0) (2026-09-06)
 
-First release under the `schoolsoft-agent` name.
+First release under the `schoolsoft-agent` name (backfilled in release-please's format; release-please maintains this file from here).
+
+### Features
 
 - One core, two surfaces: `schoolsoft-agent-mcp` (stdio MCP) and `schoolsoft-agent` (CLI) wrapped by an Agent Skills `SKILL.md`.
 - Guardian support verified live: parent login route with the `vApp` client id, Eva API for profile/children/lunch/news/messages, webview REST for schedule/assignments, child-in-focus switching.

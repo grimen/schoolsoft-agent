@@ -1,0 +1,32 @@
+flowchart LR
+  subgraph hosts[Agent hosts]
+    CC[Claude Code]
+    CD[Claude Desktop]
+    OC[OpenCode]
+    OW[OpenClaw]
+    HA[Hermes]
+    PI[Pi]
+  end
+  subgraph pkg[npm package schoolsoft-agent]
+    MCP[src/mcp<br/>stdio MCP server]
+    CLI[src/cli<br/>commands, JSON out]
+    SK[skills/schoolsoft<br/>SKILL.md + wrapper script]
+    subgraph core[src/core]
+      REG[operations registry]
+      SES[session manager + encrypted store]
+      AUTH[auth: OAuth/PKCE, browser flow, cookie exchange]
+      API[api: guardian, school directory]
+      CFG[config]
+    end
+  end
+  subgraph ss[SchoolSoft]
+    LOGIN[core/login + municipality SAML IdP]
+    EVA[Eva API<br/>Bearer token]
+    WEB[Webview REST<br/>session cookies]
+  end
+  CC & CD & OC & OW & HA -->|MCP over stdio| MCP
+  CC & OC & OW & HA & PI -->|shell| SK --> CLI
+  MCP --> REG
+  CLI --> REG
+  REG --> SES --> AUTH --> LOGIN
+  REG --> API --> EVA & WEB

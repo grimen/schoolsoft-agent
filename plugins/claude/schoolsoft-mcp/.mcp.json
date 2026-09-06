@@ -4,7 +4,7 @@
       "command": "npx",
       "args": ["-y", "-p", "schoolsoft-agent@0.2.0", "schoolsoft-agent-mcp"],
       "env": {
-        "SCHOOLSOFT_SCHOOL": "${user_config.school:-${SCHOOLSOFT_SCHOOL:-}}",
+        "SCHOOLSOFT_SCHOOL": "${user_config.school}",
         "SCHOOLSOFT_CONFIG_DIR": "${SCHOOLSOFT_CONFIG_DIR:-}"
       }
     }

@@ -1,0 +1,60 @@
+name: Tests / E2E
+
+# Reusable only: ci.yml calls this after Unit. Shipped-artifact E2E: the
+# built MCP server over stdio, the built CLI, the staged Claude Desktop
+# bundle, and every host manifest / skill wrapper launched in a sandbox
+# (test/e2e-hosts). No SchoolSoft, no API keys. The live suite (`make e2e`)
+# needs BankID and stays local.
+#
+# The Claude Code CLI job is opt-in via the repo variable E2E_CLAUDE_CLI=true:
+# it installs the CLI and runs `claude plugin validate` + `plugin details`
+# on both plugins (no model call, no API key).
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  artifact:
+    name: Artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Build, per-host skills, staged mcpb, then artifact + host E2E
+        run: make e2e-artifact
+      - name: Pack the Claude Desktop bundle
+        run: make mcpb
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcpb
+          path: dist/schoolsoft-agent.mcpb
+          retention-days: 7
+          if-no-files-found: error
+
+  claude-cli:
+    name: Claude Code CLI
+    if: vars.E2E_CLAUDE_CLI == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+      - name: Install Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Build + skills + staged mcpb
+        run: make build skills mcpb-stage
+      - name: Host E2E including the Claude Code CLI checks
+        run: bash scripts/e2e/artifact-smoke.sh

@@ -1,0 +1,7 @@
+{
+  // Fails CI on new high/critical advisories; the allowlist tracks known
+  // upstream-blocked issues (documented reason each - re-check on dep bumps).
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "allowlist": [],
+}

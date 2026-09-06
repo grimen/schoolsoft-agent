@@ -1,45 +1,12 @@
 # Architecture
 
-This document goes from the big picture down to the mechanics. If you only read one section, read [The shape of it](#the-shape-of-it).
+This document goes from the big picture down to the mechanics. If you only read one section, read [The shape of it](#the-shape-of-it). Diagrams are pre-rendered SVGs; click one to open its Mermaid source under [diagrams/src](diagrams/src/) (`make diagrams` re-renders them; see [diagrams/](diagrams/README.md)).
 
 ## The shape of it
 
 One core, two surfaces, many hosts. The core knows SchoolSoft; the surfaces know how agents talk; the hosts are somebody else's software.
 
-```mermaid
-flowchart LR
-  subgraph hosts[Agent hosts]
-    CC[Claude Code]
-    CD[Claude Desktop]
-    OC[OpenCode]
-    OW[OpenClaw]
-    HA[Hermes]
-    PI[Pi]
-  end
-  subgraph pkg[npm package schoolsoft-agent]
-    MCP[src/mcp<br/>stdio MCP server]
-    CLI[src/cli<br/>commands, JSON out]
-    SK[skills/schoolsoft<br/>SKILL.md + wrapper script]
-    subgraph core[src/core]
-      REG[operations registry]
-      SES[session manager + encrypted store]
-      AUTH[auth: OAuth/PKCE, browser flow, cookie exchange]
-      API[api: guardian, school directory]
-      CFG[config]
-    end
-  end
-  subgraph ss[SchoolSoft]
-    LOGIN[core/login + municipality SAML IdP]
-    EVA[Eva API<br/>Bearer token]
-    WEB[Webview REST<br/>session cookies]
-  end
-  CC & CD & OC & OW & HA -->|MCP over stdio| MCP
-  CC & OC & OW & HA & PI -->|shell| SK --> CLI
-  MCP --> REG
-  CLI --> REG
-  REG --> SES --> AUTH --> LOGIN
-  REG --> API --> EVA & WEB
-```
+[![System overview](diagrams/dist/system-overview.svg)](diagrams/src/system-overview.mmd)
 
 Three rules keep this honest, and a script enforces them (`make boundaries`):
 
@@ -51,16 +18,7 @@ Three rules keep this honest, and a script enforces them (`make boundaries`):
 
 Every capability is an **operation**: a name, a description with "Use when:" guidance, a Zod input schema, safety annotations, and a `run` function that returns plain data.
 
-```mermaid
-flowchart TB
-  OP["src/core/operations/get_schedule.ts<br/>name · description · input schema · annotations · run()"]
-  REG[registry.ts<br/>ordered list of operations]
-  OP --> REG
-  REG -->|registerTool per op| MCP["MCP tool<br/>schoolsoft_get_schedule<br/>inputSchema = Zod shape<br/>readOnlyHint / destructiveHint"]
-  REG -->|command per op| CLI["CLI command<br/>schoolsoft-agent get-schedule --week 37<br/>flags derived from the schema<br/>exit codes 0/1/2/3"]
-  REG -->|make docs| DOCS["docs/reference/tools.md<br/>docs/reference/commands.md<br/>skills/schoolsoft/references/commands.md"]
-  DOCS -.->|drift test fails if stale| REG
-```
+[![One definition per capability](diagrams/dist/operation-registry.svg)](diagrams/src/operation-registry.mmd)
 
 Adding an operation is one new file plus one line in the registry. The MCP tool, the CLI command and three reference documents appear without further work, and a boundary test refuses operations that lack annotations or a "Use when:" line.
 
@@ -68,31 +26,7 @@ Adding an operation is one new file plus one line in the registry. The MCP tool,
 
 SchoolSoft's guardian app uses OAuth 2 with PKCE. We use the same flow, with a local callback instead of the app's deep link. The one thing that took real effort to discover: SchoolSoft stamps the **user type** into the token from the OAuth **client id** (`vApp` = guardian app, `eApp` = student app), and resolves the actual user at request time. A guardian with a student-typed token fails every call with "Vi kunde inte hitta användaren".
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant A as Agent
-  participant S as schoolsoft-agent
-  participant B as User's browser
-  participant L as SchoolSoft login (+ municipality IdP / BankID)
-  participant E as Eva API
-  participant W as Webview REST
-
-  A->>S: login
-  S->>S: start one-shot HTTP server on 127.0.0.1:43117
-  S->>B: open https://sms.schoolsoft.se/<school>/react/#/login/parent?client_id=vApp&code_challenge=…&redirect_uri=http://127.0.0.1:43117/callback
-  B->>L: user picks municipality login, completes BankID
-  L-->>B: 302 http://127.0.0.1:43117/callback?code=…&state=…
-  B->>S: GET /callback (state verified, page says "Inloggad")
-  S->>L: POST /rest-api/login/token?clientId=vApp&grantType=code&codeVerifier=…
-  L-->>S: access_token (JWT, user_type=PARENT, 15 min) + refresh_token
-  S->>E: GET /eva/api/v1/parent (Bearer)
-  E-->>S: userId, children[{studentId, schools[{orgId}]}]
-  S->>W: GET /eva-apps/auth/login/parent  headers: token, userId, orgId, childInFocus
-  W-->>S: Set-Cookie JSESSIONID, hash, usertype=2
-  S->>S: persist tokens + cookies + guardian context (AES-256-GCM)
-  S-->>A: { status: "logged_in", user: { name, schoolName, children } }
-```
+[![Login, step by step](diagrams/dist/login-flow.svg)](diagrams/src/login-flow.mmd)
 
 Two backends serve the data afterwards. The **Eva API** takes the Bearer token and serves profile, lunch, news and messages. The **webview REST** API takes the cookies, which are bound to one child (`childInFocus`), and serves schedule and assignments. Switching child means one more cookie exchange; the operations do that when `child_id` changes.
 
@@ -100,59 +34,13 @@ Two backends serve the data afterwards. The **Eva API** takes the Bearer token a
 
 Access tokens live 15 minutes. Every process start (an MCP server launching, a CLI command) goes through `ensureSession`:
 
-```mermaid
-sequenceDiagram
-  autonumber
-  participant O as Operation
-  participant M as SessionManager
-  participant St as Encrypted store
-  participant Str as BankIdBrowserStrategy
-  participant L as SchoolSoft token endpoint
-  participant E as Eva API
-
-  O->>M: ensureSession()
-  M->>St: load()
-  alt nothing saved / other school
-    M-->>O: NotAuthenticatedError ("run login")
-  else saved session
-    M->>Str: restore(saved)
-    alt token expired or expiry unknown
-      Str->>L: grantType=refresh_token (clientId=vApp)
-      L-->>Str: new access + rotated refresh
-    end
-    Str->>E: GET /eva/api/v1/parent
-    alt 401
-      Str->>L: refresh once more
-      Str->>E: retry
-    end
-    Str->>Str: cookie exchange for remembered childInFocus
-    M->>St: save(refreshed tokens, cookies, context)
-    M->>M: verifySession() via cookies
-    M-->>O: live client
-  end
-```
+[![Cold start, refresh and the one retry](diagrams/dist/cold-start-refresh.svg)](diagrams/src/cold-start-refresh.mmd)
 
 The retry exists because the alternative is a BankID round for the user. Refreshing when the expiry is _unknown_ protects sessions written by older versions.
 
 ## Session states
 
-```mermaid
-stateDiagram-v2
-  [*] --> None
-  None --> TokensOnly: login → code exchanged
-  TokensOnly --> Established: profile + cookie exchange ok
-  TokensOnly --> None: exchange fails and no refresh token
-  Established --> Established: operation / child switch (re-exchange)
-  Established --> Expired: access token > 15 min old
-  Expired --> Established: restore → refresh ok
-  Expired --> None: refresh rejected (refresh token dead)
-  Established --> None: logout
-  note right of TokensOnly
-    Persisted even when a later step fails,
-    so a bug in the exchange never costs
-    the user another BankID.
-  end note
-```
+[![Session states](diagrams/dist/session-states.svg)](diagrams/src/session-states.mmd)
 
 ## Repository layout
 

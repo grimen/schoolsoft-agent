@@ -1,10 +1,11 @@
 node_modules/
-dist/
+/dist/
 .env
 *.log
 e2e-report.md
 e2e-session-dump.json
 coverage/
-dist/skills/
+/dist/skills/
 *.mcpb
 .schoolsoft-agent-state/
+lefthook-local.yml

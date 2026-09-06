@@ -19,10 +19,15 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 - **Children's data stays out of git and logs.** `e2e-report.md`,
   `e2e-session-dump.json`, state dirs are ignored. Probes that print API
   responses must redact names, subjects and message bodies.
-- **Gates before any push:** `make check` (typecheck, format, boundaries,
-  tests, coverage) and `make plugin-validate`. `make e2e` runs the live suite
-  locally only, never in CI.
-- **Commits:** conventional prefixes; no session links or trailers.
+- **Gates before any push:** `make check` (lint, typecheck, format, boundaries,
+  manifests, tests with coverage), `make check-ci`, `make e2e-artifact`. `make e2e`
+  runs the live suite locally only, never in CI. Hooks (lefthook) run the cheap
+  ones on commit/push; CI (`ci.yml`) stages Checks → Unit → E2E → Publish.
+- **Commits:** Conventional Commits, scopes from `commitlint.config.mjs`; the
+  type drives release-please's version bump (see `docs/releasing.md`). No
+  session links or trailers.
+- **Diagrams:** sources in `docs/diagrams/src/*.mmd`, rendered SVGs in `dist/`
+  via `make diagrams`; never inline Mermaid in Markdown.
 
 ## Live facts that shape the code (Täby, 2026-09-06)
 
@@ -39,7 +44,8 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 
 `make help` lists everything. Common: `make setup`, `make check`,
 `make e2e` (needs `SCHOOLSOFT_SCHOOL` or `configure` + one login),
-`make docs`, `make skills`, `make plugin-validate`.
+`make docs`, `make skills`, `make diagrams`, `make plugin-validate`, `make check-ci`.
+Release: merge the release-please PR (`make release`); `make version` shows what CI would publish.
 
 Gotcha: the rtk shell hook rewrites `npx tsx`; call `./node_modules/.bin/tsx`.
 

@@ -57,7 +57,7 @@ export function fileSource(configDir: string): ConfigSource {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as ConfigSource;
     return { ...parsed, configDir };
   } catch (e) {
-    throw new Error(`Could not parse ${file}: ${e instanceof Error ? e.message : e}`);
+    throw new Error(`Could not parse ${file}: ${e instanceof Error ? e.message : e}`, { cause: e });
   }
 }
 

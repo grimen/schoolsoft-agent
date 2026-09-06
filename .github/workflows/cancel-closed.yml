@@ -1,0 +1,37 @@
+name: Checks / Closed PR
+
+# A merged or closed PR still has runs in flight; cancel them, and drop the
+# PR branch's badges from gh-pages (see the Badges job in ci.yml).
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  actions: write
+  contents: write # gh-pages cleanup
+
+jobs:
+  cancel:
+    name: Cancel in-flight runs
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cancel runs for the PR head commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+        run: bash scripts/ci/cancel-runs.sh
+
+  badge-cleanup:
+    name: Remove branch badge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    steps:
+      - uses: actions/checkout@v4
+      - name: Delete badges/<branch>
+        env:
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: bash scripts/ci/badges-cleanup.sh

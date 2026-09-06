@@ -1,0 +1,65 @@
+# Git hooks (lefthook). Installed by `npm install` (prepare script). Fast
+# local gates only - CI (.github/workflows/ci.yml) is the authoritative
+# check with the full suite + coverage thresholds.
+#
+# Escape hatches: `git commit --no-verify` / `LEFTHOOK=0 git push` for a
+# one-off skip; personal tweaks go in lefthook-local.yml (gitignored).
+# Conventions are documented in CONTRIBUTING.md.
+
+min_version: 2.0.0
+
+pre-commit:
+  parallel: true
+  # Nothing to check on merge/rebase replays - the commits already passed.
+  skip:
+    - merge
+    - rebase
+  commands:
+    prettier:
+      glob: "*.{ts,mts,mjs,cjs,js,json,yml,yaml,md}"
+      run: npx prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+    oxlint:
+      glob: "*.{ts,mts,mjs}"
+      run: npx oxlint --max-warnings=0 {staged_files}
+    generated-docs:
+      # Reference docs + skill copies derive from the operation registry;
+      # regenerate and stage them whenever an operation or the generators change.
+      glob: "{src/core/operations/*.ts,src/cli/flags.ts,scripts/gen-docs.ts,scripts/gen-skills.ts,skills/schoolsoft/**,plugins/*/skill-metadata.json}"
+      run: make docs skills && git add docs/reference skills/schoolsoft/references plugins/claude/schoolsoft-skill/skills
+    diagrams:
+      # docs/diagrams/README.md + dist/*.svg are generated; re-render +
+      # reassemble + stage whenever a diagram source (or the assembler) is
+      # committed. CI still drift-checks the page and SVG presence/pairing.
+      glob: "{docs/diagrams/src/*.mmd,scripts/assemble-diagrams.mjs}"
+      run: make diagrams && git add docs/diagrams/README.md docs/diagrams/dist/*.svg
+
+commit-msg:
+  commands:
+    # Conventional Commits - rules in commitlint.config.mjs; CI re-checks
+    # the PR's commits and title so --no-verify can't slip one past.
+    commitlint:
+      run: npx commitlint --edit {1}
+
+pre-push:
+  commands:
+    typecheck:
+      run: npm run typecheck
+    boundaries:
+      run: npm run boundaries
+
+# Keep node_modules in step with the lockfile after pulls and branch
+# switches, so the hooks above never run against a stale install.
+post-merge:
+  commands:
+    install:
+      glob: "package-lock.json"
+      run: npm ci
+post-checkout:
+  commands:
+    install:
+      # $3 == 1 for branch checkouts (0 for file checkouts)
+      run: |
+        [ "{3}" = "1" ] || exit 0
+        git diff --quiet {1} {2} -- package-lock.json && exit 0
+        npm ci

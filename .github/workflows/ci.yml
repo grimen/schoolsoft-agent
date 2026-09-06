@@ -1,25 +1,197 @@
-name: ci
+name: CI
+
+# The one pipeline every branch runs, so a workflow badge filtered by branch
+# is correct for that branch. Staged so a failure never spends the next
+# stage's minutes:
+#
+#   Checks (lint, typecheck, format, boundaries, audit, package shape,
+#           plugins, commits, docs, diagrams)                    ~1-2 min
+#     -> Unit (tests + coverage thresholds)                      ~1 min
+#       -> E2E (shipped artifact: MCP over stdio, CLI, mcpb,
+#               every host manifest / skill in a sandbox)        ~2 min
+#         -> Publish -> Verify (main / release / dispatch)
+#
+# The live SchoolSoft suite (`make e2e`) needs a human with BankID and never
+# runs here. A docs-only PR stops after Checks (classified by the Changes
+# job in checks.yml); main skips docs-only pushes via paths-ignore.
+#
+# Publishing to npm:
+#   - Stable (`latest`): only when a GitHub Release is published or
+#     release-please.yml dispatches this workflow at a tag (`release_tag`).
+#     The tag IS the version (vX.Y.Z -> X.Y.Z). A prerelease tag
+#     (v1.0.0-rc.1) ships under `next`. Ships only once the commit's own
+#     push-to-main run is green; release-retry.yml re-runs a blocked Publish.
+#   - Prerelease (`next`): every push to main ships
+#     <next-patch-after-latest-tag>-pre.<run>.<sha>.
+#   Needs the NPM_TOKEN secret (npm automation token) - GITHUB_TOKEN cannot
+#   publish to npmjs.com. Provenance is attached via id-token.
+
 on:
   push:
     branches: [main]
+    paths-ignore: ["docs/**", "**.md"] # docs-only pushes ship nothing new
   pull_request:
+    types: [opened, synchronize, reopened]
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Treat this run as the release of vX.Y.Z (set by release-please.yml)"
+        type: string
+        required: false
+
+permissions:
+  contents: read
+
+# PR refs: a newer push supersedes an in-flight run. main: never cancel a
+# running publish.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
-  check:
+  checks:
+    name: Checks
+    uses: ./.github/workflows/checks.yml
+  unit:
+    name: Unit
+    needs: [checks]
+    if: needs.checks.outputs.docs-only != 'true'
+    uses: ./.github/workflows/test.yml
+  e2e:
+    name: E2E
+    needs: [unit]
+    uses: ./.github/workflows/e2e.yml
+
+  # Badges for this branch under gh-pages/badges/<branch>/: measured coverage
+  # (artifact from Unit, or a red "failing" placeholder) plus Unit / E2E
+  # pass-fail badges. Always runs so a red badge replaces a stale green one;
+  # skipped for fork PRs (no write token) and release runs (not a branch).
+  badges:
+    name: Badges
+    needs: [checks, unit, e2e]
+    if: |
+      always() &&
+      needs.checks.result != 'cancelled' && needs.unit.result != 'cancelled' && needs.e2e.result != 'cancelled' &&
+      github.event_name != 'release' && inputs.release_tag == '' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Download coverage badge
+        if: needs.unit.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-badge
+          path: coverage/badge
+
+      - name: Render "failing" coverage placeholder
+        if: needs.unit.result == 'failure'
+        run: npm run coverage:badge -- --status failing
+
+      - name: Render Unit + E2E status badges
+        env:
+          UNIT: ${{ needs.unit.result }}
+          E2E: ${{ needs.e2e.result }}
+        run: |
+          node scripts/status-badge.mjs unit Unit "$UNIT"
+          node scripts/status-badge.mjs e2e E2E "$E2E"
+
+      - name: Publish to gh-pages
+        env:
+          SHA: ${{ github.sha }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: bash scripts/ci/publish-badges.sh
+
+  publish:
+    name: Publish
+    needs: [unit, e2e]
+    if: |
+      github.event_name == 'release' ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write # npm provenance
+      actions: read # look up the commit's main run
+    outputs:
+      version: ${{ steps.ver.outputs.version }}
+      disttag: ${{ steps.ver.outputs.disttag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # tags: the prerelease base is derived from the latest v* tag
+
+      - name: Require a green main run for the release commit
+        if: github.event_name == 'release' || inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: bash scripts/release/require-green-main.sh
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Resolve version and dist-tag
+        id: ver
+        env:
+          EVENT: ${{ inputs.release_tag != '' && 'release' || github.event_name }}
+          TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+          RUN: ${{ github.run_number }}
+        run: bash scripts/release/resolve-version.sh
+
+      - name: Build + generated artifacts
+        run: make build skills
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag "${{ steps.ver.outputs.disttag }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Build the Claude Desktop bundle
+        run: make mcpb
+
+      - name: Attach the bundle to the GitHub Release
+        if: github.event_name == 'release' || inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.release_tag || github.event.release.tag_name }}
+        run: gh release upload "$TAG" dist/schoolsoft-agent.mcpb --clobber
+
+  # Consumes what was ACTUALLY published: installs the exact version from
+  # npm into a clean prefix and asserts the consumer contract.
+  registry-smoke:
+    name: Verify
+    needs: [publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-      - run: make setup
-      - run: make check
-      - run: make plugin-validate
-      - run: make build
-      - run: make skills
-      - run: make mcpb-stage
-      - uses: actions/upload-artifact@v4
-        with:
-          name: mcpb-stage
-          path: dist/mcpb
-          if-no-files-found: error
+      - name: Install the published version and assert the consumer contract
+        run: bash scripts/release/registry-smoke.sh "${{ needs.publish.outputs.version }}"

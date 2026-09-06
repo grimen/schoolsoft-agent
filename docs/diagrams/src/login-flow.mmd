@@ -1,0 +1,23 @@
+sequenceDiagram
+  autonumber
+  participant A as Agent
+  participant S as schoolsoft-agent
+  participant B as User's browser
+  participant L as SchoolSoft login (+ municipality IdP / BankID)
+  participant E as Eva API
+  participant W as Webview REST
+
+  A->>S: login
+  S->>S: start one-shot HTTP server on 127.0.0.1:43117
+  S->>B: open https://sms.schoolsoft.se/<school>/react/#/login/parent?client_id=vApp&code_challenge=…&redirect_uri=http://127.0.0.1:43117/callback
+  B->>L: user picks municipality login, completes BankID
+  L-->>B: 302 http://127.0.0.1:43117/callback?code=…&state=…
+  B->>S: GET /callback (state verified, page says "Inloggad")
+  S->>L: POST /rest-api/login/token?clientId=vApp&grantType=code&codeVerifier=…
+  L-->>S: access_token (JWT, user_type=PARENT, 15 min) + refresh_token
+  S->>E: GET /eva/api/v1/parent (Bearer)
+  E-->>S: userId, children[{studentId, schools[{orgId}]}]
+  S->>W: GET /eva-apps/auth/login/parent  headers: token, userId, orgId, childInFocus
+  W-->>S: Set-Cookie JSESSIONID, hash, usertype=2
+  S->>S: persist tokens + cookies + guardian context (AES-256-GCM)
+  S-->>A: { status: "logged_in", user: { name, schoolName, children } }

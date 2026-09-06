@@ -37,19 +37,32 @@ test("relative links in docs resolve", () => {
   assert.deepEqual(broken, []);
 });
 
-test("mermaid blocks are well-formed", () => {
-  const types = /^(flowchart|graph|sequenceDiagram|stateDiagram-v2|classDiagram|erDiagram)\b/;
-  let count = 0;
+test("every diagram source has a rendered SVG, and vice versa; architecture embeds each", () => {
+  const src = join(process.cwd(), "docs/diagrams/src");
+  const dist = join(process.cwd(), "docs/diagrams/dist");
+  const mmd = readdirSync(src)
+    .filter((f) => f.endsWith(".mmd"))
+    .map((f) => f.replace(/\.mmd$/, ""))
+    .sort();
+  const svg = readdirSync(dist)
+    .filter((f) => f.endsWith(".svg"))
+    .map((f) => f.replace(/\.svg$/, ""))
+    .sort();
+  assert.deepEqual(svg, mmd, "run make diagrams");
+  assert.ok(mmd.length >= 5, `expected at least 5 diagrams, found ${mmd.length}`);
+  const arch = readFileSync(join(process.cwd(), "docs/architecture.md"), "utf8");
+  for (const n of mmd) {
+    assert.match(
+      arch,
+      new RegExp(`\\(diagrams/dist/${n}\\.svg\\)\\]\\(diagrams/src/${n}\\.mmd\\)`),
+      `architecture.md must embed ${n}`,
+    );
+  }
   for (const f of files) {
     const md = readFileSync(f, "utf8");
-    const fences = md.split("```");
-    assert.equal(fences.length % 2, 1, `${f}: unbalanced code fences`);
-    for (let i = 1; i < fences.length; i += 2) {
-      if (!fences[i].startsWith("mermaid")) continue;
-      const body = fences[i].replace(/^mermaid\s*\n/, "").trim();
-      assert.match(body, types, `${f}: mermaid block without a known diagram type`);
-      count++;
-    }
+    assert.ok(
+      !md.includes("```mermaid"),
+      `${f}: inline mermaid — put it under docs/diagrams/src and embed the SVG`,
+    );
   }
-  assert.ok(count >= 5, `expected at least 5 mermaid diagrams, found ${count}`);
 });

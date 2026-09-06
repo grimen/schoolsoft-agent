@@ -1,5 +1,11 @@
 # schoolsoft-agent
 
+[![Unit](https://github.com/grimen/schoolsoft-agent/raw/gh-pages/badges/main/unit.svg)](https://github.com/grimen/schoolsoft-agent/actions/workflows/ci.yml?query=branch%3Amain)
+[![E2E](https://github.com/grimen/schoolsoft-agent/raw/gh-pages/badges/main/e2e.svg)](https://github.com/grimen/schoolsoft-agent/actions/workflows/ci.yml?query=branch%3Amain)
+[![Coverage](https://github.com/grimen/schoolsoft-agent/raw/gh-pages/badges/main/coverage.svg)](https://github.com/grimen/schoolsoft-agent/actions/workflows/ci.yml?query=branch%3Amain)
+[![npm](https://img.shields.io/npm/v/schoolsoft-agent)](https://www.npmjs.com/package/schoolsoft-agent)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
+
 SchoolSoft for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, lunch menu, assignments, news and the message inbox. Login is BankID in your own browser; nothing is automated around it, and the session is stored encrypted on your machine.
 
 Two surfaces, one core. Pick the one your host supports or you prefer:
@@ -65,13 +71,14 @@ Details and diagrams: [docs/architecture.md](docs/architecture.md). What SchoolS
 
 ```bash
 git clone https://github.com/grimen/schoolsoft-agent && cd schoolsoft-agent
-make setup          # node check + npm ci
-make check          # typecheck, format, import boundaries, tests with coverage
+make setup          # node check + npm ci + git hooks
+make check          # lint, typecheck, format, boundaries, manifests, tests with coverage
+make e2e-artifact   # shipped-artifact + host E2E in a sandbox (what CI runs)
 make e2e            # live suite against SchoolSoft (needs configure + one login)
 make help           # everything else
 ```
 
-Layout, boundaries and the test pyramid are described in [docs/architecture.md](docs/architecture.md). Contributions that add an operation touch one file under `src/core/operations/` plus the registry; both surfaces and the docs follow.
+Layout, boundaries and the test pyramid are in [docs/architecture.md](docs/architecture.md); conventions, hooks and the CI stages in [CONTRIBUTING.md](CONTRIBUTING.md); how versions ship in [docs/releasing.md](docs/releasing.md). Adding an operation touches one file under `src/core/operations/` plus the registry; both surfaces and the docs follow.
 
 ## Roadmap
 
