@@ -88,6 +88,7 @@ export async function exchangeCode(options: {
   verifier: string;
   fetchImpl?: TokenFetch;
 }): Promise<TokenSet> {
+  /* c8 ignore next: live default, exercised by make e2e (A1) */
   const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as TokenFetch);
   const url =
     ssUrl(options.school, "/rest-api/login/token") +
@@ -113,6 +114,7 @@ export async function refreshTokens(options: {
   refreshToken: string;
   fetchImpl?: TokenFetch;
 }): Promise<TokenSet> {
+  /* c8 ignore next: live default, exercised by make e2e (A3) */
   const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as TokenFetch);
   const url =
     ssUrl(options.school, "/rest-api/login/token") +

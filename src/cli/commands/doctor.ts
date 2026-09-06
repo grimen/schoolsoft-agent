@@ -5,10 +5,16 @@
 import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { FileSessionStore, NotConfiguredError, type Config } from "../../core/index.js";
+import {
+  FileSessionStore,
+  NotConfiguredError,
+  browserStatus,
+  type Config,
+} from "../../core/index.js";
 import { loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
-import { globalOverrides } from "../program.js";
+import { CliExit, globalOverrides } from "../program.js";
+import { EXIT } from "../exit-codes.js";
 
 export interface DoctorCheck {
   name: string;
@@ -77,8 +83,9 @@ export async function runDoctor(
     });
   }
 
+  // Default goes through globalThis.fetch so tests can stub it without network.
   const fetchImpl =
-    deps.fetchImpl ?? ((url: string, init?: { method?: string }) => fetch(url, init));
+    deps.fetchImpl ?? ((url: string, init?: { method?: string }) => globalThis.fetch(url, init));
   try {
     const r = await fetchImpl("https://sms.schoolsoft.se/", { method: "HEAD" });
     checks.push({
@@ -93,6 +100,17 @@ export async function runDoctor(
       detail: `sms.schoolsoft.se unreachable: ${e instanceof Error ? e.message : e}`,
     });
   }
+  const bs = await browserStatus(
+    config?.browser ?? { kind: "chromium", headless: true },
+    deps.browserProbes,
+  );
+  checks.push({
+    name: "headless-browser",
+    ok: true, // optional: never fails doctor
+    detail: bs.ready
+      ? `ready (${bs.engine}${bs.executablePath ? ", " + bs.executablePath : ""})`
+      : `not installed — only contact lists, bookings, files and the gated pages need it (${bs.hint})`,
+  });
 
   const opener =
     deps.platform === "darwin" ? "open" : deps.platform === "win32" ? "cmd" : "xdg-open";
@@ -113,10 +131,6 @@ export function registerDoctor(program: Command, deps: CliDeps, emit: (d: unknow
     .action(async (opts: { fix?: boolean }) => {
       const result = await runDoctor(deps, program.opts(), Boolean(opts.fix), process.version);
       emit(result);
-      if (!result.ok) {
-        const { CliExit } = await import("../program.js");
-        const { EXIT } = await import("../exit-codes.js");
-        throw new CliExit(EXIT.ERROR, "");
-      }
+      if (!result.ok) throw new CliExit(EXIT.ERROR, "");
     });
 }

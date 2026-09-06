@@ -15,10 +15,11 @@ Returns: { message: { id, subject, message, sender, date, recipients, attachment
 
 Use when: the user wants to read a specific message listed by get_messages.`,
   input: { id: z.number().int().describe("Message id from get_messages"), child_id: ChildSchema },
+  portal: ["getMessage"],
   annotations: READ_ONLY,
   async run(ctx, { id, child_id }) {
     const { guardian, orgId } = await withChild(ctx, child_id);
-    const message = await ctx.api.getMessage(guardian.userId, orgId, id);
+    const message = await ctx.portal.getMessage(guardian.userId, orgId, id);
     return { message };
   },
 });

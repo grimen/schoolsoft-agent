@@ -9,8 +9,9 @@
 import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
-import { childOf, type GuardianContext } from "../api/guardian.js";
+import { childOf, type GuardianContext } from "../portal/guardian.js";
 import { decodeJwtClaims } from "../auth/oauth.js";
+import type { WebSession } from "../browser/web-login.js";
 
 export class NotAuthenticatedError extends Error {
   constructor(reason: string) {
@@ -29,6 +30,8 @@ export interface SessionManagerOptions {
   /** First entry is the default login strategy. */
   strategies: AuthStrategy[];
   clientFactory?: (school: string) => SchoolsoftClient;
+  /** Runs the interactive web login (headed browser); injected so core stays free of playwright. */
+  webLogin?: (school: string) => Promise<WebSession>;
 }
 
 export class SessionManager {
@@ -40,6 +43,8 @@ export class SessionManager {
 
   private client: SchoolsoftClient | null = null;
   private established = false;
+  private web: WebSession | null = null;
+  private readonly webLoginRunner?: (school: string) => Promise<WebSession>;
 
   constructor(options: SessionManagerOptions) {
     if (options.strategies.length === 0) {
@@ -50,6 +55,8 @@ export class SessionManager {
     this.strategies = new Map(options.strategies.map((s) => [s.id, s]));
     this.defaultStrategy = options.strategies[0];
     this.clientFactory = options.clientFactory ?? ((school) => new SchoolsoftClient({ school }));
+    this.webLoginRunner = options.webLogin;
+    this.web = this.store.load()?.web ?? null;
   }
 
   getClient(): SchoolsoftClient {
@@ -71,6 +78,7 @@ export class SessionManager {
     this.store.save({
       school: this.school,
       guardian: strategy?.context,
+      web: this.web ?? undefined,
       accessToken: c.accessToken ?? undefined,
       refreshToken: c.refreshToken ?? undefined,
       // ssp-node exposes no expiry getter; the JWT carries it (unix seconds).
@@ -167,10 +175,7 @@ export class SessionManager {
   /** Re-bind the cookie session to another child and persist the choice. */
   async focusChild(studentId: number): Promise<GuardianContext> {
     const client = await this.ensureSession();
-    const strategy = this.activeStrategy;
-    if (!strategy?.focusChild) {
-      throw new Error(`Auth strategy "${strategy?.id}" cannot switch child.`);
-    }
+    const strategy = this.activeStrategy!; // set by ensureSession()
     childOf(this.guardian(), studentId); // validate before any side effect
     if (strategy.context?.childInFocus !== studentId) {
       await strategy.focusChild(client, studentId);
@@ -181,8 +186,31 @@ export class SessionManager {
 
   private activeStrategy: AuthStrategy | null = null;
 
+  /** The web-login session, if one was stored (may be expired; the browser finds out). */
+  getWebSession(): WebSession | null {
+    return this.web;
+  }
+
+  /** Interactive web login (BankID/SAML in a headed browser); stores the cookies. */
+  async webLogin(): Promise<{ status: "web_logged_in"; landedOn: string; cookies: number }> {
+    if (!this.webLoginRunner) throw new Error("Web login is not available in this configuration.");
+    const web = await this.webLoginRunner(this.school);
+    this.web = web;
+    const saved = this.store.load();
+    if (saved) this.store.save({ ...saved, web });
+    return { status: "web_logged_in", landedOn: web.landedOn, cookies: web.cookies.length };
+  }
+
+  /** Forget the web session only (e.g. after SchoolSoft rejected it). */
+  clearWebSession(): void {
+    this.web = null;
+    const saved = this.store.load();
+    if (saved) this.store.save({ ...saved, web: undefined });
+  }
+
   logout(): void {
     this.store.clear();
+    this.web = null;
     this.reset();
   }
 }

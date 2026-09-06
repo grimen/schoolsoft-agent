@@ -17,11 +17,12 @@ Returns: { week, child, lessons: [...] }
 
 Use when: "vad har barnet på schemat", "när slutar skolan på fredag".`,
   input: { week: WeekSchema, child_id: ChildSchema },
+  portal: ["getScheduleWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, child_id }) {
     const { childSummary } = await withChild(ctx, child_id);
     const w = week ?? isoWeek();
-    const lessons = await ctx.api.getScheduleWeek(w);
+    const lessons = await ctx.portal.getScheduleWeek(w);
     return { week: w, child: childSummary, lessons };
   },
 });

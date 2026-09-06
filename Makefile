@@ -85,6 +85,9 @@ e2e: build ## Live E2E against SchoolSoft (needs `configure` + one BankID login;
 login: build ## Interactive BankID login (opens your browser)
 	node dist/cli/index.js login
 
+login-web: build ## Web login in a visible browser window (BankID/SAML); needed once for grades, documents, attendance
+	node dist/cli/index.js login --web
+
 status: build ## Show session status
 	node dist/cli/index.js auth-status
 
@@ -96,6 +99,15 @@ configure: build ## Interactive configuration (find your school)
 
 doctor: build ## Diagnose environment, config, session and connectivity
 	node dist/cli/index.js doctor
+
+browser: build ## Download Chromium for the optional headless browser (contact lists, bookings, files, gated pages)
+	node dist/cli/index.js browser install
+
+browser-verify: build ## Check every browser-read SchoolSoft page still has its anchors and recorded fingerprint (live)
+	node dist/cli/index.js browser verify
+
+fingerprints: ## Re-record page fingerprints from the live tenant into src/core/portal/fingerprints.ts (after a SchoolSoft update)
+	./node_modules/.bin/tsx scripts/fingerprints.ts
 
 # ---------- Generated artifacts ----------
 
@@ -168,6 +180,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact e2e login status logout configure doctor docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact e2e login login-web status logout configure doctor browser browser-verify fingerprints docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

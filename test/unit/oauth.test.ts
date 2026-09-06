@@ -140,3 +140,33 @@ test("decodeJwtClaims returns only non-identifying claims", () => {
   assert.ok(!JSON.stringify(c).includes("secret-uuid"));
   assert.equal(decodeJwtClaims("not-a-jwt"), null);
 });
+
+test("token response parsing: userMessage, missing access_token, no refresh/expires (JWT exp fallback), invalid JWT", async () => {
+  const fetchWith =
+    (status: number, data: unknown): TokenFetch =>
+    async () => ({ status, data });
+  const base = { school: "taby", clientId: "vApp", code: "c", verifier: "v" };
+  await assert.rejects(
+    exchangeCode({ ...base, fetchImpl: fetchWith(400, { userMessage: "Ogiltig kod" }) }),
+    /status 400\. SchoolSoft says: Ogiltig kod/,
+  );
+  await assert.rejects(
+    exchangeCode({ ...base, fetchImpl: fetchWith(500, "nope") }),
+    /status 500\.$/,
+  );
+  await assert.rejects(
+    exchangeCode({ ...base, fetchImpl: fetchWith(200, null) }),
+    /no access_token/,
+  );
+  const token = jwt({ exp: 1_800_000_000 });
+  const t = await exchangeCode({ ...base, fetchImpl: fetchWith(200, { access_token: token }) });
+  assert.deepEqual(t, { accessToken: token, refreshToken: null, expiresAt: 1_800_000_000 });
+  const opaque = await refreshTokens({
+    school: "taby",
+    clientId: "vApp",
+    refreshToken: "r",
+    fetchImpl: fetchWith(200, { access_token: "not-a-jwt" }),
+  });
+  assert.deepEqual(opaque, { accessToken: "not-a-jwt", refreshToken: null, expiresAt: null });
+  assert.equal(decodeJwtClaims("a.!!!not-base64-json.c"), null);
+});

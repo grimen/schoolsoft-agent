@@ -10,11 +10,11 @@
  *     username/password after a one-time BankID bootstrap.
  *
  * SessionManager depends only on this interface. Adding a strategy never
- * modifies existing code — register it in the wiring (client.ts).
+ * modifies existing code — register it in the wiring (wiring.ts).
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { PersistedSession } from "../session/store.js";
-import type { GuardianContext } from "../api/guardian.js";
+import type { GuardianContext } from "../portal/guardian.js";
 
 export interface LoginInfo {
   name: string | null;
@@ -50,8 +50,8 @@ export interface AuthStrategy {
   readonly context?: GuardianContext;
 
   /**
-   * Re-bind the cookie session to another child (guardians). Optional;
-   * SessionManager reports "not supported" if absent.
+   * Re-bind the cookie session to another child (guardians). Every strategy
+   * implements it so SessionManager never has to special-case one.
    */
-  focusChild?(client: SchoolsoftClient, studentId: number): Promise<void>;
+  focusChild(client: SchoolsoftClient, studentId: number): Promise<void>;
 }

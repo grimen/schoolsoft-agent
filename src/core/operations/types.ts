@@ -5,7 +5,7 @@
  */
 import type { z } from "zod";
 import type { SessionManager } from "../session/session-manager.js";
-import type { GuardianApi } from "../api/guardian.js";
+import type { Capability, Portal } from "../portal/types.js";
 import type { Config } from "../config.js";
 
 export interface OperationAnnotations {
@@ -19,15 +19,25 @@ export interface OperationAnnotations {
   requiresAuth: boolean;
 }
 
-export interface OperationContext {
+/**
+ * What an operation may touch. `portal` is narrowed to the capabilities the
+ * operation declares (interface segregation): an operation cannot reach a
+ * capability it did not list, and the boundary test checks the list
+ * against the source.
+ */
+export interface OperationContext<C extends Capability = Capability> {
   manager: SessionManager;
-  api: GuardianApi;
+  portal: Pick<Portal, C>;
   config: Config;
   /** Diagnostic output (stderr for stdio surfaces). */
   log: (message: string) => void;
 }
 
-export interface Operation<I extends z.ZodRawShape = z.ZodRawShape, O = unknown> {
+export interface Operation<
+  I extends z.ZodRawShape = z.ZodRawShape,
+  O = unknown,
+  C extends Capability = Capability,
+> {
   /** snake_case, surface-neutral, e.g. "get_schedule". */
   name: string;
   title: string;
@@ -36,10 +46,14 @@ export interface Operation<I extends z.ZodRawShape = z.ZodRawShape, O = unknown>
   /** Zod raw shape; MCP inputSchema and CLI flags derive from it. */
   input: I;
   annotations: OperationAnnotations;
-  run(ctx: OperationContext, args: z.infer<z.ZodObject<I>>): Promise<O>;
+  /** Portal capabilities this operation uses; empty for auth/config operations. */
+  portal: readonly C[];
+  run(ctx: OperationContext<C>, args: z.infer<z.ZodObject<I>>): Promise<O>;
 }
 
-export function defineOperation<I extends z.ZodRawShape, O>(op: Operation<I, O>): Operation<I, O> {
+export function defineOperation<I extends z.ZodRawShape, O, const C extends Capability>(
+  op: Operation<I, O, C>,
+): Operation<I, O, C> {
   return op;
 }
 

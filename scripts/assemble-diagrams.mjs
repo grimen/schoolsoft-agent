@@ -39,6 +39,13 @@ export const SECTIONS = [
     outro: "The retry exists because the alternative is a BankID round for the user.",
   },
   { file: "session-states.mmd", title: "Session states" },
+  {
+    file: "portal-adapter.mmd",
+    title: "Portal adapter: API first, browser where no API exists",
+    outro:
+      "Dashed parts are optional: Playwright is an optional dependency, installed once with\n" +
+      "`schoolsoft-agent browser install`; the engine behind it is Chromium or any CDP endpoint.",
+  },
 ];
 
 const blocks = SECTIONS.map(({ file, title, outro }) => {

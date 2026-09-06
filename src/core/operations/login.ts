@@ -20,6 +20,10 @@ in the diagnostics.
 Args:
   - strategy (string, optional): auth strategy id. Defaults to
     "bankid-browser".
+  - web (boolean, optional): perform the WEB login in a visible browser
+    window instead. Required once before grades, student documents,
+    assessment and attendance (SchoolSoft's GDPR gate); the app session
+    covers everything else.
 
 Returns: { status: "logged_in", user: { name, schoolName, userType, children } }.
 
@@ -27,9 +31,20 @@ Use when: any other operation reported "Not authenticated".
 Don't use when: a session is already active (check auth_status).`,
   input: {
     strategy: z.string().optional().describe('Auth strategy id, defaults to "bankid-browser"'),
+    web: z
+      .boolean()
+      .optional()
+      .describe(
+        "Web login instead: opens a browser window for SchoolSoft's normal login; needed once for grades, documents and attendance (GDPR-gated pages).",
+      ),
   },
+  portal: [],
   annotations: { readOnly: false, destructive: false, idempotent: false, requiresAuth: false },
-  async run(ctx, { strategy }) {
+  async run(ctx, { strategy, web }) {
+    if (web) {
+      const result = await ctx.manager.webLogin();
+      return { status: result.status, landedOn: result.landedOn, cookies: result.cookies };
+    }
     const user = await ctx.manager.login(strategy);
     return { status: "logged_in" as const, user };
   },

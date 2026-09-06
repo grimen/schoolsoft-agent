@@ -120,3 +120,96 @@ test("auth URL honours an explicit userType", async () => {
   const { authUrl } = await login;
   assert.match(authUrl, /\/react\/#\/login\/student\?/);
 });
+
+test("timeout rejects and closes the server; a non-callback path gets 404", async () => {
+  const port = usePort();
+  await assert.rejects(
+    runBrowserLogin({ school: "testskola", port, timeoutMs: 30, openBrowser: () => {} }),
+    /timed out/,
+  );
+  const port2 = usePort();
+  const login = runBrowserLogin({
+    school: "testskola",
+    port: port2,
+    openBrowser: async (authUrl) => {
+      const other = await fetch(`http://127.0.0.1:${port2}/other`);
+      assert.equal(other.status, 404);
+      const state = stateFrom(authUrl);
+      void fetch(`http://127.0.0.1:${port2}/callback?code=C&state=${encodeURIComponent(state)}`);
+    },
+  });
+  assert.equal((await login).result.code, "C");
+});
+
+test("default port and default opener are used when not given", async () => {
+  const { DEFAULT_CALLBACK_PORT } = await import("../../src/core/constants.js");
+  const login = runBrowserLogin({
+    school: "testskola",
+    openBrowser: (authUrl) => {
+      const state = stateFrom(authUrl);
+      void fetch(
+        `http://127.0.0.1:${DEFAULT_CALLBACK_PORT}/callback?code=D&state=${encodeURIComponent(state)}`,
+      );
+    },
+  });
+  assert.equal((await login).result.code, "D");
+});
+
+test("defaultOpenInBrowser spawns the platform opener detached and survives a missing binary", async () => {
+  const { EventEmitter } = await import("node:events");
+  const { defaultOpenInBrowser, openerCommand } =
+    await import("../../src/core/auth/browser-flow.js");
+  assert.deepEqual(openerCommand("http://x?a=1&b=2", "darwin"), ["open", "http://x?a=1&b=2"]);
+  assert.deepEqual(openerCommand("http://x?a=1&b=2", "win32"), [
+    "cmd",
+    "/c",
+    "start",
+    "",
+    "http://x?a=1^&b=2",
+  ]);
+  assert.deepEqual(openerCommand("http://x", "linux"), ["xdg-open", "http://x"]);
+  const spawned: { cmd: string; args: string[]; opts: unknown }[] = [];
+  const child = Object.assign(new EventEmitter(), {
+    unref: () => spawned.push({ cmd: "unref", args: [], opts: null }),
+  });
+  const spawnImpl = ((cmd: string, args: string[], opts: unknown) => {
+    spawned.push({ cmd, args, opts });
+    return child;
+  }) as never;
+  const errors: string[] = [];
+  const orig = console.error;
+  console.error = (m: string) => errors.push(m);
+  try {
+    defaultOpenInBrowser("http://x", spawnImpl, "linux");
+    child.emit("error", new Error("ENOENT xdg-open"));
+    defaultOpenInBrowser("http://y", spawnImpl);
+  } finally {
+    console.error = orig;
+  }
+  assert.equal(spawned[0].cmd, "xdg-open");
+  assert.deepEqual(spawned[0].opts, { detached: true, stdio: "ignore" });
+  assert.equal(spawned[1].cmd, "unref");
+  assert.match(errors[0], /Could not open browser automatically \(ENOENT xdg-open\)/);
+  assert.equal(spawned.length, 4, "second call used the real platform's opener");
+});
+
+test("the error page escapes whatever the identity provider put in the query string", async () => {
+  const port = usePort();
+  let resolveBody!: (b: string) => void;
+  const bodyPromise = new Promise<string>((r) => (resolveBody = r));
+  const login = runBrowserLogin({
+    school: "testskola",
+    port,
+    openBrowser: () => {
+      void fetch(
+        `http://127.0.0.1:${port}/callback?error=${encodeURIComponent('<script>alert("x")</script>&"')}`,
+      )
+        .then((res) => res.text())
+        .then(resolveBody);
+    },
+  });
+  await assert.rejects(login, /alert/);
+  const body = await bodyPromise;
+  assert.ok(body.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&quot;"), body);
+  assert.ok(!body.includes("<script>alert"), "raw script tag must not appear");
+});

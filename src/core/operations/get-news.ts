@@ -14,10 +14,11 @@ Returns: { child, news: [{ id, title, description, category, creDate, toDate, re
 
 Use when: "något nytt från skolan", "senaste nyheterna".`,
   input: { child_id: ChildSchema, limit: LimitSchema },
+  portal: ["getNews"],
   annotations: READ_ONLY,
   async run(ctx, { child_id, limit }) {
     const { guardian, orgId, child, childSummary } = await withChild(ctx, child_id);
-    const news = await ctx.api.getNews(guardian.userId, orgId, child.studentId);
+    const news = await ctx.portal.getNews(guardian.userId, orgId, child.studentId);
     return { child: childSummary, news: news.slice(0, limit ?? 20) };
   },
 });

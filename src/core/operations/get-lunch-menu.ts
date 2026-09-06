@@ -14,11 +14,12 @@ Returns: { week, child, menu: [{ week, dayId (Mon=1…Fri=5), dishes: [{ mealTyp
 
 Use when: "vad är det till lunch", "vad serveras på onsdag".`,
   input: { week: WeekSchema, child_id: ChildSchema },
+  portal: ["getLunchWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, child_id }) {
     const { orgId, childSummary } = await withChild(ctx, child_id);
     const w = week ?? isoWeek();
-    const menu = await ctx.api.getLunchWeek(orgId, w);
+    const menu = await ctx.portal.getLunchWeek(orgId, w);
     return { week: w, child: childSummary, menu };
   },
 });

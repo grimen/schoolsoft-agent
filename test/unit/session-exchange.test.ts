@@ -94,3 +94,17 @@ test("refuses to run without an access token", async () => {
     /No access token/,
   );
 });
+
+test("failure message without a redirect location", async () => {
+  const { client } = fakeClient();
+  const fetchImpl: ExchangeFetch = async () => ({
+    status: 302,
+    data: "",
+    headers: {},
+    setCookies: [],
+  });
+  await assert.rejects(
+    exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
+    /status 302\)\. The access token/,
+  );
+});

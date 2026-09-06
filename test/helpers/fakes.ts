@@ -1,6 +1,6 @@
 /**
  * Shared test doubles: a guardian context with two children, a fake
- * GuardianApi, a fake auth strategy, and a context factory that wires them
+ * Portal, a fake auth strategy, and a context factory that wires them
  * into a real SessionManager (memory store, no network).
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
@@ -10,10 +10,11 @@ import {
   type AuthStrategy,
   type LoginInfo,
   type PersistedSession,
-  type GuardianApi,
+  type Portal,
   type GuardianContext,
   type OperationContext,
   type Config,
+  createCompositePortal,
 } from "../../src/core/index.js";
 
 export const FAKE_LESSONS = [
@@ -52,7 +53,7 @@ export function fakeSchoolsoftClient(overrides: Partial<SchoolsoftClient> = {}):
   } as unknown as SchoolsoftClient;
 }
 
-export const fakeApi = {
+export const fakePortal = {
   getScheduleWeek: async (_week: number) => FAKE_LESSONS,
   getLunchWeek: async (_org: number, week: number) => [
     { week, dayId: 5, dishes: [{ mealType: "Lunch", description: "Spagetti" }] },
@@ -65,7 +66,57 @@ export const fakeApi = {
     { id: 6, subject: "Läst", isRead: true },
   ],
   getMessage: async (_u: number, _o: number, id: number) => ({ id, message: "Full text" }),
-} as unknown as GuardianApi;
+  getActivityLog: async (limit = 20) =>
+    [{ id: 1, date: "2026-09-01", title: "Utflykt", text: "Vi var i skogen.", comments: 0 }].slice(
+      0,
+      limit,
+    ),
+  getContacts: async () => [
+    { title: "Elever", people: [{ name: "Test Elev", role: "Elev", email: "e@example.test" }] },
+  ],
+  getSubjectRooms: async () => [
+    { subject: "Matematik", subjectId: 1, groups: ["4B"], teachers: ["Lärare Test"] },
+  ],
+  getBookings: async () => [
+    { title: "Utvecklingssamtal", slots: [{ start: "2026-10-01 15:00", status: "available" }] },
+  ],
+  getFiles: async () => [
+    { name: "Veckobrev", url: "https://example.test/veckobrev.pdf", type: "file" },
+  ],
+  // GDPR-gated (web session) capabilities
+  getGrades: async () => ({ title: "Betyg", sections: [] }),
+  getStudentDocuments: async () => ({
+    title: "Elevdokument",
+    sections: [
+      {
+        heading: "Arkiverade elevdokument",
+        headers: ["Rubrik", "Skapad av", "Datum", ""],
+        rows: [
+          {
+            cells: ["IUP", "Lärare Test", "2026-01-10", ""],
+            url: "right_student_review.jsp?action=view&archive=1&requestid=1",
+          },
+        ],
+      },
+    ],
+  }),
+  getUnreportedAbsence: async () => ({
+    title: "Oanmäld frånvaro",
+    message: "Det finns ingen oanmäld frånvaro att ta del av",
+    sections: [],
+  }),
+  getAttendanceReport: async () => ({
+    title: "Närvarorapport",
+    sections: [
+      { headers: ["Orsak", "Lektioner", "Timmar"], rows: [{ cells: ["Sjuk", "2", "1"] }] },
+    ],
+  }),
+  getAssessmentCriteria: async (subject: string) => ({
+    title: `Kriterier ${subject}`,
+    sections: [{ headers: ["Förmåga", "E", "C", "A"], rows: [{ cells: ["Läsa", "…", "…", "…"] }] }],
+  }),
+  getGradePrognosis: async () => ({ reconciliationDates: [] }),
+} as unknown as Portal;
 
 export class FakeAuth implements AuthStrategy {
   readonly id = "fake";
@@ -92,10 +143,17 @@ export const testConfig: Config = {
   callbackPort: 43117,
   stateDir: "/tmp/unused",
   configDir: "/tmp/unused",
+  browser: { kind: "chromium", headless: true },
 };
 
 export function makeContext(
-  opts: { store?: MemorySessionStore; api?: GuardianApi; config?: Partial<Config> } = {},
+  opts: {
+    browserUnavailable?: string;
+    webLogin?: (school: string) => Promise<import("../../src/core/index.js").WebSession>;
+    store?: MemorySessionStore;
+    portal?: Portal;
+    config?: Partial<Config>;
+  } = {},
 ) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = new FakeAuth();
@@ -104,11 +162,20 @@ export function makeContext(
     store,
     strategies: [strategy],
     clientFactory: () => fakeSchoolsoftClient(),
+    webLogin: opts.webLogin,
   });
   const logs: string[] = [];
   const ctx: OperationContext = {
     manager,
-    api: opts.api ?? fakeApi,
+    portal:
+      opts.portal ??
+      (opts.browserUnavailable
+        ? createCompositePortal({
+            api: fakePortal as never,
+            browser: null,
+            browserUnavailableReason: opts.browserUnavailable,
+          })
+        : fakePortal),
     config: { ...testConfig, ...opts.config },
     log: (m) => logs.push(m),
   };

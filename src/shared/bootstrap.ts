@@ -9,7 +9,7 @@ import {
   type Config,
   type ConfigSource,
   type OperationContext,
-  createGuardianApi,
+  createPortal,
   createSessionManager,
   defaultConfigDir,
   envSource,
@@ -57,7 +57,7 @@ export function fileSource(configDir: string): ConfigSource {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as ConfigSource;
     return { ...parsed, configDir };
   } catch (e) {
-    throw new Error(`Could not parse ${file}: ${e instanceof Error ? e.message : e}`, { cause: e });
+    throw new Error(`Could not parse ${file}: ${(e as Error).message}`, { cause: e });
   }
 }
 
@@ -82,7 +82,7 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
       const manager = createSessionManager(config);
       ctx = {
         manager,
-        api: createGuardianApi(manager),
+        portal: createPortal(manager, { engine: config.browser }),
         config,
         log: inputs.log ?? ((m) => console.error(m)),
       };

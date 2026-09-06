@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { operations, getOperation } from "../../src/core/index.js";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { operations, getOperation, BROWSER_CAPABILITIES, PROVIDERS } from "../../src/core/index.js";
 
 test("operation names are unique snake_case", () => {
   const names = operations.map((o) => o.name);
@@ -45,8 +47,65 @@ test("input keys are snake_case and every field is a supported Zod type", () => 
   }
 });
 
+test("every browser capability is used by an operation whose description says how to install the browser", () => {
+  const src = (name: string) =>
+    readFileSync(join(process.cwd(), "src/core/operations", name), "utf8");
+  for (const [op, file] of [
+    ["get_contacts", "get-contacts.ts"],
+    ["get_bookings", "get-bookings.ts"],
+    ["get_files", "get-files.ts"],
+  ]) {
+    assert.match(getOperation(op)?.description ?? "", /browser install/, op);
+    assert.match(src(file), /ctx\.portal\.get/, file);
+  }
+  for (const cap of BROWSER_CAPABILITIES) {
+    const used = readdirSync(join(process.cwd(), "src/core/operations")).some(
+      (f) => f.endsWith(".ts") && src(f).includes(`ctx.portal.${cap}(`),
+    );
+    assert.ok(used, `browser capability ${cap} is not used by any operation`);
+  }
+});
+
+test("every web-session capability's operation says how to get the web login", () => {
+  for (const op of [
+    "get_grades",
+    "get_student_documents",
+    "get_unreported_absence",
+    "get_attendance_report",
+    "get_assessment_criteria",
+    "get_grade_prognosis",
+  ]) {
+    assert.match(getOperation(op)?.description ?? "", /login --web/, op);
+  }
+});
+
+test("each operation declares exactly the portal capabilities its source uses; together they cover every capability", () => {
+  const dir = join(process.cwd(), "src/core/operations");
+  const declared = new Set<string>();
+  for (const op of operations) {
+    const file = join(dir, op.name.replace(/_/g, "-") + ".ts");
+    const src = readFileSync(file, "utf8");
+    const used = [
+      ...new Set([...src.matchAll(/ctx\.portal\.([a-zA-Z]+)\(/g)].map((m) => m[1])),
+    ].sort();
+    assert.deepEqual(
+      [...op.portal].sort(),
+      used,
+      `${op.name}: declared portal capabilities vs. source`,
+    );
+    for (const c of op.portal) declared.add(c);
+  }
+  const all = Object.keys(PROVIDERS).sort();
+  const unused = all.filter((c) => !declared.has(c));
+  assert.deepEqual(
+    unused,
+    ["getNextCalendarEvent", "getParent", "getSession"],
+    "capabilities without an operation are the auth-time ones",
+  );
+});
+
 test("registry lookups", () => {
   assert.equal(getOperation("get_schedule")?.title, "Get schedule");
   assert.equal(getOperation("nope"), undefined);
-  assert.equal(operations.length, 12);
+  assert.equal(operations.length, 23);
 });

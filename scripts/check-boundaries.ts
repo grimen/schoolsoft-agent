@@ -38,6 +38,29 @@ export function checkBoundaries(root: string): Violation[] {
       }
       if (!m) return;
       const spec = m[1];
+      if (
+        spec === "playwright" &&
+        !/^core\/browser\/(playwright|install)\.ts$/.test(rel) &&
+        !text.trimStart().startsWith("import type ")
+      ) {
+        violations.push({
+          file: rel,
+          line,
+          message:
+            "playwright is optional: import it only in core/browser/playwright.ts or install.ts (dynamically)",
+        });
+      }
+      if (
+        spec === "playwright" &&
+        /^core\/browser\/(playwright|install)\.ts$/.test(rel) &&
+        /^\s*import\s+(?!type)/.test(text)
+      ) {
+        violations.push({
+          file: rel,
+          line,
+          message: "playwright must be imported dynamically (await import), not statically",
+        });
+      }
       if (layer === "core") {
         if (spec === "node:process" || spec === "process") {
           violations.push({ file: rel, line, message: "core must not import node:process" });

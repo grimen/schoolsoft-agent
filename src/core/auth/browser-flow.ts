@@ -37,20 +37,36 @@ const SUCCESS_HTML = `<!doctype html><html lang="sv"><meta charset="utf-8">
 <p>Du kan stänga den här fliken och gå tillbaka till din AI-assistent.</p></div>
 </body></html>`;
 
+/** The error text comes from the redirect's query string: never echo it unescaped (CodeQL js/reflected-xss). */
+const escapeHtml = (s: string) =>
+  s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string,
+  );
+
 const ERROR_HTML = (msg: string) => `<!doctype html><html lang="sv"><meta charset="utf-8">
 <title>Inloggning misslyckades</title>
 <body style="font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0">
-<div style="text-align:center"><h1>❌ Något gick fel</h1><p>${msg}</p></div>
+<div style="text-align:center"><h1>❌ Något gick fel</h1><p>${escapeHtml(msg)}</p></div>
 </body></html>`;
 
-function defaultOpenInBrowser(url: string): void {
-  const cmd =
-    platform() === "darwin"
-      ? ["open", url]
-      : platform() === "win32"
-        ? ["cmd", "/c", "start", "", url.replace(/&/g, "^&")]
-        : ["xdg-open", url];
-  const child = spawn(cmd[0], cmd.slice(1), {
+/** Opener command per platform; exported for tests. */
+export function openerCommand(url: string, os: NodeJS.Platform): string[] {
+  return os === "darwin"
+    ? ["open", url]
+    : os === "win32"
+      ? ["cmd", "/c", "start", "", url.replace(/&/g, "^&")]
+      : ["xdg-open", url];
+}
+
+/** Opens the OS default browser; `spawnImpl`/`os` are injectable for tests. */
+export function defaultOpenInBrowser(
+  url: string,
+  spawnImpl: typeof spawn = spawn,
+  os: NodeJS.Platform = platform(),
+): void {
+  const cmd = openerCommand(url, os);
+  const child = spawnImpl(cmd[0], cmd.slice(1), {
     detached: true,
     stdio: "ignore",
   });
@@ -89,6 +105,7 @@ export async function runBrowserLogin(options: {
   /** Injectable for tests; defaults to opening the OS default browser. */
   openBrowser?: (url: string) => void;
 }): Promise<{ result: BrowserFlowResult; authUrl: string }> {
+  /* c8 ignore next: the real opener would launch the user's browser */
   const openBrowser = options.openBrowser ?? defaultOpenInBrowser;
   const port = options.port ?? DEFAULT_CALLBACK_PORT;
   const redirectUri = `http://127.0.0.1:${port}/callback`;
@@ -111,7 +128,7 @@ export async function runBrowserLogin(options: {
     );
 
     const server = createServer((req, res) => {
-      const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
+      const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
       if (url.pathname !== "/callback") {
         res.writeHead(404).end();
         return;

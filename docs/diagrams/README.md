@@ -46,3 +46,12 @@ The retry exists because the alternative is a BankID round for the user.
 ## Session states
 
 [![Session states](dist/session-states.svg)](src/session-states.mmd)
+
+---
+
+## Portal adapter: API first, browser where no API exists
+
+[![Portal adapter: API first, browser where no API exists](dist/portal-adapter.svg)](src/portal-adapter.mmd)
+
+Dashed parts are optional: Playwright is an optional dependency, installed once with
+`schoolsoft-agent browser install`; the engine behind it is Chromium or any CDP endpoint.

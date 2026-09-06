@@ -89,7 +89,7 @@ interface CacheShape {
   schools: SchoolEntry[];
 }
 
-async function defaultFetch(url: string): Promise<unknown> {
+export async function defaultFetch(url: string): Promise<unknown> {
   const res = await fetch(url, { headers: { Accept: "application/json" } });
   if (!res.ok) throw new Error(`School list request failed: HTTP ${res.status}`);
   return res.json();

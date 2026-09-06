@@ -14,6 +14,7 @@ Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?,
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.`,
   input: {},
+  portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx) {
     try {
@@ -25,6 +26,12 @@ errors from other operations.`,
         authMethod: saved?.authMethod,
         savedAt: saved ? new Date(saved.savedAt).toISOString() : undefined,
         childInFocus: saved?.guardian?.childInFocus,
+        webSession: saved?.web
+          ? {
+              savedAt: new Date(saved.web.savedAt).toISOString(),
+              cookies: saved.web.cookies.length,
+            }
+          : null,
         children: saved?.guardian?.children.map((c) => ({
           studentId: c.studentId,
           firstName: c.firstName,

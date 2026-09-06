@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { OperationContext } from "./types.js";
-import { childOf, orgIdOf, type GuardianChild, type GuardianContext } from "../api/guardian.js";
+import { type GuardianChild } from "../portal/api-portal.js";
+import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
 
 export function isoWeek(date = new Date()): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -48,7 +49,10 @@ export interface ChildScope {
 }
 
 /** Ensure a session, optionally switch child, and describe the child in focus. */
-export async function withChild(ctx: OperationContext, childId?: number): Promise<ChildScope> {
+export async function withChild(
+  ctx: Pick<OperationContext<never>, "manager">,
+  childId?: number,
+): Promise<ChildScope> {
   await ctx.manager.ensureSession();
   const guardian =
     childId !== undefined ? await ctx.manager.focusChild(childId) : ctx.manager.guardian();

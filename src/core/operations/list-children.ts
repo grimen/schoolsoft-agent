@@ -11,6 +11,7 @@ Returns: { parent, children: [{ studentId, firstName, school, className }], chil
 Use when: the user has more than one child, or before passing child_id
 to another operation.`,
   input: {},
+  portal: [],
   annotations: READ_ONLY,
   async run(ctx) {
     const { guardian } = await withChild(ctx);

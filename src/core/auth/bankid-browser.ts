@@ -22,13 +22,8 @@ import {
 } from "../constants.js";
 import { exchangeTokenForCookies, type ExchangeFetch } from "./session-exchange.js";
 import { exchangeCode, refreshTokens, decodeJwtClaims, type TokenFetch } from "./oauth.js";
-import {
-  GuardianApi,
-  childOf,
-  orgIdOf,
-  type GuardianContext,
-  type ApiFetch,
-} from "../api/guardian.js";
+import { GuardianApi, type ApiFetch } from "../portal/api-portal.js";
+import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
 
 export interface BankIdBrowserOptions {
   orgid?: string;
@@ -163,7 +158,7 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     const child = childOf(context, childInFocus);
     return {
       name: context.parentName,
-      schoolName: child.schools[0]?.name ?? null,
+      schoolName: child.schools[0].name, // orgIdOf() above guarantees a school
       userType: this.userType,
       children: parent.children.map((c) => ({ studentId: c.studentId, firstName: c.firstName })),
     };

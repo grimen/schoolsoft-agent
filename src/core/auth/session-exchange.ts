@@ -50,6 +50,7 @@ export async function exchangeTokenForCookies(
   if (!token) {
     throw new Error("No access token on client — complete the login flow first.");
   }
+  /* c8 ignore next: live default, exercised by make e2e (A1) */
   const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as ExchangeFetch);
   const { school } = client;
   const { userType } = options;

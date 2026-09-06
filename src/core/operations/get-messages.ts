@@ -21,10 +21,11 @@ Use when: "har jag fått något meddelande från skolan", "olästa meddelanden".
     limit: LimitSchema,
     unread_only: z.boolean().optional().describe("Only unread messages"),
   },
+  portal: ["getInbox"],
   annotations: READ_ONLY,
   async run(ctx, { child_id, limit, unread_only }) {
     const { guardian, orgId } = await withChild(ctx, child_id);
-    let messages = (await ctx.api.getInbox(guardian.userId, orgId)) as { isRead?: boolean }[];
+    let messages = (await ctx.portal.getInbox(guardian.userId, orgId)) as { isRead?: boolean }[];
     if (unread_only) messages = messages.filter((m) => m.isRead === false);
     return { messages: messages.slice(0, limit ?? 20) };
   },

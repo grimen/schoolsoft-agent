@@ -93,3 +93,57 @@ test("SchoolDirectory without cache propagates fetch errors", async () => {
   });
   await assert.rejects(d.list(), /offline/);
 });
+
+test("parseSchoolList tolerates wrappers, junk items and partial rows; rankSchools scores exact and partial hits", () => {
+  const wrapped = parseSchoolList({ meta: 1, data: RAW });
+  assert.equal(wrapped.length, 4);
+  assert.deepEqual(parseSchoolList("nope"), []);
+  assert.deepEqual(parseSchoolList({ a: 1 }), []);
+  assert.deepEqual(
+    parseSchoolList([
+      null,
+      1,
+      { name: 3, orgId: 1, evaUrl: "https://sms.schoolsoft.se/x/eva" },
+      { name: "n", orgId: 1, evaUrl: 5 },
+    ]),
+    [],
+  );
+  const entries = parseSchoolList(RAW);
+  const exact = rankSchools(entries, "Täby kommun - Rösjöskolan", 3);
+  assert.equal(exact[0].score, 100);
+  const partial = rankSchools(entries, "rösjöskolan nacka", 5);
+  assert.ok(
+    partial.length >= 2 && partial.every((s) => s.score > 0 && s.score < 60),
+    JSON.stringify(partial),
+  );
+});
+
+test("SchoolDirectory: corrupt or mis-shaped cache is ignored; an empty upstream list is an error", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "schools-"));
+  const cacheFile = join(dir, "schools.json");
+  const { writeFileSync } = await import("node:fs");
+  writeFileSync(cacheFile, "{not json");
+  const d1 = new SchoolDirectory({ cacheFile, fetchImpl: async () => RAW });
+  assert.equal((await d1.list()).length, 4, "corrupt cache → refetched");
+  writeFileSync(cacheFile, JSON.stringify({ schools: "x", fetchedAt: "y" }));
+  const d2 = new SchoolDirectory({ cacheFile, fetchImpl: async () => [] });
+  await assert.rejects(d2.list(), /School list was empty/);
+});
+
+test("defaultFetch: JSON on success, error on non-2xx", async () => {
+  const { defaultFetch } = await import("../../src/core/api/schools.js");
+  const { createServer } = await import("node:http");
+  const server = createServer((req, res) => {
+    if (req.url === "/ok") {
+      res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify([{ a: 1 }]));
+    } else res.writeHead(503).end();
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+  const { port } = server.address() as { port: number };
+  try {
+    assert.deepEqual(await defaultFetch(`http://127.0.0.1:${port}/ok`), [{ a: 1 }]);
+    await assert.rejects(defaultFetch(`http://127.0.0.1:${port}/down`), /HTTP 503/);
+  } finally {
+    server.close();
+  }
+});

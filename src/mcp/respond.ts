@@ -33,14 +33,3 @@ export function fail(error: unknown): ToolResult {
     isError: true,
   };
 }
-
-/** Wrap a handler with uniform error handling. */
-export function guarded<A>(fn: (args: A) => Promise<ToolResult>): (args: A) => Promise<ToolResult> {
-  return async (args: A) => {
-    try {
-      return await fn(args);
-    } catch (e) {
-      return fail(e);
-    }
-  };
-}
