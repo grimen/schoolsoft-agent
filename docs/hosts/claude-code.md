@@ -34,3 +34,7 @@ With Claude Code's sandbox enabled, commands cannot open a browser and outbound 
 make install-claude   # registers ./plugins/claude as a local marketplace
 claude --plugin-dir ./plugins/claude/schoolsoft-mcp
 ```
+
+## Optional: headless browser
+
+Contact lists, subject rooms, bookings and shared files exist only as SchoolSoft web pages. Those operations need the optional headless browser: run `npx -y schoolsoft-agent browser install` once (downloads Chromium). Everything else works without it. Set `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP=<endpoint>` to use an external engine instead.

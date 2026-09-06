@@ -62,3 +62,14 @@ export { operations, getOperation } from "./operations/registry.js";
 export { defineOperation, READ_ONLY } from "./operations/types.js";
 export type { Operation, OperationAnnotations, OperationContext } from "./operations/types.js";
 export { isoWeek } from "./operations/_shared.js";
+export { BrowserPortal, PAGES as BROWSER_PAGES } from "./portal/browser-portal.js";
+export { PlaywrightSession } from "./browser/playwright.js";
+export type { PlaywrightLike, PlaywrightLoader } from "./browser/playwright.js";
+export { browserStatus, installChromium } from "./browser/install.js";
+export type { BrowserStatus, StatusProbes, Spawner } from "./browser/install.js";
+export type {
+  BrowserSession,
+  PortalPage,
+  BrowserEngine,
+  WithPageOptions,
+} from "./browser/session.js";

@@ -19,6 +19,11 @@ Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state
 | `get-news` | Get news | read-only, idempotent, needs login |
 | `get-messages` | Get message inbox | read-only, idempotent, needs login |
 | `get-message` | Get one message | read-only, idempotent, needs login |
+| `get-activity-log` | Get activity log | read-only, idempotent, needs login |
+| `get-contacts` | Get class contact list | read-only, idempotent, needs login |
+| `get-subject-rooms` | Get subject rooms | read-only, idempotent, needs login |
+| `get-bookings` | Get bookings | read-only, idempotent, needs login |
+| `get-files` | Get files and links | read-only, idempotent, needs login |
 | `login` | Log in to SchoolSoft | writes, no login needed |
 | `auth-status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -214,6 +219,118 @@ Use when: the user wants to read a specific message listed by get_messages.
 
 ```bash
 schoolsoft-agent get-message --id 1
+```
+
+## `schoolsoft-agent get-activity-log`
+
+Get the school's activity log (Verksamhetslogg): posts from teachers about
+what the class has been doing, newest first.
+
+Args:
+  - child_id (number, optional): from list_children.
+  - limit (number, optional): max posts, default 20.
+
+Returns: { child, entries: [{ id, date, title, author, text, recipients, comments }] }.
+
+Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från läraren".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--limit <number>` | no | Max items, default 20 |
+
+```bash
+schoolsoft-agent get-activity-log
+```
+
+## `schoolsoft-agent get-contacts`
+
+Get the contact list for the child's class (Kontaktlistor): classmates and,
+where the school publishes them, guardians, with e-mail and phone.
+
+Served through the headless browser (SchoolSoft has no API for this page);
+run "schoolsoft-agent browser install" once. Personal data of other
+families: show only what the user asked for.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
+
+Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-contacts
+```
+
+## `schoolsoft-agent get-subject-rooms`
+
+List the child's subjects (Ämne) with their teachers.
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, subjects: [{ subject, teachers, url }] }.
+
+Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-subject-rooms
+```
+
+## `schoolsoft-agent get-bookings`
+
+List bookable and booked meetings (Bokningar), e.g. development talks
+("utvecklingssamtal"), as the page shows them. Read only: booking a slot is
+not supported yet.
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, bookings: [{ title, description?, slots: [{ start, status }], info? }] }.
+
+Use when: "när är utvecklingssamtalet", "finns det tider att boka".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-bookings
+```
+
+## `schoolsoft-agent get-files`
+
+List files and links the school shares with guardians (Alla filer & länkar).
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+Returns links only; it does not download files.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, files: [{ name, url, type: "file" | "link", category? }] }.
+
+Use when: "finns det något dokument från skolan om …", "länken till fritids".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+```bash
+schoolsoft-agent get-files
 ```
 
 ## `schoolsoft-agent login`

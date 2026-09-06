@@ -14,6 +14,7 @@ import {
   type GuardianContext,
   type OperationContext,
   type Config,
+  createCompositePortal,
 } from "../../src/core/index.js";
 
 export const FAKE_LESSONS = [
@@ -65,6 +66,27 @@ export const fakePortal = {
     { id: 6, subject: "Läst", isRead: true },
   ],
   getMessage: async (_u: number, _o: number, id: number) => ({ id, message: "Full text" }),
+  getActivityLog: async (limit = 20) =>
+    [{ id: 1, date: "2026-09-01", title: "Utflykt", text: "Vi var i skogen.", comments: 0 }].slice(
+      0,
+      limit,
+    ),
+  getContacts: async () => [
+    { title: "Elever", people: [{ name: "Test Elev", role: "Elev", email: "e@example.test" }] },
+  ],
+  getSubjectRooms: async () => [
+    {
+      subject: "Matematik",
+      teachers: ["Lärare Test"],
+      url: "/jsp/student/right_student_subject.jsp?requestid=1",
+    },
+  ],
+  getBookings: async () => [
+    { title: "Utvecklingssamtal", slots: [{ start: "2026-10-01 15:00", status: "available" }] },
+  ],
+  getFiles: async () => [
+    { name: "Veckobrev", url: "https://example.test/veckobrev.pdf", type: "file" },
+  ],
 } as unknown as Portal;
 
 export class FakeAuth implements AuthStrategy {
@@ -92,10 +114,16 @@ export const testConfig: Config = {
   callbackPort: 43117,
   stateDir: "/tmp/unused",
   configDir: "/tmp/unused",
+  browser: { kind: "chromium", headless: true },
 };
 
 export function makeContext(
-  opts: { store?: MemorySessionStore; portal?: Portal; config?: Partial<Config> } = {},
+  opts: {
+    browserUnavailable?: string;
+    store?: MemorySessionStore;
+    portal?: Portal;
+    config?: Partial<Config>;
+  } = {},
 ) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = new FakeAuth();
@@ -108,7 +136,15 @@ export function makeContext(
   const logs: string[] = [];
   const ctx: OperationContext = {
     manager,
-    portal: opts.portal ?? fakePortal,
+    portal:
+      opts.portal ??
+      (opts.browserUnavailable
+        ? createCompositePortal({
+            api: fakePortal as never,
+            browser: null,
+            browserUnavailableReason: opts.browserUnavailable,
+          })
+        : fakePortal),
     config: { ...testConfig, ...opts.config },
     log: (m) => logs.push(m),
   };

@@ -162,3 +162,43 @@ test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy 
   assert.ok(existsSync(join(dir, "state", "session.enc")));
   assert.match(fixed.out, /moved/);
 });
+
+test("browser status/install use injected probes and spawner; cdp engine needs nothing", async () => {
+  const { run, deps } = harness();
+  deps.browserProbes = {
+    resolvePlaywright: () => "/x/playwright/package.json",
+    chromiumPath: async () => "/nonexistent",
+  };
+  const spawned: string[][] = [];
+  deps.spawner = async (cmd, args) => {
+    spawned.push([cmd, ...args]);
+    return 0;
+  };
+  const st = await run("browser", "status");
+  assert.equal(st.code, EXIT.OK, st.err);
+  assert.equal(st.json().ready, false);
+  assert.match(st.json().hint, /browser install/);
+  const inst = await run("browser", "install");
+  assert.equal(inst.code, EXIT.OK, inst.err);
+  assert.deepEqual(spawned[0].slice(1), ["/x/playwright/cli.js", "install", "chromium"]);
+  const cdp = await run("--school", "taby", "browser", "install");
+  assert.equal(cdp.code, EXIT.OK);
+  deps.env.SCHOOLSOFT_BROWSER_ENGINE = "cdp";
+  deps.env.SCHOOLSOFT_BROWSER_CDP = "ws://obscura:9222";
+  const cdp2 = await run("--school", "taby", "browser", "install");
+  assert.equal(cdp2.json().status, "not_needed");
+});
+
+test("a browser-backed command without a browser fails with the install hint (exit 1)", async () => {
+  const { run } = harness({
+    ctx: makeContext({ browserUnavailable: "playwright is not installed" }).ctx,
+  });
+  assert.equal((await run("login")).code, EXIT.OK);
+  const r = await run("get-contacts");
+  assert.equal(r.code, EXIT.ERROR);
+  assert.match(r.err, /schoolsoft-agent browser install/);
+  assert.match(r.err, /playwright is not installed/);
+  const ok = await run("get-activity-log", "--limit", "1");
+  assert.equal(ok.code, EXIT.OK, "activity log is api-backed and still works");
+  assert.equal(ok.json().entries.length, 1);
+});

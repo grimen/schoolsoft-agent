@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
-import { operations, getOperation } from "../../src/core/index.js";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
+import { operations, getOperation, BROWSER_CAPABILITIES } from "../../src/core/index.js";
 
 test("operation names are unique snake_case", () => {
   const names = operations.map((o) => o.name);
@@ -45,8 +47,28 @@ test("input keys are snake_case and every field is a supported Zod type", () => 
   }
 });
 
+test("every browser capability is used by an operation whose description says how to install the browser", () => {
+  const src = (name: string) =>
+    readFileSync(join(process.cwd(), "src/core/operations", name), "utf8");
+  for (const [op, file] of [
+    ["get_contacts", "get-contacts.ts"],
+    ["get_subject_rooms", "get-subject-rooms.ts"],
+    ["get_bookings", "get-bookings.ts"],
+    ["get_files", "get-files.ts"],
+  ]) {
+    assert.match(getOperation(op)?.description ?? "", /browser install/, op);
+    assert.match(src(file), /ctx\.portal\.get/, file);
+  }
+  for (const cap of BROWSER_CAPABILITIES) {
+    const used = readdirSync(join(process.cwd(), "src/core/operations")).some(
+      (f) => f.endsWith(".ts") && src(f).includes(`ctx.portal.${cap}(`),
+    );
+    assert.ok(used, `browser capability ${cap} is not used by any operation`);
+  }
+});
+
 test("registry lookups", () => {
   assert.equal(getOperation("get_schedule")?.title, "Get schedule");
   assert.equal(getOperation("nope"), undefined);
-  assert.equal(operations.length, 12);
+  assert.equal(operations.length, 17);
 });

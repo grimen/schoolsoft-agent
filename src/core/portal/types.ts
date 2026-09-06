@@ -23,13 +23,13 @@ export interface Portal {
   getScheduleWeek(week: number): Promise<unknown[]>;
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]>;
   getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }>;
+  /** Verksamhetslogg: activity log entries (legacy /rest endpoint, read-only POST with cookies). */
+  getActivityLog(limit?: number): Promise<ActivityEntry[]>;
   // ----- browser: legacy JSP pages (no API) -----
   /** Kontaktlistor: the child's class list as the page shows it. */
   getContacts(): Promise<ContactGroup[]>;
   /** Ämne: subject rooms with teachers and links. */
   getSubjectRooms(): Promise<SubjectRoom[]>;
-  /** Verksamhetslogg: activity log entries. */
-  getActivityLog(): Promise<ActivityEntry[]>;
   /** Bokningar: bookable / booked meeting slots (read only). */
   getBookings(): Promise<Booking[]>;
   /** Alla filer & länkar: shared files and links. */
@@ -50,9 +50,9 @@ export const PROVIDERS: Record<Capability, readonly PortalProvider[]> = {
   getScheduleWeek: ["api"],
   getAssignmentsWeek: ["api"],
   getAssignmentDetail: ["api"],
+  getActivityLog: ["api"],
   getContacts: ["browser"],
   getSubjectRooms: ["browser"],
-  getActivityLog: ["browser"],
   getBookings: ["browser"],
   getFiles: ["browser"],
 };
@@ -82,15 +82,24 @@ export interface SubjectRoom {
   url: string;
 }
 export interface ActivityEntry {
+  id: number;
+  /** ISO datetime. */
   date: string;
   title: string;
   author?: string;
+  /** Post body (text blocks), or the summary when the post has no text block. */
   text: string;
+  summary?: string;
+  images?: number;
+  recipients?: string;
+  comments: number;
 }
 export interface Booking {
   title: string;
   description?: string;
   slots: { start: string; end?: string; status: "available" | "booked" | "closed" | "unknown" }[];
+  /** Label/value pairs shown beside the booking (e.g. status), as the page words them. */
+  info?: Record<string, string>;
 }
 export interface PortalFile {
   name: string;

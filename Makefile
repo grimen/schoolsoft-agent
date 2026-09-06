@@ -97,6 +97,9 @@ configure: build ## Interactive configuration (find your school)
 doctor: build ## Diagnose environment, config, session and connectivity
 	node dist/cli/index.js doctor
 
+browser: build ## Download Chromium for the optional headless browser (contact lists, subject rooms, bookings, files)
+	node dist/cli/index.js browser install
+
 # ---------- Generated artifacts ----------
 
 docs: ## Regenerate command/tool reference docs from the operation registry
@@ -168,6 +171,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact e2e login status logout configure doctor docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact e2e login status logout configure doctor browser docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

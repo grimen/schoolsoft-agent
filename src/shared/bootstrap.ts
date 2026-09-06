@@ -82,7 +82,7 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
       const manager = createSessionManager(config);
       ctx = {
         manager,
-        portal: createPortal(manager),
+        portal: createPortal(manager, { engine: config.browser }),
         config,
         log: inputs.log ?? ((m) => console.error(m)),
       };

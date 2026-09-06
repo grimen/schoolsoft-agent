@@ -34,7 +34,7 @@ export function stageMcpb(root: string): string {
     ),
   );
   cpSync(join(root, "package-lock.json"), join(out, "server", "package-lock.json"));
-  execSync("npm ci --omit=dev --ignore-scripts --no-audit --no-fund", {
+  execSync("npm ci --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund", {
     cwd: join(out, "server"),
     stdio: "inherit",
   });

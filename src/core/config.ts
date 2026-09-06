@@ -18,6 +18,9 @@ import { BankIdBrowserStrategy, type BankIdBrowserOptions } from "./auth/bankid-
 import { ApiPortal } from "./portal/api-portal.js";
 import { createCompositePortal, type BrowserPortalPart } from "./portal/composite.js";
 import type { Portal } from "./portal/types.js";
+import type { BrowserEngine } from "./browser/session.js";
+import { PlaywrightSession, type PlaywrightLoader } from "./browser/playwright.js";
+import { BrowserPortal } from "./portal/browser-portal.js";
 
 export interface Config {
   /** School slug, e.g. "taby" from https://sms.schoolsoft.se/taby/... */
@@ -30,6 +33,8 @@ export interface Config {
   stateDir: string;
   /** Directory of config.json and caches. */
   configDir: string;
+  /** Headless browser engine for browser-only capabilities. */
+  browser: BrowserEngine;
 }
 
 /** A partial, untyped-ish config from one source (file, env, flags). */
@@ -41,6 +46,8 @@ export interface ConfigSource {
   callbackPort?: number | string;
   stateDir?: string;
   configDir?: string;
+  browserEngine?: string;
+  browserCdp?: string;
 }
 
 export class NotConfiguredError extends Error {
@@ -62,6 +69,8 @@ export const ENV = {
   callbackPort: "SCHOOLSOFT_CALLBACK_PORT",
   stateDir: "SCHOOLSOFT_STATE_DIR",
   configDir: "SCHOOLSOFT_CONFIG_DIR",
+  browserEngine: "SCHOOLSOFT_BROWSER_ENGINE",
+  browserCdp: "SCHOOLSOFT_BROWSER_CDP",
 } as const;
 
 /** Map SCHOOLSOFT_* variables to a ConfigSource (empty strings ignored). */
@@ -75,6 +84,8 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
     callbackPort: pick(ENV.callbackPort),
     stateDir: pick(ENV.stateDir),
     configDir: pick(ENV.configDir),
+    browserEngine: pick(ENV.browserEngine),
+    browserCdp: pick(ENV.browserCdp),
   };
 }
 
@@ -129,6 +140,17 @@ export function resolveConfig(
 
   const configDir =
     first(sources, "configDir") ?? defaultConfigDir(defaults.home, defaults.platform, defaults.env);
+  const engineKind = first(sources, "browserEngine") ?? "chromium";
+  const cdp = first(sources, "browserCdp");
+  let browser: BrowserEngine;
+  if (engineKind === "cdp") {
+    if (!cdp) throw new Error(`browserEngine "cdp" needs a CDP endpoint (${ENV.browserCdp})`);
+    browser = { kind: "cdp", endpoint: cdp };
+  } else if (engineKind === "chromium") {
+    browser = { kind: "chromium", headless: true };
+  } else {
+    throw new Error(`Invalid browserEngine "${engineKind}". Expected chromium or cdp`);
+  }
   return {
     school,
     orgId: first(sources, "orgId"),
@@ -137,6 +159,7 @@ export function resolveConfig(
     callbackPort,
     stateDir: first(sources, "stateDir") ?? join(configDir, "state"),
     configDir,
+    browser,
   };
 }
 
@@ -166,11 +189,33 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
 
 /** Portal bound to the manager's live client: API provider always; browser provider when supplied. */
 export interface PortalDeps {
+  /** Explicit browser provider; null disables the browser (tests, --no-browser). */
   browser?: BrowserPortalPart | null;
   browserUnavailableReason?: string;
+  /** Engine for the default PlaywrightSession; defaults to config.browser. */
+  engine?: BrowserEngine;
+  playwrightLoader?: PlaywrightLoader;
 }
 export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
   const client = manager.getClient();
+  const cookieHeader = () => {
+    try {
+      return client.cookieHeader;
+    } catch {
+      return null;
+    }
+  };
+  const browser =
+    deps.browser === undefined
+      ? new BrowserPortal({
+          session: new PlaywrightSession({
+            school: client.school,
+            cookieHeader,
+            engine: deps.engine,
+            loader: deps.playwrightLoader,
+          }),
+        })
+      : deps.browser;
   const api = new ApiPortal({
     school: client.school,
     accessToken: () => client.accessToken,
@@ -184,7 +229,7 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
   });
   return createCompositePortal({
     api,
-    browser: deps.browser ?? null,
+    browser,
     browserUnavailableReason: deps.browserUnavailableReason,
   });
 }

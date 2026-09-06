@@ -15,7 +15,7 @@
  */
 import { schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
 
-import type { GuardianChild, GuardianParent } from "./types.js";
+import type { ActivityEntry, GuardianChild, GuardianParent } from "./types.js";
 export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
 
 /** What we persist between runs so tools know whose data they serve. */
@@ -83,6 +83,31 @@ export class ApiPortal {
     return this.get<T>(path, { Cookie: cookie });
   }
 
+  /** Cookie-authenticated JSON POST used by legacy /rest endpoints for READ queries only. */
+  private async cookiePost<T>(path: string, body: unknown): Promise<T> {
+    const cookie = this.o.cookieHeader();
+    if (!cookie) throw new Error("No session cookies — log in first.");
+    const r = await this.fetchImpl(
+      ssUrl(this.o.school, path),
+      this.o.school,
+      {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          Accept: "application/json",
+          "Content-Type": "application/json;charset=UTF-8",
+        },
+        body: JSON.stringify(body),
+        responseType: "json",
+      } as never,
+      MOBILE_UA,
+    );
+    if (r.status === 401 || r.status === 403)
+      throw new Error(`SchoolSoft rejected the session (HTTP ${r.status}) for ${path}.`);
+    if (r.status !== 200) throw new Error(`SchoolSoft returned HTTP ${r.status} for ${path}.`);
+    return r.data as T;
+  }
+
   private async get<T>(path: string, headers: Record<string, string>): Promise<T> {
     const r = await this.fetchImpl(
       ssUrl(this.o.school, path),
@@ -145,6 +170,68 @@ export class ApiPortal {
     return this.cookie<unknown[]>(
       `/rest-api/parent/ps/assignments/start-page?week=${week}&year=${year}`,
     );
+  }
+
+  /**
+   * Verksamhetslogg. The page's own query: a generic filter with paging. Read-only
+   * despite the verb (observed 2026-09-06: `POST /rest/blogpost/getbyloggedinuser`).
+   */
+  async getActivityLog(limit = 20): Promise<ActivityEntry[]> {
+    interface Block {
+      blockType: string;
+      contentBlocks?: { content?: string }[];
+    }
+    interface Row {
+      blogPost: { id: number; creDate: number | string; name: string; description: string };
+      author?: string;
+      recipientsNamesString?: string;
+      numberOfComments?: number;
+      content?: { contentBlockDTOList?: Block[] }[];
+    }
+    const rows = await this.cookiePost<Row[]>("/rest/blogpost/getbyloggedinuser", {
+      userId: -1,
+      userType: -1,
+      week: -1,
+      subjects: [],
+      archives: [],
+      tags: [],
+      freeText: "",
+      goalIds: [],
+      groupOrStudent: "",
+      offset: 0,
+      row_count: limit,
+    });
+    const strip = (html: string) =>
+      html
+        .replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return (Array.isArray(rows) ? rows : []).map((r) => {
+      const blocks = (r.content ?? []).flatMap((c) => c.contentBlockDTOList ?? []);
+      const bodyText = blocks
+        .filter((b) => b.blockType === "text")
+        .flatMap((b) => (b.contentBlocks ?? []).map((cb) => strip(cb.content ?? "")))
+        .filter(Boolean)
+        .join("\n");
+      const images = blocks
+        .filter((b) => b.blockType === "image")
+        .reduce((n, b) => n + (b.contentBlocks?.length ?? 0), 0);
+      const cre = r.blogPost.creDate;
+      const date = typeof cre === "number" ? new Date(cre).toISOString() : String(cre);
+      const summary = strip(r.blogPost.description ?? "");
+      return {
+        id: r.blogPost.id,
+        date,
+        title: r.blogPost.name,
+        ...(r.author ? { author: r.author } : {}),
+        text: bodyText || summary,
+        ...(summary && bodyText && summary !== bodyText ? { summary } : {}),
+        ...(images ? { images } : {}),
+        ...(r.recipientsNamesString ? { recipients: r.recipientsNamesString } : {}),
+        comments: r.numberOfComments ?? 0,
+      };
+    });
   }
 
   async getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }> {

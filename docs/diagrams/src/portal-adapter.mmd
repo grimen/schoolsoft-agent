@@ -1,0 +1,15 @@
+flowchart LR
+  OP[Operation<br/>e.g. get_contacts] --> PORTAL[Portal<br/>one method per capability]
+  PORTAL --> PROV{PROVIDERS<br/>static, per capability}
+  PROV -->|api first| API[ApiPortal<br/>fetch + cookies / Bearer]
+  PROV -->|browser only where no API| BP[BrowserPortal<br/>navigate + in-page extractor]
+  BP --> SESS[BrowserSession<br/>read-only guard: non-GET aborted,<br/>Login.jsp / app_blocked → typed errors]
+  SESS --> PW[PlaywrightSession]
+  PW -->|kind: chromium| CH[(bundled Chromium)]
+  PW -->|kind: cdp| CDP[(any CDP endpoint,<br/>e.g. Obscura)]
+  API --> EVA[Eva API]
+  API --> REST[Webview REST]
+  API --> LEG[legacy /rest<br/>read-only POST]
+  CH & CDP --> JSP[JSP pages<br/>contacts · subjects · bookings · files]
+  classDef opt stroke-dasharray: 4 3
+  class PW,CH,CDP,JSP,BP,SESS opt

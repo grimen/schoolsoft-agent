@@ -63,6 +63,8 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     callbackPort: "4000",
     stateDir: undefined,
     configDir: undefined,
+    browserEngine: undefined,
+    browserCdp: undefined,
   });
 });
 
@@ -96,4 +98,30 @@ test("createSessionManager / createPortal wire a working manager without touchin
   await assert.rejects(api.getParent(), /No access token/);
   await assert.rejects(api.getScheduleWeek(1), /No session cookies/);
   await assert.rejects(manager.ensureSession(), /Not authenticated/);
+});
+
+test("browser engine config: chromium default, cdp needs an endpoint", () => {
+  assert.deepEqual(resolveConfig([{ school: "s" }], defaults).browser, {
+    kind: "chromium",
+    headless: true,
+  });
+  assert.deepEqual(
+    resolveConfig(
+      [{ school: "s", browserEngine: "cdp", browserCdp: "ws://obscura:9222" }],
+      defaults,
+    ).browser,
+    { kind: "cdp", endpoint: "ws://obscura:9222" },
+  );
+  assert.throws(
+    () => resolveConfig([{ school: "s", browserEngine: "cdp" }], defaults),
+    /CDP endpoint/,
+  );
+  assert.throws(
+    () => resolveConfig([{ school: "s", browserEngine: "firefox" }], defaults),
+    /Invalid browserEngine/,
+  );
+  assert.deepEqual(
+    envSource({ SCHOOLSOFT_BROWSER_ENGINE: "cdp", SCHOOLSOFT_BROWSER_CDP: "ws://x" }).browserEngine,
+    "cdp",
+  );
 });

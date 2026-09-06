@@ -51,7 +51,7 @@ Every crucial command is also a `make` target; run `make help` in a checkout.
 - "Har vi fått några meddelanden från skolan?"
 - "Vilka läxor finns den här veckan?"
 
-The agent picks the child (`list_children`), the week, and the right operation. Full reference: [MCP tools](docs/reference/tools.md) · [CLI commands](docs/reference/commands.md).
+The agent picks the child (`list_children`), the week, and the right operation. Contact lists, subject rooms, bookings and shared files have no API at SchoolSoft; those four read through an optional headless browser (`npx -y schoolsoft-agent browser install`, once). Full reference: [MCP tools](docs/reference/tools.md) · [CLI commands](docs/reference/commands.md).
 
 ## How login works
 

@@ -10,6 +10,10 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   `process.env`; adapters import core via `src/core/index.ts` only; adapters
   never import each other (`src/shared` is for common adapter code).
   `make boundaries` and `test/boundary` fail otherwise.
+- **Portal routing is static.** A capability is served by the API when one
+  exists, by the browser provider only when none does (`PROVIDERS` in
+  `src/core/portal/types.ts`). Never add a browser path for something the API
+  serves; never let the browser session issue writes without `allowWrites`.
 - **One definition per capability.** New capability = one file in
   `src/core/operations/` + one line in `registry.ts`. Never hand-write an MCP
   tool or CLI command. Then `make docs && make skills` and commit the output;

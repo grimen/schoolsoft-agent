@@ -16,6 +16,7 @@ import { flagsFromSchema, parseFlags, kebab } from "./flags.js";
 import { EXIT, type ExitCode } from "./exit-codes.js";
 import { registerConfigure } from "./commands/configure.js";
 import { registerDoctor } from "./commands/doctor.js";
+import { registerBrowser } from "./commands/browser.js";
 
 export interface CliDeps {
   /** Builds the operation context; `overrides` come from global flags. */
@@ -30,6 +31,9 @@ export interface CliDeps {
   prompt?: (question: string) => Promise<string>;
   /** Used by `doctor` to test reachability; injectable for tests. */
   fetchImpl?: (url: string, init?: { method?: string }) => Promise<{ status: number }>;
+  /** Injectable probes / spawner for the browser commands and doctor. */
+  browserProbes?: import("../core/index.js").StatusProbes;
+  spawner?: import("../core/index.js").Spawner;
 }
 
 export class CliExit extends Error {
@@ -88,6 +92,7 @@ export function buildProgram(deps: CliDeps): Command {
 
   registerConfigure(program, deps, emit);
   registerDoctor(program, deps, emit);
+  registerBrowser(program, deps, emit);
   return program;
 }
 

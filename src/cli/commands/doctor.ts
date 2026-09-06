@@ -5,7 +5,12 @@
 import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { FileSessionStore, NotConfiguredError, type Config } from "../../core/index.js";
+import {
+  FileSessionStore,
+  NotConfiguredError,
+  browserStatus,
+  type Config,
+} from "../../core/index.js";
 import { loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { globalOverrides } from "../program.js";
@@ -93,6 +98,17 @@ export async function runDoctor(
       detail: `sms.schoolsoft.se unreachable: ${e instanceof Error ? e.message : e}`,
     });
   }
+  const bs = await browserStatus(
+    config?.browser ?? { kind: "chromium", headless: true },
+    deps.browserProbes,
+  );
+  checks.push({
+    name: "headless-browser",
+    ok: true, // optional: never fails doctor
+    detail: bs.ready
+      ? `ready (${bs.engine}${bs.executablePath ? ", " + bs.executablePath : ""})`
+      : `not installed — only contact lists, subject rooms, bookings and files need it (${bs.hint ?? "see docs"})`,
+  });
 
   const opener =
     deps.platform === "darwin" ? "open" : deps.platform === "win32" ? "cmd" : "xdg-open";

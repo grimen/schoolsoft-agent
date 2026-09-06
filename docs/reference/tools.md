@@ -15,6 +15,11 @@ Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredCo
 | `schoolsoft_get_news` | Get news | read-only, idempotent, needs login |
 | `schoolsoft_get_messages` | Get message inbox | read-only, idempotent, needs login |
 | `schoolsoft_get_message` | Get one message | read-only, idempotent, needs login |
+| `schoolsoft_get_activity_log` | Get activity log | read-only, idempotent, needs login |
+| `schoolsoft_get_contacts` | Get class contact list | read-only, idempotent, needs login |
+| `schoolsoft_get_subject_rooms` | Get subject rooms | read-only, idempotent, needs login |
+| `schoolsoft_get_bookings` | Get bookings | read-only, idempotent, needs login |
+| `schoolsoft_get_files` | Get files and links | read-only, idempotent, needs login |
 | `schoolsoft_login` | Log in to SchoolSoft | writes, no login needed |
 | `schoolsoft_auth_status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `schoolsoft_logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -262,6 +267,143 @@ Example call:
   "arguments": {
     "id": 1
   }
+}
+```
+
+## `schoolsoft_get_activity_log`
+
+Get the school's activity log (Verksamhetslogg): posts from teachers about
+what the class has been doing, newest first.
+
+Args:
+  - child_id (number, optional): from list_children.
+  - limit (number, optional): max posts, default 20.
+
+Returns: { child, entries: [{ id, date, title, author, text, recipients, comments }] }.
+
+Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från läraren".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `limit` | number | no | Max items, default 20 |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_activity_log",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_contacts`
+
+Get the contact list for the child's class (Kontaktlistor): classmates and,
+where the school publishes them, guardians, with e-mail and phone.
+
+Served through the headless browser (SchoolSoft has no API for this page);
+run "schoolsoft-agent browser install" once. Personal data of other
+families: show only what the user asked for.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
+
+Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_contacts",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_subject_rooms`
+
+List the child's subjects (Ämne) with their teachers.
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, subjects: [{ subject, teachers, url }] }.
+
+Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_subject_rooms",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_bookings`
+
+List bookable and booked meetings (Bokningar), e.g. development talks
+("utvecklingssamtal"), as the page shows them. Read only: booking a slot is
+not supported yet.
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, bookings: [{ title, description?, slots: [{ start, status }], info? }] }.
+
+Use when: "när är utvecklingssamtalet", "finns det tider att boka".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_bookings",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_get_files`
+
+List files and links the school shares with guardians (Alla filer & länkar).
+
+Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+Returns links only; it does not download files.
+
+Args:
+  - child_id (number, optional): from list_children.
+
+Returns: { child, files: [{ name, url, type: "file" | "link", category? }] }.
+
+Use when: "finns det något dokument från skolan om …", "länken till fritids".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_files",
+  "arguments": {}
 }
 ```
 

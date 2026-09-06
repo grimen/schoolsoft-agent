@@ -11,5 +11,5 @@ npm install -g --prefix "$SMOKE/prefix" --no-audit --no-fund --silent "$SMOKE"/s
 BIN="$SMOKE/prefix/bin"
 test -x "$BIN/schoolsoft-agent" && test -x "$BIN/schoolsoft-agent-mcp"
 "$BIN/schoolsoft-agent" --version | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+'
-SCHOOLSOFT_CONFIG_DIR="$SMOKE/cfg" node "$(dirname "$0")/mcp-probe.mjs" 12 "$BIN/schoolsoft-agent-mcp"
+SCHOOLSOFT_CONFIG_DIR="$SMOKE/cfg" node "$(dirname "$0")/mcp-probe.mjs" 17 "$BIN/schoolsoft-agent-mcp"
 echo "PACK SMOKE PASSED"

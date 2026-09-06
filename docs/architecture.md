@@ -30,6 +30,14 @@ SchoolSoft's guardian app uses OAuth 2 with PKCE. We use the same flow, with a l
 
 Two backends serve the data afterwards. The **Eva API** takes the Bearer token and serves profile, lunch, news and messages. The **webview REST** API takes the cookies, which are bound to one child (`childInFocus`), and serves schedule and assignments. Switching child means one more cookie exchange; the operations do that when `child_id` changes.
 
+## Portal adapter: API first, browser where no API exists
+
+Not everything a guardian sees has a JSON endpoint. Contact lists, subject rooms, bookings and shared files exist only as legacy web pages. Operations therefore talk to a **Portal**, one method per capability, and a static table (`PROVIDERS` in `src/core/portal/types.ts`) says which provider serves each one: the JSON APIs wherever they exist, a headless browser only where they don't. The routing is deterministic and documented; the browser is never used for something the API serves.
+
+[![Portal adapter: API first, browser where no API exists](diagrams/dist/portal-adapter.svg)](diagrams/src/portal-adapter.mmd)
+
+The browser provider loads a page with the user's session cookies and runs a self-contained extractor inside it. Its session is read-only by construction: every non-GET request is aborted at the browser (an explicit allowlist exists for the rare read-only POST), and a navigation that lands on the login page or SchoolSoft's "log in again" gate throws a typed error instead of being followed. Playwright is an optional dependency, installed once with `schoolsoft-agent browser install`; the engine is bundled Chromium or, via `SCHOOLSOFT_BROWSER_ENGINE=cdp` and `SCHOOLSOFT_BROWSER_CDP`, any Chrome DevTools Protocol endpoint such as [Obscura](https://github.com/h4ckf0r0day/obscura). Write operations, when they come, use the same seam with writes explicitly allowed per call.
+
 ## Cold start, refresh and the one retry
 
 Access tokens live 15 minutes. Every process start (an MCP server launching, a CLI command) goes through `ensureSession`:
@@ -45,7 +53,7 @@ The retry exists because the alternative is a BankID round for the user. Refresh
 ## Repository layout
 
 ```
-src/core/         auth/, api/, session/, operations/, config.ts, constants.ts, index.ts
+src/core/         auth/, portal/ (types, api-portal, browser-portal, extractors, composite), browser/ (session, playwright, install), session/, operations/, config.ts, constants.ts, index.ts
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
 src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor}.ts, index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts
