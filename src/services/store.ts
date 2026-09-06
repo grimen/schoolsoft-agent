@@ -13,6 +13,7 @@ export interface PersistedSession {
   /** OAuth tokens from the mobile flow. */
   accessToken?: string;
   refreshToken?: string;
+  /** Unix SECONDS (ssp-node convention), not ms. */
   accessTokenExpiresAt?: number;
   /** Web session cookies (simple login or post-exchange). */
   jsessionid?: string;

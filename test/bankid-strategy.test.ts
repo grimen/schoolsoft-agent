@@ -124,3 +124,44 @@ test("focusChild re-exchanges cookies for the other child and rejects unknown id
   assert.equal(log.filter((l) => l.url.includes("/eva-apps/auth/login/parent")).length, 2);
   await assert.rejects(strategy.focusChild(client, 555), /Unknown child id 555/);
 });
+
+test("restore: unknown expiry refreshes up front", async () => {
+  const { strategy, log } = strategyWithFakes();
+  const client = new SchoolsoftClient({ school: "taby" });
+  await strategy.restore(client, {
+    school: "taby",
+    accessToken: "old",
+    refreshToken: "R1",
+    guardian: { userId: 21, parentName: "x", children: PARENT.children, childInFocus: 100 },
+    savedAt: 0,
+    authMethod: "bankid-browser",
+  });
+  assert.match(log[0].url, /grantType=refresh_token/);
+  assert.equal(client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+});
+
+test("restore: a 401 on the profile call triggers one refresh-and-retry", async () => {
+  process.env[CALLBACK_PORT_ENV] = String(port++);
+  const { fetchImpl: inner, log } = fakeSchoolsoft();
+  let parentCalls = 0;
+  const fetchImpl = async (url: string, school: string, options: { headers?: Record<string, string> }) => {
+    if (url.endsWith("/eva/api/v1/parent") && parentCalls++ === 0) {
+      return { status: 401, data: null, headers: {}, setCookies: [] };
+    }
+    return inner(url, school, options);
+  };
+  const strategy = new BankIdBrowserStrategy({ fetchImpl });
+  const client = new SchoolsoftClient({ school: "taby" });
+  await strategy.restore(client, {
+    school: "taby",
+    accessToken: "stale",
+    refreshToken: "R1",
+    accessTokenExpiresAt: 9_999_999_999, // looks valid, but server says 401
+    savedAt: 0,
+    authMethod: "bankid-browser",
+  });
+  assert.equal(parentCalls, 2);
+  assert.equal(log.filter((l) => l.url.includes("grantType=refresh_token")).length, 1);
+  assert.equal(client.refreshToken, "R2");
+  assert.equal(client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+});

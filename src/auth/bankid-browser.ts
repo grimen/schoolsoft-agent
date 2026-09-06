@@ -89,23 +89,37 @@ export class BankIdBrowserStrategy implements AuthStrategy {
       throw new Error("saved session has no access token");
     }
     client.setAccessToken(saved.accessToken, saved.refreshToken, saved.accessTokenExpiresAt);
-    if (client.isAccessTokenExpired) {
-      if (!client.refreshToken) {
-        throw new Error("access token expired and no refresh token saved");
-      }
-      const t = await refreshTokens({
-        school: client.school,
-        clientId: this.clientId,
-        refreshToken: client.refreshToken,
-        fetchImpl: this.options.fetchImpl,
-      });
-      client.setAccessToken(
-        t.accessToken,
-        t.refreshToken ?? client.refreshToken,
-        t.expiresAt ?? undefined,
-      );
+    // Access tokens live ~15 min. Refresh up front when expired or when we
+    // don't know (older sessions without a stored expiry).
+    if (client.isAccessTokenExpired || saved.accessTokenExpiresAt == null) {
+      await this.refresh(client);
     }
-    await this.establish(client, saved.guardian?.childInFocus);
+    try {
+      await this.establish(client, saved.guardian?.childInFocus);
+    } catch (e) {
+      // Clock skew / early revocation: one refresh-and-retry before giving
+      // up, since giving up costs the user a BankID round.
+      if (!/HTTP 401/.test(String(e)) || !client.refreshToken) throw e;
+      await this.refresh(client);
+      await this.establish(client, saved.guardian?.childInFocus);
+    }
+  }
+
+  private async refresh(client: SchoolsoftClient): Promise<void> {
+    if (!client.refreshToken) {
+      throw new Error("access token expired and no refresh token saved");
+    }
+    const t = await refreshTokens({
+      school: client.school,
+      clientId: this.clientId,
+      refreshToken: client.refreshToken,
+      fetchImpl: this.options.fetchImpl,
+    });
+    client.setAccessToken(
+      t.accessToken,
+      t.refreshToken ?? client.refreshToken,
+      t.expiresAt ?? undefined,
+    );
   }
 
   async focusChild(client: SchoolsoftClient, studentId: number): Promise<void> {

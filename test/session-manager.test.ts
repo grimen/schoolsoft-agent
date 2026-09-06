@@ -160,3 +160,12 @@ test("login failure before any token leaves the store empty", async () => {
   await assert.rejects(() => manager.login(), /exchange exploded/);
   assert.equal(store.load(), null);
 });
+
+test("login persists the access token expiry (JWT exp, unix seconds)", async () => {
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+  const jwt = `${b64({ alg: "RS256" })}.${b64({ exp: 1_800_000_000 })}.sig`;
+  const store = new MemorySessionStore();
+  const { manager } = makeManager({ store, client: fakeClient({ accessToken: jwt } as Partial<SchoolsoftClient>) });
+  await manager.login();
+  assert.equal(store.load()?.accessTokenExpiresAt, 1_800_000_000);
+});

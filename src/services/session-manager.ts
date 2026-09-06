@@ -10,6 +10,7 @@ import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
 import { childOf, type GuardianContext } from "../api/guardian.js";
+import { decodeJwtClaims } from "../auth/oauth.js";
 
 export class NotAuthenticatedError extends Error {
   constructor(reason: string) {
@@ -73,6 +74,8 @@ export class SessionManager {
       guardian: strategy?.context,
       accessToken: c.accessToken ?? undefined,
       refreshToken: c.refreshToken ?? undefined,
+      // ssp-node exposes no expiry getter; the JWT carries it (unix seconds).
+      accessTokenExpiresAt: c.accessToken ? decodeJwtClaims(c.accessToken)?.exp : undefined,
       savedAt: Date.now(),
       authMethod,
     });

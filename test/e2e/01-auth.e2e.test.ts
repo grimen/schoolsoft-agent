@@ -63,7 +63,7 @@ test("A2: persisted session exists with expected shape", { skip }, async () => {
     "Q4b",
     "Access token expiry",
     saved!.accessTokenExpiresAt
-      ? new Date(saved!.accessTokenExpiresAt).toISOString()
+      ? new Date(saved!.accessTokenExpiresAt * 1000).toISOString()
       : "not reported by API",
   );
 });
@@ -86,7 +86,7 @@ test("A3: forced access-token expiry triggers silent refresh", { skip }, async (
   assert.ok(await client.verifySession());
   const refreshed = loadPersisted();
   assert.ok(
-    (refreshed?.accessTokenExpiresAt ?? 0) > Date.now(),
+    (refreshed?.accessTokenExpiresAt ?? 0) > Math.floor(Date.now() / 1000),
     "expiry must have been pushed forward by refresh",
   );
   record("Q4c", "Silent refresh works?", "YES — expired token refreshed without user");

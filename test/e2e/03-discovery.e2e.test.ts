@@ -64,7 +64,7 @@ test("D3: token lifetime snapshot for longitudinal tracking", { skip }, async ()
     `Lifetime snapshot @ ${new Date().toISOString()}`,
     saved
       ? `authMethod=${saved.authMethod}, savedAt=${new Date(saved.savedAt).toISOString()}, ` +
-          `expiresAt=${saved.accessTokenExpiresAt ? new Date(saved.accessTokenExpiresAt).toISOString() : "?"}`
+          `expiresAt=${saved.accessTokenExpiresAt ? new Date(saved.accessTokenExpiresAt * 1000).toISOString() : "?"}`
       : "no session",
   );
   assert.ok(true);

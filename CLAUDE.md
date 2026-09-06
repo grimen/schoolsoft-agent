@@ -6,9 +6,9 @@ Goal: seamless read/write access from Claude/ChatGPT/other MCP clients.
 
 ## Architecture decisions (already made)
 
-- **API layer: `@elias4044/ssp-node`** (MIT, npm). Typed client for
-  SchoolSoft's unofficial mobile API. Verified against its `.d.ts` files —
-  the README matches the real surface. Alternatives evaluated and rejected:
+- **API layer: own `src/api/guardian.ts`**; `@elias4044/ssp-node` (MIT) is
+  kept only for its HTTP helpers and as the token/cookie holder — every
+  data and auth endpoint it ships is student-only (see Live findings). Alternatives evaluated and rejected:
   - `kanylbullen/schoolsoft-mcp` (Python MCP, HTML scraping, password-only
     auth, most tools "experimental") — used as functional spec only.
   - `CarelessInternet/node-schoolsoft` — untested for guardian accounts.
@@ -17,7 +17,7 @@ Goal: seamless read/write access from Claude/ChatGPT/other MCP clients.
     mapping unknown write endpoints.
 - **Auth: interactive-first.** BankID must never be automated. The
   `schoolsoft_login` tool opens the real SchoolSoft login page in the
-  user's browser (OAuth2+PKCE via `SchoolsoftClient.startMobileFlow` with
+  user's browser (OAuth2+PKCE via `src/auth/oauth.ts`, client id vApp, with
   a `http://127.0.0.1:43117/callback` redirect), captures the code on a
   one-shot local HTTP server, exchanges for access+refresh tokens.
 - **Session persistence:** AES-256-GCM blob in `~/.schoolsoft-mcp/`
@@ -37,61 +37,55 @@ Goal: seamless read/write access from Claude/ChatGPT/other MCP clients.
   `MemorySessionStore` and fakes — see `test/session-manager.test.ts`
   (6 passing, `npm test`, zero disk/network).
 
-## Live findings (Täby, guardian account, 2026-09-06)
+## Live findings (Täby, guardian account, 2026-09-06) — ALL ANSWERED
 
-Answered:
+E2E: 14/14 green against real SchoolSoft (`SCHOOLSOFT_SCHOOL=taby npm run test:e2e`),
+including forced token refresh, cold subprocess restore, and child switching.
 
-1. **Localhost redirect_uri: ACCEPTED.** SchoolSoft delivered the code to
-   `http://127.0.0.1:43117/callback` (green "Inloggad" page). No fallback
-   strategy needed for the callback.
-2. **Login route is per user type**, and it matters. SchoolSoft's login app
-   routes everything under `#/login/<parent|student|teacher>/…`; ssp-node
-   hardcodes `student`. Guardians on the student route get "Användaren …
-   är inte aktiv på den här skolan" after a successful BankID. orgid is
-   irrelevant for SAML/BankID (only the password flows send it). Täby's
-   slug is `taby`; Rösjöskolan is orgId 20 in the public school list
-   (`/internal/rest-api/login/schoollist`, 3414 schools).
-   - Täby app login methods (`/rest-api/login/methods/?client_id=eApp&usertype=parent`):
-     SAML (3) + app username/password (4). No direct BankID (11) — BankID
-     comes via Täby's SAML IdP (`etjanst.taby.se/wa/auth/saml`).
-   - ssp-node's token→cookie exchange also hardcodes
-     `/eva-apps/auth/login/student`; replaced by `src/auth/session-exchange.ts`.
+1. **Localhost redirect_uri: accepted.** Code arrives at
+   `http://127.0.0.1:43117/callback`. No fallback strategy needed.
+2. **Guardian login = parent route + client_id `vApp`.** SchoolSoft stamps
+   `user_type` into the JWT from the *client id* (eApp → STUDENT, vApp →
+   PARENT), and resolves the user at use time, so a wrong client id yields a
+   token that fails everything with "Vi kunde inte hitta användaren". The
+   login route (`#/login/parent`) must match too. orgid is irrelevant for
+   SAML/BankID. Täby: slug `taby`, BankID via Täby's SAML IdP
+   (`etjanst.taby.se`); "Åtkomst från app" was already enabled.
+3. **Multi-child: `/eva/api/v1/parent` lists children** (2 here, same
+   school, orgId 20). The webview cookie session is bound to one child
+   (`childInFocus` header on the exchange); tools take `child_id` and
+   re-exchange when it changes. Persisted as `guardian` in the session.
+4. **Lifetimes:** access token 15 min (JWT `exp`; token response has no
+   `expires`, so we persist the JWT exp). Refresh grant works and rotates
+   the refresh token; refresh-token lifetime still unknown — D3 snapshots
+   accumulate in e2e-report.md across days.
 
-Still open (blocks everything):
-
-- **SchoolSoft stamps `user_type` into the access token and resolves the
-  user at use time.** With the parent route + client_id `eApp`, the JWT
-  still came back `user_type: STUDENT` (`login_method: SAML`, `sub` is a
-  UUID from `https://schoolsoft.se/core/login`), so refresh, `/rest-api/session`
-  (Bearer) and the cookie exchange all fail with "Vi kunde inte hitta
-  användaren". Hypotheses, in order:
-  a. client_id decides the type: `eApp` = student app, `vApp` = guardian
-     app (the login bundle special-cases both). Test: `SCHOOLSOFT_CLIENT_ID=vApp`.
-     The token endpoint accepts any clientId string, so only a real login tells.
-  b. Guardian needs "Åtkomst från app" enabled under Min profil on the web
-     before app logins resolve.
-  c. SchoolSoft's SAML return handler drops the route's user type.
-  The strategy now logs the token's claims to stderr right after the code
-  exchange, so one BankID round answers this. All OAuth pieces
-  (`src/auth/oauth.ts`) are ours now; ssp-node is only used for its HTTP
-  helpers and data endpoints.
-3. **Multi-child accounts.** Unknown until a guardian token works.
-4. **Token/session lifetimes.** Access token JWT exp was 15 min
-   (`iat`→`exp`); token response had no `expires` field, so we fall back
-   to the JWT exp. Refresh-token lifetime unknown.
+**Data layer (ssp-node is student-only; we use it for HTTP helpers only):**
+- Eva, Bearer: `/eva/api/v1/parent`, `/eva/api/v1/schools/{org}/lunchmenu/{week}`,
+  `/eva/api/v2/parent/{uid}/schools/{org}/news?studentId=`,
+  `/eva/api/v1/parent/{uid}/schools/{org}/messages/inbox|{id}`,
+  `.../news/calendarevent/next`. 404: `.../student/{sid}/lessons`, `.../badge`.
+- Webview REST, cookies: `/rest-api/session`, `/rest-api/parent/calendar/lessons/week/{w}`,
+  `/rest-api/parent/ps/assignments/start-page?week=&year=`, `.../assignments/{id}/view|sections`.
+- Cookie exchange: `/eva-apps/auth/login/parent` with headers
+  `token, userId, orgId, childInFocus, userOS, language, redirecturl`.
+- Reference implementation for more endpoints (holistic assessments,
+  plannings, staff, profile updates): sebdanielsson/better-schoolsoft (MIT).
 
 ## Roadmap
 
-- [ ] Live-test auth flow end to end — Q1/Q2 done; user_type stamping open (see above)
-- [ ] Add `schoolsoft_get_messages` (inbox) — check if ssp-node covers it,
-      else map endpoint via HAR recording
+- [x] Live-test auth flow end to end (all four questions answered above)
+- [x] `schoolsoft_get_messages` / `schoolsoft_get_message` (Eva inbox)
+- [x] Multi-child: `schoolsoft_list_children` + `child_id` on read tools
 - [ ] **Write ops (the differentiator, nothing open source has these):**
       `schoolsoft_report_absence`, `schoolsoft_send_message`,
       `schoolsoft_apply_leave`, respond to bookings. Map via HAR
       (log in via browser devtools → record the action → replay with
       session cookies). Mark all with destructiveHint and require
       explicit user confirmation in tool descriptions.
-- [ ] Multi-child support (child selector param on relevant tools)
+- [ ] Write ops mapping: start from better-schoolsoft's endpoint list, then HAR
+- [ ] `schoolsoft_find_school` — resolve school name → slug via the public
+      3414-school list so parents at any school can configure without knowing the slug
 - [ ] Evals per mcp-builder methodology (10 read-only Q&A pairs)
 - [x] Test pyramid:
       * Unit (`session-manager`, `file-store`, `browser-flow`): logic,
