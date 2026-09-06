@@ -1,0 +1,7 @@
+dist
+node_modules
+coverage
+package-lock.json
+e2e-report.md
+e2e-session-dump.json
+CHANGELOG.md

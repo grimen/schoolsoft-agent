@@ -1,33 +1,69 @@
 {
-  "name": "schoolsoft-mcp-server",
-  "version": "0.1.0",
-  "description": "Unofficial MCP server for SchoolSoft (guardian access via BankID)",
-  "main": "dist/index.js",
+  "name": "schoolsoft-agent",
+  "version": "0.2.0",
+  "description": "SchoolSoft for AI agents: MCP server and CLI/skill for guardians (BankID login, schedule, lunch, news, messages)",
+  "main": "dist/core/index.js",
   "scripts": {
-    "test": "tsx --test test/*.test.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "tsx src/index.ts",
-    "inspect": "npx @modelcontextprotocol/inspector tsx src/index.ts",
-    "test:e2e": "SCHOOLSOFT_E2E=1 tsx --test 'test/e2e/*.e2e.test.ts'",
     "typecheck": "tsc -p tsconfig.test.json",
-    "e2e:login": "tsx scripts/e2e-login.ts"
+    "test": "tsx --test 'test/unit/**/*.test.ts' 'test/boundary/**/*.test.ts' 'test/functional/**/*.test.ts' 'test/packaging/**/*.test.ts'",
+    "test:e2e": "SCHOOLSOFT_E2E=1 tsx --test 'test/e2e/*.e2e.test.ts'",
+    "coverage": "c8 --config .c8rc.json tsx --test 'test/unit/**/*.test.ts' 'test/boundary/**/*.test.ts' 'test/functional/**/*.test.ts' 'test/packaging/**/*.test.ts'",
+    "fmt": "prettier --write .",
+    "fmt:check": "prettier --check .",
+    "boundaries": "tsx scripts/check-boundaries.ts",
+    "docs": "tsx scripts/gen-docs.ts",
+    "skills": "tsx scripts/gen-skills.ts",
+    "plugin:validate": "tsx scripts/validate-plugins.ts",
+    "dev": "tsx src/mcp/index.ts",
+    "inspect": "npx @modelcontextprotocol/inspector tsx src/mcp/index.ts",
+    "e2e:login": "tsx scripts/e2e-login.ts",
+    "prepack": "npm run build"
   },
-  "keywords": [],
+  "keywords": [
+    "schoolsoft",
+    "mcp",
+    "agent",
+    "skill",
+    "bankid",
+    "claude",
+    "opencode"
+  ],
   "author": "Jonas Grimfelt",
   "license": "MIT",
   "dependencies": {
     "@elias4044/ssp-node": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "commander": "^14.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.4.0",
     "tsx": "^4.23.12",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "c8": "^10.1.3",
+    "prettier": "^3.6.2"
   },
   "type": "module",
   "bin": {
-    "schoolsoft-mcp-server": "dist/index.js"
+    "schoolsoft-agent": "dist/cli/index.js",
+    "schoolsoft-agent-mcp": "dist/mcp/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/grimen/schoolsoft-agent.git"
+  },
+  "homepage": "https://github.com/grimen/schoolsoft-agent#readme",
+  "bugs": {
+    "url": "https://github.com/grimen/schoolsoft-agent/issues"
   }
 }

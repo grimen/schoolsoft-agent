@@ -4,3 +4,7 @@ dist/
 *.log
 e2e-report.md
 e2e-session-dump.json
+coverage/
+dist/skills/
+*.mcpb
+.schoolsoft-agent-state/
