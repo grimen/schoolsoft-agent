@@ -95,7 +95,20 @@ The subject name did not match any of your child's subjects. The message lists t
 
 ## "npm ERR! 404 Not Found: schoolsoft-agent"
 
-The package has not reached npm yet (first release pending). Until then, install from the source:
+The package is not on npm yet; releases currently go to GitHub Packages, which needs a GitHub token to install from even though the package is public. Two ways around it.
+
+**From GitHub Packages** (needs a [GitHub token](https://github.com/settings/tokens) with the `read:packages` scope):
+
+```bash
+echo "@grimen:registry=https://npm.pkg.github.com" >> ~/.npmrc
+echo "//npm.pkg.github.com/:_authToken=<your token>" >> ~/.npmrc
+npm install -g @grimen/schoolsoft-agent
+schoolsoft-agent configure --query "<school name>"
+```
+
+The commands are still called `schoolsoft-agent` and `schoolsoft-agent-mcp`; only the package name carries the `@grimen/` prefix. In the host guides, replace `npx -y schoolsoft-agent` with the bare `schoolsoft-agent`, and `npx -y -p schoolsoft-agent schoolsoft-agent-mcp` with `schoolsoft-agent-mcp`.
+
+**From the source**, no token needed:
 
 ```bash
 git clone https://github.com/grimen/schoolsoft-agent && cd schoolsoft-agent
