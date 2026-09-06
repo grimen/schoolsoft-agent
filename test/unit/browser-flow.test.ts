@@ -195,18 +195,21 @@ test("defaultOpenInBrowser spawns the platform opener detached and survives a mi
 
 test("the error page escapes whatever the identity provider put in the query string", async () => {
   const port = usePort();
-  let body = "";
+  let resolveBody!: (b: string) => void;
+  const bodyPromise = new Promise<string>((r) => (resolveBody = r));
   const login = runBrowserLogin({
     school: "testskola",
     port,
-    openBrowser: async () => {
-      const res = await fetch(
+    openBrowser: () => {
+      void fetch(
         `http://127.0.0.1:${port}/callback?error=${encodeURIComponent('<script>alert("x")</script>&"')}`,
-      );
-      body = await res.text();
+      )
+        .then((res) => res.text())
+        .then(resolveBody);
     },
   });
   await assert.rejects(login, /alert/);
+  const body = await bodyPromise;
   assert.ok(body.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&quot;"), body);
   assert.ok(!body.includes("<script>alert"), "raw script tag must not appear");
 });
