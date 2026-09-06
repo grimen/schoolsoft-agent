@@ -58,7 +58,7 @@ The native app's backend. Header: `Authorization: Bearer <access_token>`.
 
 Known 404s (do not exist for guardians): `/eva/api/v1/schools/<orgId>/student/<sid>/lessons`, `/eva/api/v1/schools/<orgId>/parents/<userId>/badge`.
 
-More endpoints (holistic assessments, plannings, staff, profile updates) are catalogued in [sebdanielsson/better-schoolsoft](https://github.com/sebdanielsson/better-schoolsoft).
+More endpoints (holistic assessments, plannings, staff, profile updates) are catalogued in [sebdanielsson/better-schoolsoft](https://github.com/sebdanielsson/better-schoolsoft). That project is where the guardian header set and the Eva paths were first read before being verified here; no code from it is used.
 
 ## Webview REST (session cookies)
 
