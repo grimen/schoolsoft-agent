@@ -8,7 +8,7 @@
 
 <img src="docs/assets/readme-hero.svg" alt="Independent project; SchoolSoft and BankID are trademarks of their owners, who are not involved. A parent asks their AI agent about school. The agent reaches schoolsoft-agent through its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft. SchoolSoft is a trademark of SchoolSoft AB, not involved in this project." width="960">
 
-SchoolSoft for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, lunch menu, assignments, news and the message inbox. Login is BankID in your own browser; nothing is automated around it, and the session is stored encrypted on your machine.
+[SchoolSoft](https://www.schoolsoft.se) for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, lunch menu, assignments, news and the message inbox. Login is [BankID](https://www.bankid.com) in your own browser; nothing is automated around it, and the session is stored encrypted on your machine.
 
 Two surfaces, one core. Pick the one your host supports or you prefer:
 
@@ -19,7 +19,7 @@ Two surfaces, one core. Pick the one your host supports or you prefer:
 
 Both are the same npm package and behave identically, because every capability is defined once as an _operation_ and both surfaces are generated from that list. See [docs/architecture.md](docs/architecture.md).
 
-> **Independent project.** SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. It talks to SchoolSoft through the same unofficial APIs the SchoolSoft app uses; read [Trademark and independence](#trademark-and-independence) and [Privacy](#privacy) before installing.
+> **Independent project.** [SchoolSoft](https://www.schoolsoft.se) is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. It talks to SchoolSoft through the same unofficial APIs the SchoolSoft app uses; read [Trademark and independence](#trademark-and-independence) and [Privacy](#privacy) before installing.
 
 ## 60-second install
 
@@ -90,7 +90,7 @@ Layout, boundaries and the test pyramid are in [docs/architecture.md](docs/archi
 
 ## Trademark and independence
 
-SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. The name is used only to describe what the software connects to. BankID is a trademark of Finansiell ID-Teknik BID AB; Claude, OpenCode, OpenClaw, Hermes and Pi are trademarks of their respective owners. All are named descriptively, and none of these organisations is involved in or endorses this project. No logos or brand assets are used. If any rights holder objects to a use of their name, open an issue and it will be addressed.
+SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. The name is used only to describe what the software connects to. [BankID](https://www.bankid.com) is a trademark of Finansiell ID-Teknik BID AB; Claude, OpenCode, OpenClaw, Hermes and Pi are trademarks of their respective owners. All are named descriptively, and none of these organisations is involved in or endorses this project. No logos or brand assets are used. If any rights holder objects to a use of their name, open an issue and it will be addressed.
 
 ## License
 
