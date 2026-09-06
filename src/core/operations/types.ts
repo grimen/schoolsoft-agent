@@ -7,6 +7,7 @@ import type { z } from "zod";
 import type { SessionManager } from "../session/session-manager.js";
 import type { Capability, Portal } from "../portal/types.js";
 import type { Config } from "../config.js";
+import type { SchoolProvider } from "../provider/types.js";
 
 export interface OperationAnnotations {
   /** Does not modify anything at SchoolSoft. */
@@ -28,6 +29,8 @@ export interface OperationAnnotations {
 export interface OperationContext<C extends Capability = Capability> {
   manager: SessionManager;
   portal: Pick<Portal, C>;
+  /** The configured school portal provider (school lookup, page specs). */
+  provider: SchoolProvider;
   config: Config;
   /** Diagnostic output (stderr for stdio surfaces). */
   log: (message: string) => void;

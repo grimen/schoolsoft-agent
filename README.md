@@ -87,6 +87,7 @@ Layout, boundaries and the test pyramid are in [docs/architecture.md](docs/archi
 - Write operations: report absence, send message (separate spec; confirmation-gated).
 - Remote transport (streamable HTTP with per-user storage) so ChatGPT and hosted agents can use it.
 - Claude Desktop extension directory listing.
+- Other school portals: everything vendor-specific sits behind one `SchoolProvider` seam (`src/providers/`), so a second Swedish portal is a new provider directory, not a rewrite. All of them end their login in BankID, which the core already handles two ways.
 
 ## Trademark and independence
 

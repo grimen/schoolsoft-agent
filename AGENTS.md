@@ -12,17 +12,28 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 - **Layering is enforced.** `src/core` never imports adapters or reads
   `process.env`; adapters import core via `src/core/index.ts` only; adapters
   never import each other (`src/shared` is for common adapter code).
+  Vendors live in `src/providers/<id>/` behind `SchoolProvider`: only
+  `src/core/wiring.ts` imports a provider, providers import core modules
+  directly (never `core/index.ts`), adapters never import a provider.
   `make boundaries` and `test/boundary` fail otherwise.
+- **Nothing SchoolSoft-specific in core.** URLs, endpoints, DOM, login
+  markers, token shapes and persisted credentials belong to
+  `src/providers/schoolsoft/`. Core owns the capability vocabulary, the
+  operations, the session lifecycle and the BankID-in-own-browser mechanics.
+  A new vendor = one provider directory + one registry line, passing
+  `test/contract`. Deferred on purpose until a second vendor exists:
+  domain types for the raw JSON capabilities and renaming `SCHOOLSOFT_*`,
+  the `schoolsoft_` tool prefix and the `userType`/`clientId` config keys.
 - **Portal routing is static.** A capability is served by the API when one
-  exists, by the browser provider only when none does (`PROVIDERS` in
-  `src/core/portal/types.ts`). Never add a browser path for something the API
+  exists, by the browser provider only when none does (`ROUTING` in
+  `src/providers/schoolsoft/routing.ts`). Never add a browser path for something the API
   serves; never let the browser session issue writes without `allowWrites`.
   GDPR-gated capabilities (`WEB_SESSION_CAPABILITIES`) need the web-login
   session from `login --web`; they must fail before navigating without it.
   The web session's only non-GET is the child-in-focus PUT (`syncWebChild`).
 - **Browser pages are declared, not scattered.** A page the browser reads
-  lives in `src/core/portal/pages.ts` (path, gate, anchors) with its extractor
-  in `extractors.ts` and a fixture in `test/fixtures/jsp/`. After a SchoolSoft
+  lives in the provider's `portal/pages.ts` (path, gate, anchors) with its
+  extractor in `portal/extractors.ts` and a fixture in `test/fixtures/jsp/`. After a SchoolSoft
   change: `make browser-verify`, fix the named extractor + fixture, then
   `make fingerprints`. Tool inputs take names, never SchoolSoft ids.
 - **One definition per capability.** New capability = one file in
@@ -56,15 +67,16 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 
 Keep the code SOLID; the boundary tests fail when it drifts.
 
-- **Single responsibility.** One file, one job. A backend is one class over
-  the shared transport (`src/core/portal/api/*.ts`); `api-portal.ts` only
-  composes them. Config is a pure model (`config.ts`); object graphs are
+- **Single responsibility.** One file, one job. A vendor is one provider
+  directory; a backend is one class over the provider's transport
+  (`portal/api/*.ts`); `api-portal.ts` only composes them. Config is a pure model (`config.ts`); object graphs are
   built in `wiring.ts`; extractors know the DOM, page specs know structure,
   the session guard knows safety. A file that starts doing two of these is
   split, not grown.
-- **Open/closed.** Extend by adding a file and a registry line: an operation
-  in `operations/`, a page in `pages.ts`, a backend class in `portal/api/`,
-  an auth strategy implementing `AuthStrategy`. Existing code is not edited
+- **Open/closed.** Extend by adding a file and a registry line: a vendor in
+  `src/providers/`, an operation in `operations/`, a page in the provider's
+  `pages.ts`, a backend class in its `portal/api/`, an auth strategy
+  implementing `AuthStrategy<S>`. Existing code is not edited
   to add a capability; the MCP tool, CLI command, docs and skills are
   generated from the definition.
 - **Liskov.** Every implementation of a port honours its whole contract:
@@ -77,8 +89,10 @@ Keep the code SOLID; the boundary tests fail when it drifts.
   source. Helpers take the narrowest context they need
   (`Pick<OperationContext, "manager">`). Producers are split the same way
   (`ApiPortalPart` / `BrowserPortalPart`).
-- **Dependency inversion.** Core depends on ports, never on Playwright,
-  the filesystem, the network, the clock or the process: store, fetch,
+- **Dependency inversion.** Core depends on ports (`SchoolProvider`,
+  `ProviderSession`, `AuthStrategy<S>`, `BrowserSession`, `SessionStore`),
+  never on a vendor, Playwright, the filesystem, the network, the clock or
+  the process: store, fetch,
   browser session, playwright loader, spawn, web login and `now` are all
   injected with a production default in `wiring.ts`. `src/core` imports no
   adapter and reads no `process.env`; `make boundaries` enforces it. This is

@@ -62,6 +62,8 @@ export function registerBrowser(program: Command, deps: CliDeps, emit: (d: unkno
       const session = (deps.browserSession ?? defaultBrowserSession)(ctx);
       try {
         const pages = await verifyPages(session, {
+          pages: ctx.provider.pages,
+          fingerprints: ctx.provider.fingerprints,
           hasWebSession: ctx.manager.getWebSession() !== null,
           syncWebChild: () => createApiPortal(ctx.manager).syncWebChild(),
         });

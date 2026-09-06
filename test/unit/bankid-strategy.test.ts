@@ -7,8 +7,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
-import { BankIdBrowserStrategy } from "../../src/core/auth/bankid-browser.js";
+import { BankIdBrowserStrategy } from "../../src/providers/schoolsoft/auth/bankid-browser.js";
+import { SchoolsoftSession } from "../../src/providers/schoolsoft/session.js";
 
 function jwt(payload: Record<string, unknown>): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -95,7 +95,7 @@ function strategyWithFakes(
 
 test("login: code → token (vApp) → parent profile → cookies bound to first child", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftClient({ school: "taby" });
+  const client = new SchoolsoftSession("taby");
   const info = await strategy.login(client);
 
   assert.equal(info.name, "Förälder Test");
@@ -104,9 +104,9 @@ test("login: code → token (vApp) → parent profile → cookies bound to first
     { studentId: 100, firstName: "Ett" },
     { studentId: 101, firstName: "Två" },
   ]);
-  assert.equal(client.accessToken?.split(".").length, 3);
-  assert.equal(client.refreshToken, "R1");
-  assert.equal(client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+  assert.equal(client.client.accessToken?.split(".").length, 3);
+  assert.equal(client.client.refreshToken, "R1");
+  assert.equal(client.client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 100);
 
   const paths = log.map((l) => l.url.replace("https://sms.schoolsoft.se/taby", "").split("?")[0]);
@@ -122,28 +122,26 @@ test("login: code → token (vApp) → parent profile → cookies bound to first
 
 test("restore: expired token refreshes with vApp and re-binds the remembered child", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftClient({ school: "taby" });
+  const client = new SchoolsoftSession("taby");
   await strategy.restore(client, {
     school: "taby",
-    accessToken: "old",
-    refreshToken: "R1",
-    accessTokenExpiresAt: 1, // long expired
+    data: { accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 }, // long expired
     guardian: { userId: 21, parentName: "x", children: PARENT.children, childInFocus: 101 },
     savedAt: 0,
     authMethod: "bankid-browser",
   });
   assert.match(log[0].url, /clientId=vApp&grantType=refresh_token&refreshToken=R1/);
-  assert.equal(client.refreshToken, "R2", "rotated refresh token adopted");
-  assert.equal(client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
+  assert.equal(client.client.refreshToken, "R2", "rotated refresh token adopted");
+  assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 101);
 });
 
 test("focusChild re-exchanges cookies for the other child and rejects unknown ids", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftClient({ school: "taby" });
+  const client = new SchoolsoftSession("taby");
   await strategy.login(client);
   await strategy.focusChild(client, 101);
-  assert.equal(client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
+  assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 101);
   assert.equal(log.filter((l) => l.url.includes("/eva-apps/auth/login/parent")).length, 2);
   await assert.rejects(strategy.focusChild(client, 555), /Unknown child id 555/);
@@ -151,17 +149,16 @@ test("focusChild re-exchanges cookies for the other child and rejects unknown id
 
 test("restore: unknown expiry refreshes up front", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftClient({ school: "taby" });
+  const client = new SchoolsoftSession("taby");
   await strategy.restore(client, {
     school: "taby",
-    accessToken: "old",
-    refreshToken: "R1",
+    data: { accessToken: "old", refreshToken: "R1" },
     guardian: { userId: 21, parentName: "x", children: PARENT.children, childInFocus: 100 },
     savedAt: 0,
     authMethod: "bankid-browser",
   });
   assert.match(log[0].url, /grantType=refresh_token/);
-  assert.equal(client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+  assert.equal(client.client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
 });
 
 test("restore: a 401 on the profile call triggers one refresh-and-retry", async () => {
@@ -178,21 +175,19 @@ test("restore: a 401 on the profile call triggers one refresh-and-retry", async 
     return inner(url, school, options);
   };
   const strategy = new BankIdBrowserStrategy({ fetchImpl });
-  const client = new SchoolsoftClient({ school: "taby" });
+  const client = new SchoolsoftSession("taby");
   await strategy.restore(client, {
     school: "taby",
-    accessToken: "stale",
-    refreshToken: "R1",
-    accessTokenExpiresAt: 9_999_999_999, // looks valid, but server says 401
+    data: { accessToken: "stale", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 }, // looks valid, but server says 401
     guardian: { userId: 21, parentName: "x", children: PARENT.children, childInFocus: 101 },
     savedAt: 0,
     authMethod: "bankid-browser",
   });
   assert.equal(parentCalls, 2);
   assert.equal(log.filter((l) => l.url.includes("grantType=refresh_token")).length, 1);
-  assert.equal(client.refreshToken, "R2");
+  assert.equal(client.client.refreshToken, "R2");
   assert.equal(
-    client.cookieHeader,
+    client.client.cookieHeader,
     "JSESSIONID=js-101; hash=h; usertype=2",
     "remembered child re-bound after the retry",
   );
@@ -237,68 +232,65 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
 
   // login with an opaque token: no refresh token, no expiry
   const opaque = variant({ tokenData: { access_token: "opaque" } });
-  const c1 = new SchoolsoftClient({ school: "taby" });
+  const c1 = new SchoolsoftSession("taby");
   await opaque.login(c1);
-  assert.equal(c1.refreshToken, null);
+  assert.equal(c1.client.refreshToken, null);
 
   // restore guards
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
-      new SchoolsoftClient({ school: "taby" }),
-      saved({}) as never,
+      new SchoolsoftSession("taby"),
+      saved({ data: {} }) as never,
     ),
     /no access token/,
   );
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
-      new SchoolsoftClient({ school: "taby" }),
-      saved({ accessToken: "old", accessTokenExpiresAt: 1 }) as never,
+      new SchoolsoftSession("taby"),
+      saved({ data: { accessToken: "old", accessTokenExpiresAt: 1 } }) as never,
     ),
     /no refresh token saved/,
   );
   // profile 500: not a 401, rethrown without refresh
   await assert.rejects(
     variant({ parentStatus: 500 }).restore(
-      new SchoolsoftClient({ school: "taby" }),
-      saved({ accessToken: "t", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 }) as never,
+      new SchoolsoftSession("taby"),
+      saved({
+        data: { accessToken: "t", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 },
+      }) as never,
     ),
     /HTTP 500/,
   );
   // profile 401 but no refresh token: rethrown
-  const c2 = new SchoolsoftClient({ school: "taby" });
+  const c2 = new SchoolsoftSession("taby");
   await assert.rejects(
     variant({ parentStatus: 401 }).restore(
       c2,
-      saved({ accessToken: "t", accessTokenExpiresAt: 9_999_999_999 }) as never,
+      saved({ data: { accessToken: "t", accessTokenExpiresAt: 9_999_999_999 } }) as never,
     ),
     /HTTP 401/,
   );
   // refresh response without rotation keeps the old refresh token
   const keep = variant({ tokenData: { access_token: "fresh" } });
-  const c3 = new SchoolsoftClient({ school: "taby" });
+  const c3 = new SchoolsoftSession("taby");
   await keep.restore(
     c3,
-    saved({ accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 }) as never,
+    saved({ data: { accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 } }) as never,
   );
-  assert.equal(c3.refreshToken, "R1");
+  assert.equal(c3.client.refreshToken, "R1");
   // focusChild before any login
   await assert.rejects(
-    new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(
-      new SchoolsoftClient({ school: "taby" }),
-      100,
-    ),
+    new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(new SchoolsoftSession("taby"), 100),
     /log in first/,
   );
   // no children
   await assert.rejects(
-    variant({ parent: { ...PARENT, children: [] } }).login(
-      new SchoolsoftClient({ school: "taby" }),
-    ),
+    variant({ parent: { ...PARENT, children: [] } }).login(new SchoolsoftSession("taby")),
     /no children/,
   );
   // child without school: schoolName null (and the exchange has no orgId)
   const noSchool = variant({
     parent: { ...PARENT, children: [{ ...PARENT.children[0], schools: [] }] },
   });
-  await assert.rejects(noSchool.login(new SchoolsoftClient({ school: "taby" })), /has no school/);
+  await assert.rejects(noSchool.login(new SchoolsoftSession("taby")), /has no school/);
 });

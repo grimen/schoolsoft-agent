@@ -38,8 +38,8 @@ Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state
 
 ## `schoolsoft-agent find-school`
 
-Look up a school in SchoolSoft's public directory (~3400 schools) to get
-the tenant slug and orgId needed for configuration. No login required.
+Look up a school in the portal provider's public directory (SchoolSoft: ~3400
+schools) to get the tenant slug and orgId needed for configuration. No login required.
 
 Args:
   - query (string): school name or part of it, e.g. "Rösjöskolan" or "Täby".

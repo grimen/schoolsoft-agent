@@ -11,7 +11,7 @@
  * sebdanielsson/better-schoolsoft.
  */
 import { schoolsoftFetch, ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
-import type { SchoolsoftUserType } from "../constants.js";
+import type { SchoolsoftUserType } from "../../../core/constants.js";
 
 /** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
 export type ExchangeFetch = (

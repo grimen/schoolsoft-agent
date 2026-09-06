@@ -4,15 +4,15 @@
  * with the user's cookies) and runs a self-contained extractor inside it.
  * Read-only by construction: the session guard aborts every non-GET request.
  */
-import type { BrowserSession, PortalPage } from "../browser/session.js";
-import type { BrowserPortalPart } from "./composite.js";
+import type { BrowserSession, PortalPage } from "../../../core/browser/session.js";
+import type { BrowserPortalPart } from "../../../core/portal/composite.js";
 import {
   WebLoginRequiredError,
   type Booking,
   type ContactGroup,
   type PortalFile,
   type TablePage,
-} from "./types.js";
+} from "../../../core/portal/types.js";
 import {
   extractBookings,
   extractContacts,
@@ -20,7 +20,8 @@ import {
   extractSubjectLinks,
   extractTablePage,
 } from "./extractors.js";
-import { PAGES, type PageSpec } from "./pages.js";
+import type { PageSpec } from "../../../core/portal/page-spec.js";
+import { PAGES } from "./pages.js";
 
 export { PAGES } from "./pages.js";
 

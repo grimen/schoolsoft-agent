@@ -7,8 +7,12 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BrowserPortal, PAGES, normalizeSubject } from "../../src/core/portal/browser-portal.js";
-import { PAGE_KEYS } from "../../src/core/portal/pages.js";
+import {
+  BrowserPortal,
+  PAGES,
+  normalizeSubject,
+} from "../../src/providers/schoolsoft/portal/browser-portal.js";
+import { PAGE_KEYS } from "../../src/providers/schoolsoft/portal/pages.js";
 import type {
   BrowserSession,
   PortalPage,

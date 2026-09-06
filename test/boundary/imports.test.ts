@@ -30,3 +30,25 @@ test("checker catches core → adapter, core → process, adapter → core inter
   assert.ok(msgs.some((m) => m.includes("via core/index.js")));
   assert.equal(msgs.length, 4);
 });
+
+test("checker catches core → provider (outside wiring), provider → core/index, adapter → provider", () => {
+  const root = mkdtempSync(join(tmpdir(), "bounds-"));
+  for (const d of ["src/core", "src/providers/x", "src/cli"])
+    mkdirSync(join(root, d), { recursive: true });
+  writeFileSync(join(root, "src/core/index.ts"), `export {};\n`);
+  writeFileSync(join(root, "src/core/wiring.ts"), `import { x } from "../providers/x/index.js";\n`);
+  writeFileSync(join(root, "src/core/other.ts"), `import { x } from "../providers/x/index.js";\n`);
+  writeFileSync(
+    join(root, "src/providers/x/index.ts"),
+    `import { a } from "../../core/index.js";\nimport { w } from "../../core/wiring.js";\nimport { t } from "../../core/portal/types.js";\nimport { c } from "../../cli/program.js";\n`,
+  );
+  writeFileSync(join(root, "src/cli/a.ts"), `import { x } from "../providers/x/index.js";\n`);
+  const msgs = checkBoundaries(root).map((v) => `${v.file}: ${v.message}`);
+  assert.ok(msgs.some((m) => m.startsWith("core/other.ts: core imports a provider")));
+  assert.ok(!msgs.some((m) => m.startsWith("core/wiring.ts")), "wiring may import providers");
+  assert.ok(msgs.some((m) => m.includes("not core/index.js (cycle)")));
+  assert.ok(msgs.some((m) => m.includes("not core/wiring.js (cycle)")));
+  assert.ok(msgs.some((m) => m.includes("provider imports adapter cli/program.js")));
+  assert.ok(msgs.some((m) => m.includes("adapter cli imports a provider")));
+  assert.equal(msgs.length, 5);
+});

@@ -3,7 +3,7 @@
  * `user_type: PARENT`). Parent profile + children, lunch, news, messages,
  * calendar events. Verified live against Täby 2026-09-06.
  */
-import type { GuardianParent } from "../types.js";
+import type { GuardianParent } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
 
 export class EvaApi {

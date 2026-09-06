@@ -3,7 +3,7 @@
  * from the token → cookie exchange, bound to one child (childInFocus).
  * Schedule, assignments and the subject rooms behind the React Ämne view.
  */
-import type { SubjectRoom } from "../types.js";
+import type { SubjectRoom } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
 
 export class WebviewApi {

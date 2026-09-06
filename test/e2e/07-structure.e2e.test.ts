@@ -28,6 +28,8 @@ test(
     const session = createBrowserSession(ctx.manager, { engine: ctx.config.browser });
     try {
       const reports = await verifyPages(session, {
+        pages: ctx.provider.pages,
+        fingerprints: ctx.provider.fingerprints,
         hasWebSession: ctx.manager.getWebSession() !== null,
         syncWebChild: () => createApiPortal(ctx.manager).syncWebChild(),
       });

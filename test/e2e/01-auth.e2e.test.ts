@@ -19,6 +19,7 @@ import {
   forceExpireAccessToken,
   e2eStore,
   e2eContext,
+  creds,
 } from "./helpers.js";
 
 initReport();
@@ -45,25 +46,26 @@ test("A1: bootstrap — silent restore, else interactive BankID login", { skip }
       `YES — userType=${info.userType}, school=${info.schoolName}`,
     );
   }
-  const client = await manager.ensureSession();
-  assert.ok(await client.verifySession(), "session must verify after bootstrap");
+  const session = await manager.ensureSession();
+  assert.ok(await session.verify(), "session must verify after bootstrap");
   record("A1", "Auth bootstrap path taken", path);
 });
 
 test("A2: persisted session exists with expected shape", { skip }, async () => {
   const saved = loadPersisted();
   assert.ok(saved, "session must be persisted after bootstrap");
-  assert.ok(saved!.accessToken, "access token persisted");
+  const c = creds(saved);
+  assert.ok(c.accessToken, "access token persisted");
   record(
     "Q4a",
     "Refresh token persisted?",
-    saved!.refreshToken ? "YES" : "NO — sessions will die with access token",
+    c.refreshToken ? "YES" : "NO — sessions will die with access token",
   );
   record(
     "Q4b",
     "Access token expiry",
-    saved!.accessTokenExpiresAt
-      ? new Date(saved!.accessTokenExpiresAt * 1000).toISOString()
+    c.accessTokenExpiresAt
+      ? new Date(c.accessTokenExpiresAt * 1000).toISOString()
       : "not reported by API",
   );
 });
@@ -82,11 +84,11 @@ test("A3: forced access-token expiry triggers silent refresh", { skip }, async (
     loadConfig({ env: process.env, home: homedir(), platform: process.platform }),
     { store: e2eStore() },
   );
-  const client = await cold.ensureSession(); // must NOT prompt for BankID
-  assert.ok(await client.verifySession());
+  const session = await cold.ensureSession(); // must NOT prompt for BankID
+  assert.ok(await session.verify());
   const refreshed = loadPersisted();
   assert.ok(
-    (refreshed?.accessTokenExpiresAt ?? 0) > Math.floor(Date.now() / 1000),
+    (creds(refreshed).accessTokenExpiresAt ?? 0) > Math.floor(Date.now() / 1000),
     "expiry must have been pushed forward by refresh",
   );
   record("Q4c", "Silent refresh works?", "YES — expired token refreshed without user");
@@ -97,7 +99,10 @@ test("A4: garbage session fails closed with actionable error", { skip }, async (
   const backup = store.load();
   assert.ok(backup);
   try {
-    store.save({ ...backup!, accessToken: "corrupt", refreshToken: "corrupt" });
+    store.save({
+      ...backup!,
+      data: { ...backup!.data, accessToken: "corrupt", refreshToken: "corrupt" },
+    });
     const { createSessionManager } = await import("../../src/core/index.js");
     const { loadConfig } = await import("../../src/shared/bootstrap.js");
     const { homedir } = await import("node:os");

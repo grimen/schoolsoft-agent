@@ -6,8 +6,11 @@
     "src/http/**",
     "src/core/auth/strategy.ts",
     "src/shared/version.ts",
-    "src/core/portal/extractors.ts",
-    "src/core/browser/session.ts"
+    "src/core/browser/session.ts",
+    "src/providers/*/portal/extractors.ts",
+    "src/core/portal/inspect.ts",
+    "src/core/portal/page-spec.ts",
+    "src/core/provider/types.ts"
   ],
   "reporter": ["text", "lcov", "json-summary", "html"],
   "check-coverage": true,

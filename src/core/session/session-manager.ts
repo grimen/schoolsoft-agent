@@ -1,22 +1,20 @@
 /**
- * SessionManager: the single owner of client + session lifecycle.
- *
- * All dependencies are injected (store, strategies, client factory) so
- * tests construct their own instance with MemorySessionStore and a fake
- * client factory — no disk, no network. Production wiring lives in
- * client.ts.
+ * SessionManager: the single owner of the session lifecycle, generic over
+ * the provider's session object (credentials holder). All dependencies
+ * are injected (store, strategies, session factory, serializer) so tests
+ * construct their own instance with MemorySessionStore and fakes — no
+ * disk, no network. Production wiring lives in wiring.ts.
  */
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
 import { childOf, type GuardianContext } from "../portal/guardian.js";
-import { decodeJwtClaims } from "../auth/oauth.js";
 import type { WebSession } from "../browser/web-login.js";
+import type { ProviderSession } from "../provider/types.js";
 
 export class NotAuthenticatedError extends Error {
   constructor(reason: string) {
     super(
-      `Not authenticated with SchoolSoft (${reason}). ` +
+      `Not authenticated with the school portal (${reason}). ` +
         `Call the schoolsoft_login tool — it opens the user's browser for ` +
         `BankID/password login. Do not ask the user for credentials in chat.`,
     );
@@ -24,65 +22,70 @@ export class NotAuthenticatedError extends Error {
   }
 }
 
-export interface SessionManagerOptions {
+export interface SessionManagerOptions<S extends ProviderSession> {
   school: string;
+  /** Provider id, stored with the session so a later run can refuse a foreign file. */
+  provider?: string;
   store: SessionStore;
   /** First entry is the default login strategy. */
-  strategies: AuthStrategy[];
-  clientFactory?: (school: string) => SchoolsoftClient;
+  strategies: AuthStrategy<S>[];
+  /** Creates the provider's live session object for a school. */
+  createSession: (school: string) => S;
+  /** Provider-owned credentials to persist (`PersistedSession.data`). */
+  serialize: (session: S) => Record<string, unknown>;
   /** Runs the interactive web login (headed browser); injected so core stays free of playwright. */
   webLogin?: (school: string) => Promise<WebSession>;
 }
 
-export class SessionManager {
+export class SessionManager<S extends ProviderSession = ProviderSession> {
   private readonly school: string;
+  readonly providerId: string;
   private readonly store: SessionStore;
-  private readonly strategies: Map<string, AuthStrategy>;
-  private readonly defaultStrategy: AuthStrategy;
-  private readonly clientFactory: (school: string) => SchoolsoftClient;
+  private readonly strategies: Map<string, AuthStrategy<S>>;
+  private readonly defaultStrategy: AuthStrategy<S>;
+  private readonly createSession: (school: string) => S;
+  private readonly serialize: (session: S) => Record<string, unknown>;
 
-  private client: SchoolsoftClient | null = null;
+  private session: S | null = null;
   private established = false;
   private web: WebSession | null = null;
   private readonly webLoginRunner?: (school: string) => Promise<WebSession>;
 
-  constructor(options: SessionManagerOptions) {
+  constructor(options: SessionManagerOptions<S>) {
     if (options.strategies.length === 0) {
       throw new Error("SessionManager requires at least one AuthStrategy");
     }
     this.school = options.school;
+    this.providerId = options.provider ?? "schoolsoft";
     this.store = options.store;
     this.strategies = new Map(options.strategies.map((s) => [s.id, s]));
     this.defaultStrategy = options.strategies[0];
-    this.clientFactory = options.clientFactory ?? ((school) => new SchoolsoftClient({ school }));
+    this.createSession = options.createSession;
+    this.serialize = options.serialize;
     this.webLoginRunner = options.webLogin;
     this.web = this.store.load()?.web ?? null;
   }
 
-  getClient(): SchoolsoftClient {
-    if (!this.client) {
-      this.client = this.clientFactory(this.school);
-    }
-    return this.client;
+  /** The provider's live session object (created lazily, never null). */
+  getSession(): S {
+    if (!this.session) this.session = this.createSession(this.school);
+    return this.session;
   }
 
   private reset(): void {
-    this.client = null;
+    this.session = null;
     this.established = false;
     this.activeStrategy = null;
   }
 
   private persist(authMethod: string): void {
-    const c = this.getClient();
     const strategy = this.strategies.get(authMethod);
     this.store.save({
+      provider: this.providerId,
       school: this.school,
+      data: this.serialize(this.getSession()),
       guardian: strategy?.context,
       web: this.web ?? undefined,
-      accessToken: c.accessToken ?? undefined,
-      refreshToken: c.refreshToken ?? undefined,
-      // ssp-node exposes no expiry getter; the JWT carries it (unix seconds).
-      accessTokenExpiresAt: c.accessToken ? decodeJwtClaims(c.accessToken)?.exp : undefined,
       savedAt: Date.now(),
       authMethod,
     });
@@ -101,12 +104,12 @@ export class SessionManager {
     this.activeStrategy = strategy;
     let info: LoginInfo;
     try {
-      info = await strategy.login(this.getClient());
+      info = await strategy.login(this.getSession());
     } catch (err) {
       // If the interactive part (BankID) already yielded tokens and a
       // later step failed, keep the tokens: restore() can retry the rest
       // without asking the user to authenticate again.
-      if (this.getClient().accessToken) {
+      if (Object.keys(this.serialize(this.getSession())).length > 0) {
         this.persist(strategy.id);
       }
       throw err;
@@ -121,9 +124,9 @@ export class SessionManager {
    * from the store via the strategy that created it. Throws
    * NotAuthenticatedError with agent-actionable guidance otherwise.
    */
-  async ensureSession(): Promise<SchoolsoftClient> {
+  async ensureSession(): Promise<S> {
     if (this.established) {
-      return this.getClient();
+      return this.getSession();
     }
 
     const saved = this.store.load();
@@ -136,11 +139,17 @@ export class SessionManager {
         `saved session is for school "${saved.school}", not "${this.school}"`,
       );
     }
+    if (saved.provider !== undefined && saved.provider !== this.providerId) {
+      this.store.clear();
+      throw new NotAuthenticatedError(
+        `saved session is for provider "${saved.provider}", not "${this.providerId}"`,
+      );
+    }
 
     const strategy = this.strategies.get(saved.authMethod) ?? this.defaultStrategy;
     this.activeStrategy = strategy;
     try {
-      await strategy.restore(this.getClient(), saved);
+      await strategy.restore(this.getSession(), saved);
       this.persist(strategy.id); // tokens may have been refreshed
     } catch (e) {
       this.store.clear();
@@ -148,7 +157,7 @@ export class SessionManager {
       throw new NotAuthenticatedError(`restore failed: ${e instanceof Error ? e.message : e}`);
     }
 
-    const alive = await this.getClient().verifySession();
+    const alive = await this.getSession().verify();
     if (!alive) {
       this.store.clear();
       this.reset();
@@ -156,7 +165,7 @@ export class SessionManager {
     }
 
     this.established = true;
-    return this.getClient();
+    return this.getSession();
   }
 
   status(): { saved: PersistedSession | null; established: boolean } {
@@ -174,17 +183,17 @@ export class SessionManager {
 
   /** Re-bind the cookie session to another child and persist the choice. */
   async focusChild(studentId: number): Promise<GuardianContext> {
-    const client = await this.ensureSession();
+    const session = await this.ensureSession();
     const strategy = this.activeStrategy!; // set by ensureSession()
     childOf(this.guardian(), studentId); // validate before any side effect
     if (strategy.context?.childInFocus !== studentId) {
-      await strategy.focusChild(client, studentId);
+      await strategy.focusChild(session, studentId);
       this.persist(strategy.id);
     }
     return this.guardian();
   }
 
-  private activeStrategy: AuthStrategy | null = null;
+  private activeStrategy: AuthStrategy<S> | null = null;
 
   /** The web-login session, if one was stored (may be expired; the browser finds out). */
   getWebSession(): WebSession | null {

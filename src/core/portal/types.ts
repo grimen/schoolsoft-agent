@@ -1,10 +1,10 @@
 /**
  * The Portal is what an operation talks to: one method per capability a
- * guardian's SchoolSoft portal offers. Each capability declares, statically,
- * which providers can fulfil it, in order: the JSON APIs ("api") where they
- * exist, otherwise a headless browser over the legacy web pages ("browser").
- * Routing is deterministic (see composite.ts); the browser is never used for
- * something the API serves.
+ * guardian's school portal offers, vendor-neutral. Each provider declares,
+ * statically, which of its backends can fulfil a capability, in order:
+ * its JSON APIs ("api") where they exist, otherwise a headless browser
+ * over its web pages ("browser"). Routing is deterministic (see
+ * composite.ts); the browser is never used for something an API serves.
  */
 
 export type PortalProvider = "api" | "browser";
@@ -52,33 +52,23 @@ export interface Portal {
 
 export type Capability = keyof Portal;
 
-/** Provider order per capability. Every Portal method must appear here. */
-export const PROVIDERS: Record<Capability, readonly PortalProvider[]> = {
-  getParent: ["api"],
-  getLunchWeek: ["api"],
-  getNews: ["api"],
-  getInbox: ["api"],
-  getMessage: ["api"],
-  getNextCalendarEvent: ["api"],
-  getSession: ["api"],
-  getScheduleWeek: ["api"],
-  getAssignmentsWeek: ["api"],
-  getAssignmentDetail: ["api"],
-  getActivityLog: ["api"],
-  getContacts: ["browser"],
-  getSubjectRooms: ["api"],
-  getBookings: ["browser"],
-  getFiles: ["browser"],
-  getGrades: ["browser"],
-  getStudentDocuments: ["browser"],
-  getUnreportedAbsence: ["browser"],
-  getAttendanceReport: ["browser"],
-  getAssessmentCriteria: ["browser"],
-  getGradePrognosis: ["api"],
-};
-
-/** Capabilities that need a WEB login session (SchoolSoft's GDPR gate), whichever provider serves them. */
-export const WEB_SESSION_CAPABILITIES: readonly Capability[] = [
+/** Every capability, for runtime iteration; the type test keeps it in step with the Portal interface. */
+export const CAPABILITIES: readonly Capability[] = [
+  "getParent",
+  "getLunchWeek",
+  "getNews",
+  "getInbox",
+  "getMessage",
+  "getNextCalendarEvent",
+  "getSession",
+  "getScheduleWeek",
+  "getAssignmentsWeek",
+  "getAssignmentDetail",
+  "getActivityLog",
+  "getContacts",
+  "getSubjectRooms",
+  "getBookings",
+  "getFiles",
   "getGrades",
   "getStudentDocuments",
   "getUnreportedAbsence",
@@ -87,12 +77,8 @@ export const WEB_SESSION_CAPABILITIES: readonly Capability[] = [
   "getGradePrognosis",
 ];
 
-export const API_CAPABILITIES = (Object.keys(PROVIDERS) as Capability[]).filter((c) =>
-  PROVIDERS[c].includes("api"),
-);
-export const BROWSER_CAPABILITIES = (Object.keys(PROVIDERS) as Capability[]).filter(
-  (c) => !PROVIDERS[c].includes("api"),
-);
+/** Provider order per capability, declared by each SchoolProvider. */
+export type CapabilityRouting = Partial<Record<Capability, readonly PortalProvider[]>>;
 
 // ----- shapes returned by browser capabilities -----
 
@@ -218,5 +204,12 @@ export class SessionLostError extends Error {
         : `SchoolSoft redirected ${page} to the login page: the web session expired. Retry (it re-authenticates silently) or run login.`,
     );
     this.name = "SessionLostError";
+  }
+}
+
+export class CapabilityNotSupportedError extends Error {
+  constructor(capability: string, provider: string) {
+    super(`${capability} is not offered by the "${provider}" school portal provider.`);
+    this.name = "CapabilityNotSupportedError";
   }
 }

@@ -106,7 +106,7 @@ browser: build ## Download Chromium for the optional headless browser (contact l
 browser-verify: build ## Check every browser-read SchoolSoft page still has its anchors and recorded fingerprint (live)
 	node dist/cli/index.js browser verify
 
-fingerprints: ## Re-record page fingerprints from the live tenant into src/core/portal/fingerprints.ts (after a SchoolSoft update)
+fingerprints: ## Re-record page fingerprints from the live tenant into the provider's fingerprints.ts (after a portal update)
 	./node_modules/.bin/tsx scripts/fingerprints.ts
 
 # ---------- Generated artifacts ----------

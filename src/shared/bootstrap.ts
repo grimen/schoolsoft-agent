@@ -11,6 +11,7 @@ import {
   type OperationContext,
   createPortal,
   createSessionManager,
+  resolveProvider,
   defaultConfigDir,
   envSource,
   resolveConfig,
@@ -77,16 +78,17 @@ export function loadConfig(inputs: BootstrapInputs): Config {
 export function loadContext(inputs: BootstrapInputs): () => OperationContext {
   let ctx: OperationContext | null = null;
   return () => {
-    if (!ctx) {
-      const config = loadConfig(inputs);
-      const manager = createSessionManager(config);
-      ctx = {
-        manager,
-        portal: createPortal(manager, { engine: config.browser }),
-        config,
-        log: inputs.log ?? ((m) => console.error(m)),
-      };
-    }
-    return ctx;
+    if (ctx) return ctx;
+    const config = loadConfig(inputs);
+    const manager = createSessionManager(config);
+    const built: OperationContext = {
+      manager,
+      portal: createPortal(manager, { engine: config.browser }),
+      provider: resolveProvider(config),
+      config,
+      log: inputs.log ?? ((m) => console.error(m)),
+    };
+    ctx = built;
+    return built;
   };
 }

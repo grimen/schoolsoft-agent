@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { join } from "node:path";
 import { defineOperation } from "./types.js";
-import { SchoolDirectory } from "../api/schools.js";
 
 export const findSchool = defineOperation({
   name: "find_school",
   title: "Find school",
-  description: `Look up a school in SchoolSoft's public directory (~3400 schools) to get
-the tenant slug and orgId needed for configuration. No login required.
+  description: `Look up a school in the portal provider's public directory (SchoolSoft: ~3400
+schools) to get the tenant slug and orgId needed for configuration. No login required.
 
 Args:
   - query (string): school name or part of it, e.g. "Rösjöskolan" or "Täby".
@@ -24,7 +23,7 @@ configuring this integration for a new school.`,
   portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx, { query, limit }) {
-    const dir = new SchoolDirectory({ cacheFile: join(ctx.config.configDir, "schools.json") });
+    const dir = ctx.provider.createSchoolDirectory(join(ctx.config.configDir, "schools.json"));
     const schools = await dir.find(query, limit ?? 10);
     return { query, schools };
   },

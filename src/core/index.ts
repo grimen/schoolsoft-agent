@@ -17,37 +17,42 @@ export {
   createPortal,
   createApiPortal,
   createBrowserSession,
+  resolveProvider,
+  getProvider,
+  providerIds,
   type PortalDeps,
 } from "./wiring.js";
 export { CHARACTER_LIMIT, SCHOOLSOFT_USER_TYPES, type SchoolsoftUserType } from "./constants.js";
+export { DEFAULT_CALLBACK_PORT, awaitCallbackCode } from "./auth/callback-server.js";
+export { defaultOpenInBrowser, openerCommand } from "./auth/open-browser.js";
+export type {
+  SchoolProvider,
+  ProviderSession,
+  AuthDeps,
+  ApiPortalContext,
+  BrowserPortalContext,
+  WebLoginSpec,
+} from "./provider/types.js";
 export { SessionManager, NotAuthenticatedError } from "./session/session-manager.js";
 export type { PersistedSession, SessionStore } from "./session/store.js";
 export { MemorySessionStore } from "./session/store.js";
 export { FileSessionStore } from "./session/file-store.js";
 export type { AuthStrategy, LoginInfo } from "./auth/strategy.js";
-export { ApiPortal, GuardianApi } from "./portal/api-portal.js";
-export type { GuardianApiOptions, ApiFetch } from "./portal/api-portal.js";
 export { childOf, orgIdOf } from "./portal/guardian.js";
 export type { GuardianContext } from "./portal/guardian.js";
-export { EvaApi } from "./portal/api/eva-api.js";
-export { WebviewApi } from "./portal/api/webview-api.js";
-export { LegacyApi } from "./portal/api/legacy-api.js";
-export { WebSessionApi } from "./portal/api/web-session-api.js";
-export { SchoolsoftHttp } from "./portal/api/transport.js";
 export {
-  PROVIDERS,
-  API_CAPABILITIES,
-  BROWSER_CAPABILITIES,
+  CAPABILITIES,
   BROWSER_INSTALL_HINT,
   BrowserRequiredError,
+  CapabilityNotSupportedError,
   PortalGatedError,
   SessionLostError,
   WebLoginRequiredError,
-  WEB_SESSION_CAPABILITIES,
 } from "./portal/types.js";
 export type {
   Portal,
   Capability,
+  CapabilityRouting,
   PortalProvider,
   GuardianChild,
   GuardianParent,
@@ -63,27 +68,17 @@ export type {
 } from "./portal/types.js";
 export { createCompositePortal, providerOf } from "./portal/composite.js";
 export type { ApiPortalPart, BrowserPortalPart } from "./portal/composite.js";
-export {
-  SchoolDirectory,
-  rankSchools,
-  normalize,
-  parseSchoolList,
-  SCHOOL_LIST_URL,
-} from "./api/schools.js";
-export type { SchoolEntry, RankedSchool } from "./api/schools.js";
-export { decodeJwtClaims } from "./auth/oauth.js";
+export { rankSchools, normalize } from "./school-directory.js";
+export type { SchoolEntry, RankedSchool, SchoolDirectoryPort } from "./school-directory.js";
 export { operations, getOperation } from "./operations/registry.js";
 export { defineOperation, READ_ONLY } from "./operations/types.js";
 export type { Operation, OperationAnnotations, OperationContext } from "./operations/types.js";
 export { isoWeek } from "./operations/_shared.js";
-export { BrowserPortal, normalizeSubject } from "./portal/browser-portal.js";
-export { PAGES, PAGE_KEYS } from "./portal/pages.js";
-export type { PageSpec, PageKey } from "./portal/pages.js";
+export type { PageSpec, PageMap, PageFingerprint } from "./portal/page-spec.js";
 export { verifyPages } from "./portal/verify.js";
 export type { PageReport, PageStatus, VerifyOptions } from "./portal/verify.js";
-export { FINGERPRINTS } from "./portal/fingerprints.js";
-export { inspectPage } from "./portal/extractors.js";
-export type { PageInspection } from "./portal/extractors.js";
+export { inspectPage } from "./portal/inspect.js";
+export type { PageInspection } from "./portal/inspect.js";
 export { PlaywrightSession } from "./browser/playwright.js";
 export type { PlaywrightLike, PlaywrightLoader } from "./browser/playwright.js";
 export { browserStatus, installChromium } from "./browser/install.js";
@@ -94,5 +89,5 @@ export type {
   BrowserEngine,
   WithPageOptions,
 } from "./browser/session.js";
-export { webLogin, isPortalUrl } from "./browser/web-login.js";
+export { webLogin } from "./browser/web-login.js";
 export type { WebSession, WebCookie, WebLoginOptions } from "./browser/web-login.js";

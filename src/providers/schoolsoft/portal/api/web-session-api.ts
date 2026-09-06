@@ -4,7 +4,7 @@
  * that switches it (the portal's own child menu), and Avstämning. The web
  * session keeps its own child in focus, so gated reads align it first.
  */
-import { SessionLostError, WebLoginRequiredError } from "../types.js";
+import { SessionLostError, WebLoginRequiredError } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
 
 /** Shape of GET /rest-api/parent/header/parent (web session): who is selected. */

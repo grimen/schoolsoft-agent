@@ -9,7 +9,7 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import type { PersistedSession, SessionStore } from "./store.js";
+import { migratePersisted, type PersistedSession, type SessionStore } from "./store.js";
 
 export class FileSessionStore implements SessionStore {
   constructor(private readonly dir: string) {}
@@ -59,7 +59,7 @@ export class FileSessionStore implements SessionStore {
       const decipher = createDecipheriv("aes-256-gcm", key, iv);
       decipher.setAuthTag(tag);
       const plaintext = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-      return JSON.parse(plaintext.toString("utf8")) as PersistedSession;
+      return migratePersisted(JSON.parse(plaintext.toString("utf8")) as Record<string, unknown>);
     } catch {
       // Corrupt or tampered blob — treat as logged out.
       return null;

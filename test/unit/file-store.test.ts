@@ -12,9 +12,9 @@ function tmpStore(): { store: FileSessionStore; dir: string } {
 }
 
 const sample: PersistedSession = {
+  provider: "schoolsoft",
   school: "testskola",
-  accessToken: "secret-token",
-  refreshToken: "secret-refresh",
+  data: { accessToken: "secret-token", refreshToken: "secret-refresh" },
   savedAt: 1_700_000_000_000,
   authMethod: "bankid-browser",
 };
@@ -73,4 +73,46 @@ test("key and blob have owner-only permissions", () => {
     const mode = statSync(join(dir, f)).mode & 0o777;
     assert.equal(mode, 0o600, `${f} should be 0600, was ${mode.toString(8)}`);
   }
+});
+
+test("a blob written before the provider seam is migrated: SchoolSoft's top-level fields become data", async () => {
+  const { migratePersisted } = await import("../../src/core/session/store.js");
+  const legacy = {
+    school: "testskola",
+    accessToken: "a",
+    refreshToken: "r",
+    accessTokenExpiresAt: 5,
+    guardian: { userId: 1, parentName: "P", children: [], childInFocus: 1 },
+    savedAt: 2,
+    authMethod: "bankid-browser",
+  };
+  const migrated = migratePersisted(legacy);
+  assert.deepEqual(migrated.data, { accessToken: "a", refreshToken: "r", accessTokenExpiresAt: 5 });
+  assert.equal(
+    migrated.provider,
+    undefined,
+    "provider unknown for legacy files; the manager accepts them",
+  );
+  assert.equal(migrated.guardian?.userId, 1);
+  assert.deepEqual(
+    migratePersisted(sample as never),
+    sample,
+    "already migrated blobs pass through",
+  );
+  const { store } = tmpStore();
+  const { writeFileSync: w, readFileSync: r } = await import("node:fs");
+  const { createCipheriv, randomBytes } = await import("node:crypto");
+  // write a legacy-shaped blob with the store's own key
+  store.save(sample);
+  const dir = (store as unknown as { dir: string }).dir;
+  const key = r(dir + "/key.bin");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, iv);
+  const enc = Buffer.concat([cipher.update(Buffer.from(JSON.stringify(legacy))), cipher.final()]);
+  w(dir + "/session.enc", Buffer.concat([iv, cipher.getAuthTag(), enc]));
+  assert.deepEqual(store.load()?.data, {
+    accessToken: "a",
+    refreshToken: "r",
+    accessTokenExpiresAt: 5,
+  });
 });

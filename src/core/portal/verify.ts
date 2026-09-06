@@ -5,14 +5,13 @@
  * live structure suite. Read-only; drift is reported, never repaired.
  */
 import type { BrowserSession } from "../browser/session.js";
-import { inspectPage } from "./extractors.js";
-import { FINGERPRINTS } from "./fingerprints.js";
-import { PAGES, PAGE_KEYS, type PageKey } from "./pages.js";
+import { inspectPage } from "./inspect.js";
+import type { PageFingerprint, PageMap } from "./page-spec.js";
 
 export type PageStatus = "ok" | "drift" | "broken" | "skipped" | "error";
 
 export interface PageReport {
-  page: PageKey;
+  page: string;
   path: string;
   web: boolean;
   /** ok: anchors present, fingerprint as recorded (or none recorded); drift: anchors present, fingerprint changed; broken: an anchor is missing. */
@@ -25,23 +24,27 @@ export interface PageReport {
 }
 
 export interface VerifyOptions {
+  /** The provider's browser-read pages. */
+  pages: PageMap;
   hasWebSession: boolean;
   /** Align the web session's child in focus before the first gated page (the web session has its own). */
   syncWebChild?: () => Promise<void>;
-  pages?: readonly PageKey[];
-  fingerprints?: Partial<Record<PageKey, { fingerprint: string }>>;
+  /** Subset of page keys to verify; default all. */
+  only?: readonly string[];
+  /** The provider's recorded fingerprints (empty = never drift). */
+  fingerprints: Partial<Record<string, PageFingerprint>>;
 }
 
 export async function verifyPages(
   session: BrowserSession,
   o: VerifyOptions,
 ): Promise<PageReport[]> {
-  const known = o.fingerprints ?? FINGERPRINTS;
+  const known = o.fingerprints;
   const syncWebChild = o.syncWebChild ?? (async () => {});
   const out: PageReport[] = [];
   let synced = false;
-  for (const key of o.pages ?? PAGE_KEYS) {
-    const spec = PAGES[key];
+  for (const key of o.only ?? Object.keys(o.pages)) {
+    const spec = o.pages[key];
     const base = { page: key, path: spec.path, web: spec.web };
     if (spec.web && !o.hasWebSession) {
       out.push({ ...base, status: "skipped", missing: [], reason: "no web session (login --web)" });
@@ -55,10 +58,10 @@ export async function verifyPages(
       const query = spec.exampleQuery
         ? await session.withPage(
             async (page) => {
-              await page.goto(PAGES[spec.exampleQuery!.from].path);
+              await page.goto(o.pages[spec.exampleQuery!.from].path);
               return spec.exampleQuery!.resolve(page);
             },
-            { web: PAGES[spec.exampleQuery.from].web },
+            { web: o.pages[spec.exampleQuery.from].web },
           )
         : "";
       const r = await session.withPage(

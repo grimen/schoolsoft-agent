@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { runBrowserLogin } from "../../src/core/auth/browser-flow.js";
+import { runBrowserLogin } from "../../src/providers/schoolsoft/auth/browser-flow.js";
 
 let nextPort = 43200;
 function usePort(): number {
@@ -142,7 +142,7 @@ test("timeout rejects and closes the server; a non-callback path gets 404", asyn
 });
 
 test("default port and default opener are used when not given", async () => {
-  const { DEFAULT_CALLBACK_PORT } = await import("../../src/core/constants.js");
+  const { DEFAULT_CALLBACK_PORT } = await import("../../src/core/auth/callback-server.js");
   const login = runBrowserLogin({
     school: "testskola",
     openBrowser: (authUrl) => {
@@ -158,7 +158,7 @@ test("default port and default opener are used when not given", async () => {
 test("defaultOpenInBrowser spawns the platform opener detached and survives a missing binary", async () => {
   const { EventEmitter } = await import("node:events");
   const { defaultOpenInBrowser, openerCommand } =
-    await import("../../src/core/auth/browser-flow.js");
+    await import("../../src/core/auth/open-browser.js");
   assert.deepEqual(openerCommand("http://x?a=1&b=2", "darwin"), ["open", "http://x?a=1&b=2"]);
   assert.deepEqual(openerCommand("http://x?a=1&b=2", "win32"), [
     "cmd",

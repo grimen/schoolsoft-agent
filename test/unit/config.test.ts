@@ -56,6 +56,7 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     OTHER: "x",
   });
   assert.deepEqual(s, {
+    provider: undefined,
     school: "taby",
     orgId: undefined,
     userType: undefined,
@@ -279,5 +280,17 @@ test("createPortal honours an explicit null browser; web cookies are null withou
   await assert.rejects(
     session.withPage(async () => 0, { web: true }),
     /login --web/,
+  );
+});
+
+test("provider: defaults to schoolsoft, taken from SCHOOLSOFT_PROVIDER or a source, and resolved through the registry", async () => {
+  const { resolveProvider } = await import("../../src/core/wiring.js");
+  assert.equal(resolveConfig([{ school: "s" }], defaults).provider, "schoolsoft");
+  assert.equal(envSource({ SCHOOLSOFT_PROVIDER: "other" }).provider, "other");
+  assert.equal(resolveConfig([{ school: "s", provider: "other" }], defaults).provider, "other");
+  assert.equal(resolveProvider(resolveConfig([{ school: "s" }], defaults)).id, "schoolsoft");
+  assert.throws(
+    () => resolveProvider({ provider: "other" }),
+    /Unknown school portal provider "other"/,
   );
 });

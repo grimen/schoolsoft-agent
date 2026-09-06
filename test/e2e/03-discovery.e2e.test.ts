@@ -62,14 +62,14 @@ test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
 test("D3: token lifetime snapshot for longitudinal tracking", { skip }, async () => {
   // Rerun this suite over several days; the report accumulates a
   // timeline showing when refresh happens vs when re-login is forced.
-  const { loadPersisted } = await import("./helpers.js");
+  const { loadPersisted, creds } = await import("./helpers.js");
   const saved = loadPersisted();
   record(
     "Q4d",
     `Lifetime snapshot @ ${new Date().toISOString()}`,
     saved
       ? `authMethod=${saved.authMethod}, savedAt=${new Date(saved.savedAt).toISOString()}, ` +
-          `expiresAt=${saved.accessTokenExpiresAt ? new Date(saved.accessTokenExpiresAt * 1000).toISOString() : "?"}`
+          `expiresAt=${creds(saved).accessTokenExpiresAt ? new Date(creds(saved).accessTokenExpiresAt! * 1000).toISOString() : "?"}`
       : "no session",
   );
   assert.ok(true);

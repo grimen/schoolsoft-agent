@@ -1,14 +1,17 @@
 /**
- * Web login: the user logs in through SchoolSoft's normal web page (SAML /
+ * Web login: the user logs in through the portal's normal web page (SAML /
  * BankID) inside a browser window we open, and we keep that browser's
- * cookies. Only a session created this way passes SchoolSoft's GDPR gate on
- * grades, student documents and attendance; the app-token session does not.
+ * cookies. Only a session created this way passes login gates the app
+ * session cannot (SchoolSoft's GDPR gate on grades and documents).
  *
  * Nothing about the login is automated: the window is headed, the user does
  * everything, we only wait for the portal to appear and then read cookies.
+ * Which URL to open and what counts as "the portal appeared" come from the
+ * provider (WebLoginSpec).
  */
 import type { BrowserEngine } from "./session.js";
 import { defaultLoader, type PlaywrightLoader } from "./playwright.js";
+import type { WebLoginSpec } from "../provider/types.js";
 
 export interface WebCookie {
   name: string;
@@ -30,9 +33,10 @@ export interface WebSession {
 
 export interface WebLoginOptions {
   school: string;
+  /** Provider-specific: where to open, what a landed portal page looks like. */
+  spec: WebLoginSpec;
   engine?: BrowserEngine;
   loader?: PlaywrightLoader;
-  origin?: string;
   /** Give up after this long without a logged-in portal page. */
   timeoutMs?: number;
   /** Polling interval. */
@@ -41,18 +45,8 @@ export interface WebLoginOptions {
   onOpen?: (url: string) => void;
 }
 
-const LOGIN_MARKERS =
-  /\/jsp\/Login\.jsp|\/samlLogin\.jsp|\/rest-api\/login\/|\/react\/#\/login|etjanst\.|\/wa\/auth\//;
-
-/** True when a URL on the tenant is a portal page rather than any login step. */
-export function isPortalUrl(url: string, origin: string, school: string): boolean {
-  if (!url.startsWith(`${origin}/${school}/`)) return false;
-  if (LOGIN_MARKERS.test(url)) return false;
-  return /\/jsp\/(student|parent|teacher)\/|\/react\/#\/(parent|student)\//.test(url);
-}
-
 export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
-  const origin = o.origin ?? "https://sms.schoolsoft.se";
+  const origin = o.spec.origin;
   /* c8 ignore next: real playwright default, exercised by make login-web */
   const loader = o.loader ?? defaultLoader;
   const engine = o.engine ?? { kind: "chromium", headless: false };
@@ -66,7 +60,7 @@ export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
   try {
     const context = await browser.newContext({ locale: "sv-SE" });
     const page = await context.newPage();
-    const loginUrl = `${origin}/${o.school}/`;
+    const loginUrl = o.spec.loginUrl(o.school);
     o.onOpen?.(loginUrl);
     await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
     const deadline = Date.now() + timeoutMs;
@@ -76,13 +70,13 @@ export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
         context
           .pages()
           .map((p) => p.url())
-          .find((u) => isPortalUrl(u, origin, o.school)) ?? page.url();
-      if (isPortalUrl(url, origin, o.school)) {
+          .find((u) => o.spec.isPortalUrl(u, o.school)) ?? page.url();
+      if (o.spec.isPortalUrl(url, o.school)) {
         const host = new URL(origin).hostname;
         const cookies = (await context.cookies()).filter(
           (c) => c.domain.replace(/^\./, "") === host,
         );
-        if (cookies.some((c) => c.name === "JSESSIONID")) {
+        if (cookies.length > 0) {
           return {
             cookies: cookies.map((c) => ({
               name: c.name,
@@ -101,7 +95,7 @@ export async function webLogin(o: WebLoginOptions): Promise<WebSession> {
       await new Promise((r) => setTimeout(r, pollMs));
     }
     throw new Error(
-      `Web login timed out after ${Math.round(timeoutMs / 1000)} s without reaching the SchoolSoft portal. Run login --web again.`,
+      `Web login timed out after ${Math.round(timeoutMs / 1000)} s without reaching the school portal. Run login --web again.`,
     );
   } finally {
     await browser.close().catch(() => {});

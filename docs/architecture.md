@@ -30,17 +30,27 @@ SchoolSoft's guardian app uses OAuth 2 with PKCE. We use the same flow, with a l
 
 Two backends serve the data afterwards. The **Eva API** takes the Bearer token and serves profile, lunch, news and messages. The **webview REST** API takes the cookies, which are bound to one child (`childInFocus`), and serves schedule and assignments. Switching child means one more cookie exchange; the operations do that when `child_id` changes.
 
+## Provider seam: one vendor today, room for the next
+
+The capability vocabulary (Portal), the operations and everything generated from them, the session lifecycle, the browser session guard and the two "BankID in the user's own browser" mechanics (localhost callback server, headed-browser cookie capture) are vendor-neutral and live in core. Everything SchoolSoft-specific lives under `src/providers/schoolsoft/` behind the `SchoolProvider` interface (`src/core/provider/types.ts`): which capabilities it serves and how (`routing`), its auth strategies, its API and browser portals, the pages it reads and their fingerprints, and how to recognise its own login pages (`webLogin`). A provider owns its session object (credentials holder) and the persisted `data` blob; core never names a field of it.
+
+The registry in `src/providers/index.ts` maps ids to providers; `config.provider` (env `SCHOOLSOFT_PROVIDER`) selects one and defaults to `schoolsoft`, so nothing changes for current users. `src/core/wiring.ts` is the only core module that may import providers (the boundary checker enforces it); providers import core modules directly, never `core/index.ts`, so there is no import cycle; adapters never see a provider. A capability a provider does not route fails with `CapabilityNotSupportedError` naming the provider.
+
+`test/contract/provider.contract.test.ts` runs the same assertions against every registered provider with no network: routing refers to real capabilities, pages declare anchors, the session serialises to JSON, every strategy implements the whole contract, and the portals cover the routing. A new vendor passes it before it gets a PR. Deliberately deferred until a second vendor exists: normalising the raw JSON capabilities into domain types, and renaming the `SCHOOLSOFT_*` env vars, the `schoolsoft_` tool prefix and the SchoolSoft-specific config keys (`userType`, `clientId`).
+
+Swedish portals all end their login in BankID; the two capture paths above cover an OAuth-style redirect (SchoolSoft) and a plain SAML/e-tjänst web login (everyone else), so a new provider chooses one and writes no browser code.
+
 ## Design principles
 
 The layout is SOLID by construction, and the boundary tests make it stay that way:
 
-| Principle             | Where it shows                                                                                                                                                                                                       | What enforces it                                                                   |
-| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Single responsibility | one backend class per JSON API under `portal/api/`, `api-portal.ts` only composes; `config.ts` is a pure model, `wiring.ts` builds the object graph; extractors, page specs and the session guard are separate files | review; file headers state the one job                                             |
-| Open/closed           | a capability is one operation file + one registry line; a page is one `pages.ts` entry; an auth method is one `AuthStrategy`; tools, commands, docs and skills are generated                                         | drift tests on generated docs and skills                                           |
-| Liskov                | fakes implement the same ports as production; `AuthStrategy` has no optional methods                                                                                                                                 | type checker (fakes are typed against the port)                                    |
-| Interface segregation | each operation declares `portal: [...]` and receives `Pick<Portal, C>`; `ApiPortalPart` / `BrowserPortalPart` split the producer side                                                                                | `test/boundary/registry.test.ts` compares declarations with source                 |
-| Dependency inversion  | core sees ports only; store, fetch, browser, spawn, web login and clock are injected with defaults in `wiring.ts`                                                                                                    | `make boundaries`, `test/boundary/imports.test.ts`, the 100% offline coverage gate |
+| Principle             | Where it shows                                                                                                                                                                                                                                                 | What enforces it                                                                   |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Single responsibility | one vendor per `src/providers/<id>/`; one backend class per JSON API under its `portal/api/`, `api-portal.ts` only composes; `config.ts` is a pure model, `wiring.ts` builds the object graph; extractors, page specs and the session guard are separate files | review; file headers state the one job                                             |
+| Open/closed           | a capability is one operation file + one registry line; a page is one `pages.ts` entry; an auth method is one `AuthStrategy`; tools, commands, docs and skills are generated                                                                                   | drift tests on generated docs and skills                                           |
+| Liskov                | fakes implement the same ports as production; `AuthStrategy` has no optional methods                                                                                                                                                                           | type checker (fakes are typed against the port)                                    |
+| Interface segregation | each operation declares `portal: [...]` and receives `Pick<Portal, C>`; `ApiPortalPart` / `BrowserPortalPart` split the producer side                                                                                                                          | `test/boundary/registry.test.ts` compares declarations with source                 |
+| Dependency inversion  | core sees ports only; store, fetch, browser, spawn, web login and clock are injected with defaults in `wiring.ts`                                                                                                                                              | `make boundaries`, `test/boundary/imports.test.ts`, the 100% offline coverage gate |
 
 ## Portal adapter: API first, browser where no API exists
 
@@ -69,7 +79,9 @@ The retry exists because the alternative is a BankID round for the user. Refresh
 ## Repository layout
 
 ```
-src/core/         auth/, portal/ (types, guardian, pages, extractors, verify, fingerprints, browser-portal, composite, api-portal + api/{transport,eva-api,webview-api,legacy-api,web-session-api}), browser/ (session, playwright, optional-playwright, install, web-login), session/, operations/, config.ts (model), wiring.ts (composition root), constants.ts, index.ts
+src/core/         vendor-neutral: provider/ (SchoolProvider seam), auth/ (strategy port, callback server, opener), portal/ (Portal types, guardian, page-spec, inspect, verify, composite), browser/ (session guard, playwright, optional-playwright, install, web-login), session/, operations/, school-directory.ts, config.ts (model), wiring.ts (composition root; the one core file that imports providers), constants.ts, index.ts
+src/providers/    one directory per school portal vendor implementing SchoolProvider + index.ts registry
+src/providers/schoolsoft/  auth/ (BankID via SchoolSoft OAuth, token/cookie exchange), portal/ (api-portal facade + api/{transport,eva,webview,legacy,web-session}, browser-portal, pages, extractors, fingerprints), routing.ts, session.ts, web-login.ts, schools.ts
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
 src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts

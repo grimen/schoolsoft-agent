@@ -7,7 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { verifyPages } from "../../src/core/portal/verify.js";
-import { PAGES, PAGE_KEYS } from "../../src/core/portal/pages.js";
+import { PAGES, PAGE_KEYS, type PageKey } from "../../src/providers/schoolsoft/portal/pages.js";
 import type {
   BrowserSession,
   PortalPage,
@@ -50,10 +50,14 @@ const healthy = (fp: string) => (_path: string, anchors: string[]) => ({
 
 test("all anchors present and no recorded fingerprint → ok; gated pages skipped without a web session", async () => {
   const { session, visits } = fakeSession(healthy("abcd1234"));
-  const reports = await verifyPages(session, { hasWebSession: false, fingerprints: {} });
+  const reports = await verifyPages(session, {
+    pages: PAGES,
+    hasWebSession: false,
+    fingerprints: {},
+  });
   assert.equal(reports.length, PAGE_KEYS.length);
   for (const r of reports) {
-    assert.equal(r.status, PAGES[r.page].web ? "skipped" : "ok", r.page);
+    assert.equal(r.status, PAGES[r.page as PageKey].web ? "skipped" : "ok", r.page);
   }
   assert.ok(
     visits.every((v) => v.web === false),
@@ -63,7 +67,11 @@ test("all anchors present and no recorded fingerprint → ok; gated pages skippe
 
 test("with a web session every page is visited with its cookies; criteria gets an example query from the subject menu", async () => {
   const { session, visits } = fakeSession(healthy("abcd1234"));
-  const reports = await verifyPages(session, { hasWebSession: true, fingerprints: {} });
+  const reports = await verifyPages(session, {
+    pages: PAGES,
+    hasWebSession: true,
+    fingerprints: {},
+  });
   assert.ok(
     reports.every((r) => r.status === "ok"),
     JSON.stringify(reports),
@@ -93,9 +101,13 @@ test("missing anchors → broken; changed fingerprint → drift; a page error is
     PAGES.files.path,
   );
   const reports = await verifyPages(session, {
+    pages: PAGES,
     hasWebSession: false,
-    pages: ["contacts", "bookings", "files"],
-    fingerprints: { bookings: { fingerprint: "00000000" }, contacts: { fingerprint: "ffffffff" } },
+    only: ["contacts", "bookings", "files"],
+    fingerprints: {
+      bookings: { fingerprint: "00000000", recordedAt: "2026-09-06" },
+      contacts: { fingerprint: "ffffffff", recordedAt: "2026-09-06" },
+    },
   });
   const by = Object.fromEntries(reports.map((r) => [r.page, r]));
   assert.equal(by.contacts.status, "broken");
@@ -114,8 +126,9 @@ test("without a sync hook gated pages still verify; an inspection lacking an anc
     nodes: 1,
   }));
   const reports = await verifyPages(session, {
+    pages: PAGES,
     hasWebSession: true,
-    pages: ["grades", "contacts"],
+    only: ["grades", "contacts"],
     fingerprints: {},
   });
   assert.deepEqual(

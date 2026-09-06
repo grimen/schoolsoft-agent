@@ -4,36 +4,26 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import { SessionManager, NotAuthenticatedError } from "../../src/core/session/session-manager.js";
 import { MemorySessionStore } from "../../src/core/session/store.js";
 import type { AuthStrategy, LoginInfo } from "../../src/core/auth/strategy.js";
 import type { PersistedSession } from "../../src/core/session/store.js";
+import { fakeSession, serializeFake, type FakeSession } from "../helpers/fakes.js";
 
-function fakeClient(overrides: Partial<SchoolsoftClient> = {}): SchoolsoftClient {
-  return {
-    school: "testskola",
-    accessToken: "tok",
-    refreshToken: "ref",
-    verifySession: async () => true,
-    ...overrides,
-  } as unknown as SchoolsoftClient;
-}
-
-class FakeStrategy implements AuthStrategy {
+class FakeStrategy implements AuthStrategy<FakeSession> {
   readonly id = "fake";
   loginCalls = 0;
   restoreCalls = 0;
   restoreShouldFail = false;
   loginShouldFailAfterTokens = false;
 
-  async login(_client: SchoolsoftClient): Promise<LoginInfo> {
+  async login(_session: FakeSession): Promise<LoginInfo> {
     this.loginCalls++;
     if (this.loginShouldFailAfterTokens) throw new Error("exchange exploded");
     return { name: "Test Testsson", schoolName: "Testskolan", userType: "2" };
   }
 
-  async restore(_client: SchoolsoftClient, _saved: PersistedSession): Promise<void> {
+  async restore(_session: FakeSession, _saved: PersistedSession): Promise<void> {
     this.restoreCalls++;
     if (this.restoreShouldFail) throw new Error("boom");
   }
@@ -45,16 +35,17 @@ function makeManager(
   opts: {
     store?: MemorySessionStore;
     strategy?: FakeStrategy;
-    client?: SchoolsoftClient;
+    client?: FakeSession;
   } = {},
 ) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = opts.strategy ?? new FakeStrategy();
-  const manager = new SessionManager({
+  const manager = new SessionManager<FakeSession>({
     school: "testskola",
     store,
     strategies: [strategy],
-    clientFactory: () => opts.client ?? fakeClient(),
+    createSession: () => opts.client ?? fakeSession(),
+    serialize: serializeFake,
   });
   return { manager, store, strategy };
 }
@@ -79,7 +70,7 @@ test("ensureSession restores from store via the saving strategy", async () => {
   const store = new MemorySessionStore();
   store.save({
     school: "testskola",
-    accessToken: "tok",
+    data: { accessToken: "tok" },
     savedAt: Date.now(),
     authMethod: "fake",
   });
@@ -92,7 +83,7 @@ test("failed restore clears the store and throws NotAuthenticatedError", async (
   const store = new MemorySessionStore();
   store.save({
     school: "testskola",
-    accessToken: "tok",
+    data: { accessToken: "tok" },
     savedAt: Date.now(),
     authMethod: "fake",
   });
@@ -108,7 +99,7 @@ test("session saved for another school is rejected and cleared", async () => {
   const store = new MemorySessionStore();
   store.save({
     school: "annanskola",
-    accessToken: "tok",
+    data: { accessToken: "tok" },
     savedAt: Date.now(),
     authMethod: "fake",
   });
@@ -121,11 +112,11 @@ test("dead session (verifySession false) throws and clears", async () => {
   const store = new MemorySessionStore();
   store.save({
     school: "testskola",
-    accessToken: "tok",
+    data: { accessToken: "tok" },
     savedAt: Date.now(),
     authMethod: "fake",
   });
-  const client = fakeClient({ verifySession: async () => false } as Partial<SchoolsoftClient>);
+  const client = fakeSession({ verify: async () => false });
   const { manager } = makeManager({ store, client });
   await assert.rejects(() => manager.ensureSession(), NotAuthenticatedError);
   assert.equal(store.load(), null);
@@ -142,7 +133,7 @@ test("login failure after tokens were obtained still persists the tokens", async
   await assert.rejects(() => manager.login(), /exchange exploded/);
   const saved = store.load();
   assert.ok(saved, "tokens persisted despite login failure");
-  assert.equal(saved.accessToken, "tok");
+  assert.equal(saved.data.accessToken, "tok");
   assert.equal(saved.authMethod, "fake");
 });
 
@@ -153,27 +144,46 @@ test("login failure before any token leaves the store empty", async () => {
   const { manager } = makeManager({
     store,
     strategy,
-    client: fakeClient({ accessToken: null } as Partial<SchoolsoftClient>),
+    client: fakeSession({ accessToken: null, refreshToken: null }),
   });
   await assert.rejects(() => manager.login(), /exchange exploded/);
   assert.equal(store.load(), null);
 });
 
-test("login persists the access token expiry (JWT exp, unix seconds)", async () => {
-  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
-  const jwt = `${b64({ alg: "RS256" })}.${b64({ exp: 1_800_000_000 })}.sig`;
+test("login persists whatever the provider serializes, verbatim", async () => {
   const store = new MemorySessionStore();
   const { manager } = makeManager({
     store,
-    client: fakeClient({ accessToken: jwt } as Partial<SchoolsoftClient>),
+    client: fakeSession({ accessToken: "A", refreshToken: "R" }),
   });
   await manager.login();
-  assert.equal(store.load()?.accessTokenExpiresAt, 1_800_000_000);
+  assert.deepEqual(store.load()?.data, { accessToken: "A", refreshToken: "R" });
+});
+
+test("a session saved by another provider is refused and cleared", async () => {
+  const store = new MemorySessionStore();
+  store.save({
+    provider: "othervendor",
+    school: "testskola",
+    data: {},
+    savedAt: 1,
+    authMethod: "fake",
+  });
+  const { manager } = makeManager({ store });
+  await assert.rejects(manager.ensureSession(), /provider "othervendor", not "schoolsoft"/);
+  assert.equal(store.load(), null);
 });
 
 test("guards: no strategies, unknown strategy id, explicit strategy id, unknown saved authMethod falls back", async () => {
   assert.throws(
-    () => new SessionManager({ school: "s", store: new MemorySessionStore(), strategies: [] }),
+    () =>
+      new SessionManager<FakeSession>({
+        school: "s",
+        store: new MemorySessionStore(),
+        strategies: [],
+        createSession: () => fakeSession(),
+        serialize: serializeFake,
+      }),
     /at least one AuthStrategy/,
   );
   const { manager, store, strategy } = makeManager();
@@ -188,13 +198,12 @@ test("guards: no strategies, unknown strategy id, explicit strategy id, unknown 
 
 test("persist copes with a client without tokens; a non-Error restore failure is stringified", async () => {
   const { manager, store } = makeManager({
-    client: fakeClient({ accessToken: null as never, refreshToken: null as never }),
+    client: fakeSession({ accessToken: null, refreshToken: null }),
   });
   await manager.login();
   const saved = store.load()!;
-  assert.equal(saved.accessToken, undefined);
-  assert.equal(saved.refreshToken, undefined);
-  assert.equal(saved.accessTokenExpiresAt, undefined);
+  assert.deepEqual(saved.data, {}, "nothing to persist from a session without tokens");
+  assert.equal(saved.provider, "schoolsoft", "default provider id recorded");
 
   class Weird extends FakeStrategy {
     override async restore(): Promise<void> {
