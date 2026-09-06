@@ -6,6 +6,8 @@
 [![npm](https://img.shields.io/npm/v/schoolsoft-agent)](https://www.npmjs.com/package/schoolsoft-agent)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 
+<img src="docs/assets/readme-hero.svg" alt="A parent asks their AI agent about school. The agent reaches schoolsoft-agent through its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft. SchoolSoft is a trademark of SchoolSoft AB, not involved in this project." width="960">
+
 SchoolSoft for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, lunch menu, assignments, news and the message inbox. Login is BankID in your own browser; nothing is automated around it, and the session is stored encrypted on your machine.
 
 Two surfaces, one core. Pick the one your host supports or you prefer:
@@ -88,7 +90,7 @@ Layout, boundaries and the test pyramid are in [docs/architecture.md](docs/archi
 
 ## Trademark and independence
 
-SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. The name is used only to describe what the software connects to. If SchoolSoft AB objects to any use of the name or to the automated access, open an issue and it will be addressed.
+SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. The name is used only to describe what the software connects to. BankID is a trademark of Finansiell ID-Teknik BID AB; Claude, OpenCode, OpenClaw, Hermes and Pi are trademarks of their respective owners. All are named descriptively, and none of these organisations is involved in or endorses this project. No logos or brand assets are used. If any rights holder objects to a use of their name, open an issue and it will be addressed.
 
 ## License
 

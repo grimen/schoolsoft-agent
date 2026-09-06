@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="340" viewBox="0 0 960 340" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="schoolsoft-agent: a parent asks their AI agent about school; the agent reaches schoolsoft-agent through either its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#64748b"/>
+    </marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#2563eb"/>
+    </marker>
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f1f5f9"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+  </defs>
+
+  <!-- canvas -->
+  <rect x="0.5" y="0.5" width="959" height="339" rx="16" fill="#f8fafc" stroke="#e2e8f0"/>
+
+  <!-- ===== Column 1: a parent and their agent ===== -->
+  <text x="150" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#334155" letter-spacing="1">A PARENT ASKS</text>
+
+  <!-- chat bubble -->
+  <g transform="translate(40 62)">
+    <path d="M12 0 H208 a12 12 0 0 1 12 12 V64 a12 12 0 0 1 -12 12 H40 L22 94 V76 H12 a12 12 0 0 1 -12 -12 V12 a12 12 0 0 1 12 -12 z" fill="#ffffff" stroke="#cbd5e1"/>
+    <text x="16" y="30" font-size="13" fill="#0f172a">Vad har Ella på schemat</text>
+    <text x="16" y="50" font-size="13" fill="#0f172a">på fredag?</text>
+  </g>
+
+  <!-- agent reply -->
+  <g transform="translate(70 172)">
+    <path d="M12 0 H178 a12 12 0 0 1 12 12 V56 a12 12 0 0 1 -12 12 H12 a12 12 0 0 1 -12 -12 V12 a12 12 0 0 1 12 -12 z" fill="#eff6ff" stroke="#bfdbfe"/>
+    <text x="14" y="26" font-size="12" fill="#1e3a8a">Idrott 08:15, sedan matte.</text>
+    <text x="14" y="46" font-size="12" fill="#1e3a8a">Skolan slutar 13:40.</text>
+  </g>
+
+  <!-- host chips -->
+  <text x="150" y="268" text-anchor="middle" font-size="10" fill="#64748b" letter-spacing="0.5">ANY AGENT HOST</text>
+  <g font-size="10" fill="#334155">
+    <rect x="32" y="278" width="64" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/><text x="64" y="292" text-anchor="middle">Claude</text>
+    <rect x="102" y="278" width="72" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/><text x="138" y="292" text-anchor="middle">OpenCode</text>
+    <rect x="180" y="278" width="62" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/><text x="211" y="292" text-anchor="middle">Hermes</text>
+    <rect x="58" y="304" width="72" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/><text x="94" y="318" text-anchor="middle">OpenClaw</text>
+    <rect x="136" y="304" width="40" height="20" rx="10" fill="#ffffff" stroke="#cbd5e1"/><text x="156" y="318" text-anchor="middle">Pi</text>
+    <text x="188" y="318" fill="#94a3b8">…</text>
+  </g>
+
+  <!-- arrows column 1 -> 2 -->
+  <line x1="268" y1="128" x2="322" y2="128" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="295" y="118" text-anchor="middle" font-size="10" fill="#2563eb">MCP</text>
+  <line x1="268" y1="200" x2="322" y2="200" stroke="#2563eb" stroke-width="2" marker-end="url(#arrowBlue)"/>
+  <text x="295" y="190" text-anchor="middle" font-size="10" fill="#2563eb">shell</text>
+
+  <!-- ===== Column 2: schoolsoft-agent ===== -->
+  <text x="480" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#334155" letter-spacing="1">SCHOOLSOFT-AGENT</text>
+
+  <!-- two surfaces -->
+  <g transform="translate(330 92)">
+    <rect x="0" y="0" width="140" height="56" rx="10" fill="url(#card)" stroke="#cbd5e1"/>
+    <text x="70" y="24" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a">MCP server</text>
+    <text x="70" y="42" text-anchor="middle" font-size="10" fill="#64748b">one tool per operation</text>
+  </g>
+  <g transform="translate(330 164)">
+    <rect x="0" y="0" width="140" height="56" rx="10" fill="url(#card)" stroke="#cbd5e1"/>
+    <text x="70" y="24" text-anchor="middle" font-size="12" font-weight="700" fill="#0f172a">CLI + skill</text>
+    <text x="70" y="42" text-anchor="middle" font-size="10" fill="#64748b">one command per operation</text>
+  </g>
+
+  <!-- join lines into the core -->
+  <path d="M470 120 H492 V156 H500" fill="none" stroke="#64748b" stroke-width="1.5"/>
+  <path d="M470 192 H492 V156" fill="none" stroke="#64748b" stroke-width="1.5"/>
+  <line x1="492" y1="156" x2="504" y2="156" stroke="#64748b" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+  <!-- core -->
+  <g transform="translate(508 84)">
+    <rect x="0" y="0" width="126" height="144" rx="14" fill="url(#core)"/>
+    <text x="63" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="#ffffff" letter-spacing="0.5">ONE CORE</text>
+    <g font-size="10" fill="#dbeafe">
+      <text x="63" y="56" text-anchor="middle">operation registry</text>
+      <text x="63" y="76" text-anchor="middle">guardian API</text>
+      <text x="63" y="96" text-anchor="middle">encrypted session</text>
+      <text x="63" y="116" text-anchor="middle">silent refresh</text>
+    </g>
+    <text x="63" y="135" text-anchor="middle" font-size="9" fill="#93c5fd">MIT · independent</text>
+  </g>
+
+  <!-- BankID in the parent's browser (never automated) -->
+  <g transform="translate(514 252)">
+    <rect x="0" y="0" width="114" height="60" rx="10" fill="#ffffff" stroke="#cbd5e1"/>
+    <!-- phone glyph -->
+    <rect x="12" y="12" width="20" height="36" rx="4" fill="none" stroke="#334155" stroke-width="1.5"/>
+    <circle cx="22" cy="42" r="1.5" fill="#334155"/>
+    <path d="M17 30 l4 4 l7 -9" fill="none" stroke="#16a34a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="42" y="26" font-size="10" font-weight="700" fill="#0f172a">BankID</text>
+    <text x="42" y="40" font-size="9" fill="#64748b">your browser,</text>
+    <text x="42" y="52" font-size="9" fill="#64748b">never automated</text>
+  </g>
+  <path d="M571 252 V236" fill="none" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="3 3" marker-end="url(#arrow)"/>
+
+  <!-- arrow column 2 -> 3 -->
+  <line x1="640" y1="156" x2="704" y2="156" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="672" y="146" text-anchor="middle" font-size="9" fill="#64748b">the app's</text>
+  <text x="672" y="172" text-anchor="middle" font-size="9" fill="#64748b">own APIs</text>
+
+  <!-- ===== Column 3: SchoolSoft ===== -->
+  <text x="820" y="40" text-anchor="middle" font-size="13" font-weight="700" fill="#334155" letter-spacing="1">THE SCHOOL</text>
+
+  <!-- school building -->
+  <g transform="translate(766 60)">
+    <path d="M0 40 L54 6 L108 40 Z" fill="#e2e8f0" stroke="#94a3b8"/>
+    <rect x="8" y="40" width="92" height="52" fill="#ffffff" stroke="#94a3b8"/>
+    <rect x="46" y="62" width="16" height="30" fill="#cbd5e1"/>
+    <rect x="18" y="50" width="12" height="12" fill="#bfdbfe"/>
+    <rect x="78" y="50" width="12" height="12" fill="#bfdbfe"/>
+    <circle cx="54" cy="30" r="6" fill="#ffffff" stroke="#94a3b8"/>
+    <path d="M54 26 V30 H57" fill="none" stroke="#334155" stroke-width="1.2"/>
+  </g>
+
+  <!-- data tiles -->
+  <g font-size="10" fill="#0f172a">
+    <rect x="716" y="170" width="98" height="30" rx="8" fill="#ffffff" stroke="#cbd5e1"/><text x="765" y="189" text-anchor="middle">schedule</text>
+    <rect x="822" y="170" width="98" height="30" rx="8" fill="#ffffff" stroke="#cbd5e1"/><text x="871" y="189" text-anchor="middle">lunch menu</text>
+    <rect x="716" y="208" width="98" height="30" rx="8" fill="#ffffff" stroke="#cbd5e1"/><text x="765" y="227" text-anchor="middle">assignments</text>
+    <rect x="822" y="208" width="98" height="30" rx="8" fill="#ffffff" stroke="#cbd5e1"/><text x="871" y="227" text-anchor="middle">news</text>
+    <rect x="716" y="246" width="98" height="30" rx="8" fill="#ffffff" stroke="#cbd5e1"/><text x="765" y="265" text-anchor="middle">messages</text>
+    <rect x="822" y="246" width="98" height="30" rx="8" fill="#eff6ff" stroke="#bfdbfe"/><text x="871" y="265" text-anchor="middle" fill="#2563eb">per child</text>
+  </g>
+
+  <text x="818" y="296" text-anchor="middle" font-size="9" fill="#94a3b8">SchoolSoft is a trademark of SchoolSoft AB,</text>
+  <text x="818" y="309" text-anchor="middle" font-size="9" fill="#94a3b8">which is not involved in this project</text>
+
+  <!-- footer tagline -->
+  <text x="480" y="326" text-anchor="middle" font-size="11" fill="#64748b">Pick the surface your host supports. Same core, same session, same answers.</text>
+</svg>
