@@ -16,8 +16,9 @@ export const SECTIONS = [
     file: "system-overview.mmd",
     title: "System overview",
     outro:
-      "One core, two surfaces, many hosts. The core knows SchoolSoft; the surfaces know\n" +
-      "how agents talk; the hosts are somebody else's software.",
+      "One vendor-neutral core, two surfaces, many hosts. Everything SchoolSoft-specific sits\n" +
+      "behind the SchoolProvider seam in src/providers/schoolsoft; the surfaces know how agents\n" +
+      "talk; the hosts are somebody else's software.",
   },
   {
     file: "operation-registry.mmd",
@@ -30,15 +31,24 @@ export const SECTIONS = [
     file: "login-flow.mmd",
     title: "Login, step by step",
     outro:
-      "SchoolSoft stamps the user type into the token from the OAuth client id\n" +
-      "(`vApp` = guardian); the cookie exchange binds the webview session to one child.",
+      "Two logins, both BankID in the user's own browser. The app session (top) is what every\n" +
+      "API call uses; SchoolSoft stamps the user type into the token from the OAuth client id\n" +
+      "(`vApp` = guardian) and the cookie exchange binds it to one child. The web session\n" +
+      "(bottom) exists only because SchoolSoft's GDPR gate refuses app sessions on grades,\n" +
+      "documents, absence and criteria.",
   },
   {
     file: "cold-start-refresh.mmd",
     title: "Cold start, refresh and the one retry",
     outro: "The retry exists because the alternative is a BankID round for the user.",
   },
-  { file: "session-states.mmd", title: "Session states" },
+  {
+    file: "session-states.mmd",
+    title: "Session states",
+    outro:
+      "Two independent lifecycles. The app session refreshes itself; the web session is\n" +
+      "captured once and dies on SchoolSoft's inactivity timeout, so its errors name `login --web`.",
+  },
   {
     file: "portal-adapter.mmd",
     title: "Portal adapter: API first, browser where no API exists",

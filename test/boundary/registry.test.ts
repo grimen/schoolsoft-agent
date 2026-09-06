@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { operations, getOperation, BROWSER_CAPABILITIES, PROVIDERS } from "../../src/core/index.js";
+import { operations, getOperation, CAPABILITIES } from "../../src/core/index.js";
+import { BROWSER_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
 
 test("operation names are unique snake_case", () => {
   const names = operations.map((o) => o.name);
@@ -95,7 +96,7 @@ test("each operation declares exactly the portal capabilities its source uses; t
     );
     for (const c of op.portal) declared.add(c);
   }
-  const all = Object.keys(PROVIDERS).sort();
+  const all = [...CAPABILITIES].sort();
   const unused = all.filter((c) => !declared.has(c));
   assert.deepEqual(
     unused,

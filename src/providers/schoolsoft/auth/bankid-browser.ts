@@ -12,18 +12,19 @@
  *      JSESSIONID+hash cookies for the /rest-api/parent/* endpoints.
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
-import type { AuthStrategy, LoginInfo } from "./strategy.js";
-import type { PersistedSession } from "../session/store.js";
+import type { AuthStrategy, LoginInfo } from "../../../core/auth/strategy.js";
+import type { PersistedSession } from "../../../core/session/store.js";
+import type { SchoolsoftSession, SchoolsoftCredentials } from "../session.js";
 import { runBrowserLogin } from "./browser-flow.js";
 import {
   DEFAULT_USER_TYPE,
   DEFAULT_CLIENT_ID_BY_USER_TYPE,
   type SchoolsoftUserType,
-} from "../constants.js";
+} from "../../../core/constants.js";
 import { exchangeTokenForCookies, type ExchangeFetch } from "./session-exchange.js";
 import { exchangeCode, refreshTokens, decodeJwtClaims, type TokenFetch } from "./oauth.js";
 import { GuardianApi, type ApiFetch } from "../portal/api-portal.js";
-import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
+import { childOf, orgIdOf, type GuardianContext } from "../../../core/portal/guardian.js";
 
 export interface BankIdBrowserOptions {
   orgid?: string;
@@ -35,7 +36,7 @@ export interface BankIdBrowserOptions {
   openBrowser?: (url: string) => void;
 }
 
-export class BankIdBrowserStrategy implements AuthStrategy {
+export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
   readonly id = "bankid-browser";
   context?: GuardianContext;
 
@@ -48,7 +49,8 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     return this.options.clientId ?? DEFAULT_CLIENT_ID_BY_USER_TYPE[this.userType];
   }
 
-  async login(client: SchoolsoftClient): Promise<LoginInfo> {
+  async login(session: SchoolsoftSession): Promise<LoginInfo> {
+    const client = session.client;
     const { result } = await runBrowserLogin({
       school: client.school,
       orgid: this.options.orgid,
@@ -81,14 +83,16 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     return this.establish(client, undefined);
   }
 
-  async restore(client: SchoolsoftClient, saved: PersistedSession): Promise<void> {
-    if (!saved.accessToken) {
+  async restore(session: SchoolsoftSession, saved: PersistedSession): Promise<void> {
+    const client = session.client;
+    const creds = saved.data as SchoolsoftCredentials;
+    if (!creds.accessToken) {
       throw new Error("saved session has no access token");
     }
-    client.setAccessToken(saved.accessToken, saved.refreshToken, saved.accessTokenExpiresAt);
+    client.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
     // Access tokens live ~15 min. Refresh up front when expired or when we
     // don't know (older sessions without a stored expiry).
-    if (client.isAccessTokenExpired || saved.accessTokenExpiresAt == null) {
+    if (client.isAccessTokenExpired || creds.accessTokenExpiresAt == null) {
       await this.refresh(client);
     }
     try {
@@ -119,7 +123,8 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     );
   }
 
-  async focusChild(client: SchoolsoftClient, studentId: number): Promise<void> {
+  async focusChild(session: SchoolsoftSession, studentId: number): Promise<void> {
+    const client = session.client;
     if (!this.context) throw new Error("No guardian context — log in first.");
     const child = childOf(this.context, studentId); // validates
     await this.exchange(client, this.context, child.studentId);

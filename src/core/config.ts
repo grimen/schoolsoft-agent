@@ -5,8 +5,8 @@
  * are built in wiring.ts.
  */
 import { join } from "node:path";
+import { DEFAULT_CALLBACK_PORT } from "./auth/callback-server.js";
 import {
-  DEFAULT_CALLBACK_PORT,
   DEFAULT_CLIENT_ID_BY_USER_TYPE,
   DEFAULT_USER_TYPE,
   SCHOOLSOFT_USER_TYPES,
@@ -15,6 +15,8 @@ import {
 import type { BrowserEngine } from "./browser/session.js";
 
 export interface Config {
+  /** School portal provider id (src/providers); "schoolsoft" unless configured. */
+  provider: string;
   /** School slug, e.g. "taby" from https://sms.schoolsoft.se/taby/... */
   school: string;
   orgId?: string;
@@ -31,6 +33,7 @@ export interface Config {
 
 /** A partial, untyped-ish config from one source (file, env, flags). */
 export interface ConfigSource {
+  provider?: string;
   school?: string;
   orgId?: string;
   userType?: string;
@@ -54,6 +57,7 @@ export class NotConfiguredError extends Error {
 
 /** Environment variable names (the only place they are spelled out). */
 export const ENV = {
+  provider: "SCHOOLSOFT_PROVIDER",
   school: "SCHOOLSOFT_SCHOOL",
   orgId: "SCHOOLSOFT_ORGID",
   userType: "SCHOOLSOFT_USER_TYPE",
@@ -69,6 +73,7 @@ export const ENV = {
 export function envSource(env: Record<string, string | undefined>): ConfigSource {
   const pick = (k: string) => (env[k] ? env[k] : undefined);
   return {
+    provider: pick(ENV.provider),
     school: pick(ENV.school),
     orgId: pick(ENV.orgId),
     userType: pick(ENV.userType),
@@ -144,6 +149,7 @@ export function resolveConfig(
     throw new Error(`Invalid browserEngine "${engineKind}". Expected chromium or cdp`);
   }
   return {
+    provider: first(sources, "provider") ?? "schoolsoft",
     school,
     orgId: first(sources, "orgId"),
     userType,

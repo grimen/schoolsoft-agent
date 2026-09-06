@@ -3,12 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-  parseSchoolList,
-  normalize,
-  rankSchools,
-  SchoolDirectory,
-} from "../../src/core/api/schools.js";
+import { parseSchoolList, SchoolDirectory } from "../../src/providers/schoolsoft/schools.js";
+import { normalize, rankSchools } from "../../src/core/school-directory.js";
 
 const RAW = [
   { name: "Täby kommun - Rösjöskolan", orgId: 20, evaUrl: "https://sms.schoolsoft.se/taby/eva" },
@@ -131,7 +127,7 @@ test("SchoolDirectory: corrupt or mis-shaped cache is ignored; an empty upstream
 });
 
 test("defaultFetch: JSON on success, error on non-2xx", async () => {
-  const { defaultFetch } = await import("../../src/core/api/schools.js");
+  const { defaultFetch } = await import("../../src/providers/schoolsoft/schools.js");
   const { createServer } = await import("node:http");
   const server = createServer((req, res) => {
     if (req.url === "/ok") {

@@ -1,18 +1,11 @@
 /**
- * AuthStrategy is the Open/Closed seam for authentication.
- *
- * Each way of getting an authenticated SchoolsoftClient is one class:
- *   - BankIdBrowserStrategy (implemented): OAuth2+PKCE in the user's own
- *     browser; user completes BankID there.
- *   - PlaywrightInterceptStrategy (planned fallback): headed browser via
- *     Playwright, intercept the app deep-link redirect.
- *   - PasswordStrategy (planned fallback): headless mobileLogin with
- *     username/password after a one-time BankID bootstrap.
- *
- * SessionManager depends only on this interface. Adding a strategy never
- * modifies existing code — register it in the wiring (wiring.ts).
+ * AuthStrategy is the Open/Closed seam for authentication, generic over
+ * the provider's session object (credentials holder). One class per way
+ * of getting an authenticated session; SchoolSoft's BankID-in-browser
+ * strategy lives in src/providers/schoolsoft/auth. SessionManager depends
+ * only on this interface; providers register strategies in their
+ * SchoolProvider.createAuthStrategies.
  */
-import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { PersistedSession } from "../session/store.js";
 import type { GuardianContext } from "../portal/guardian.js";
 
@@ -24,34 +17,30 @@ export interface LoginInfo {
   children?: { studentId: number; firstName: string }[];
 }
 
-export interface AuthStrategy {
+export interface AuthStrategy<S = unknown> {
   /** Stable identifier, stored in PersistedSession.authMethod. */
   readonly id: string;
 
   /**
-   * Perform interactive (or headless) login, leaving `client` fully
-   * authenticated (session cookies established). May block on user
-   * interaction. Throws on failure/timeout.
+   * Perform interactive (or headless) login, leaving `session` fully
+   * authenticated. May block on user interaction (never automates BankID).
+   * Throws on failure/timeout.
    */
-  login(client: SchoolsoftClient): Promise<LoginInfo>;
+  login(session: S): Promise<LoginInfo>;
 
   /**
-   * Restore a previously persisted session onto `client`, refreshing
-   * whatever needs refreshing, leaving it fully authenticated.
+   * Restore a previously persisted session (`saved.data` is the provider's
+   * own blob) onto `session`, refreshing whatever needs refreshing.
    * Throws if the saved state is unusable (caller falls back to login).
    */
-  restore(client: SchoolsoftClient, saved: PersistedSession): Promise<void>;
+  restore(session: S, saved: PersistedSession): Promise<void>;
 
   /**
    * Guardian context established by login()/restore(), persisted by
-   * SessionManager and handed back on restore. Undefined for strategies
-   * that don't model guardians.
+   * SessionManager and handed back on restore.
    */
   readonly context?: GuardianContext;
 
-  /**
-   * Re-bind the cookie session to another child (guardians). Every strategy
-   * implements it so SessionManager never has to special-case one.
-   */
-  focusChild(client: SchoolsoftClient, studentId: number): Promise<void>;
+  /** Re-bind the session to another child (guardians). Part of the contract, never optional. */
+  focusChild(session: S, studentId: number): Promise<void>;
 }

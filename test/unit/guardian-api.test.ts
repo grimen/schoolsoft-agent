@@ -4,13 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  ApiPortal,
-  childOf,
-  orgIdOf,
-  type ApiFetch,
-  type GuardianContext,
-} from "../../src/core/portal/api-portal.js";
+import { ApiPortal, type ApiFetch } from "../../src/providers/schoolsoft/portal/api-portal.js";
+import { childOf, orgIdOf, type GuardianContext } from "../../src/core/portal/guardian.js";
 
 function harness(status = 200, data: unknown = []) {
   const calls: { url: string; headers: Record<string, string> }[] = [];

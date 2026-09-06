@@ -4,6 +4,9 @@
  *   - src/mcp/**, src/cli/**, src/http/**, src/shared/** import core only via ../core/index.js
  *   - adapters never import each other; src/shared is the place for common adapter code
  *   - src/core/** must not reference `process.env`
+ *   - src/providers/** is reached from core only through src/core/wiring.ts (the composition root);
+ *     adapters never import a provider; providers import core modules directly, never core/index.ts
+ *     or core/wiring.ts (that would be a cycle)
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, dirname, resolve } from "node:path";
@@ -61,7 +64,34 @@ export function checkBoundaries(root: string): Violation[] {
           message: "playwright must be imported dynamically (await import), not statically",
         });
       }
+      if (layer === "providers" && spec.startsWith(".")) {
+        const target = relative(src, resolve(dirname(file), spec))
+          .split("\\")
+          .join("/");
+        if (target === "core/index.js" || target === "core/wiring.js") {
+          violations.push({
+            file: rel,
+            line,
+            message: `provider must import core modules directly, not ${target} (cycle)`,
+          });
+        }
+        if (/^(mcp|cli|http|shared)\//.test(target)) {
+          violations.push({ file: rel, line, message: `provider imports adapter ${target}` });
+        }
+      }
       if (layer === "core") {
+        if (spec.startsWith(".")) {
+          const target = relative(src, resolve(dirname(file), spec))
+            .split("\\")
+            .join("/");
+          if (target.startsWith("providers/") && rel !== "core/wiring.ts") {
+            violations.push({
+              file: rel,
+              line,
+              message: `core imports a provider (${target}); only core/wiring.ts may`,
+            });
+          }
+        }
         if (spec === "node:process" || spec === "process") {
           violations.push({ file: rel, line, message: "core must not import node:process" });
         }
@@ -82,6 +112,13 @@ export function checkBoundaries(root: string): Violation[] {
             file: rel,
             line,
             message: `adapter must import core via core/index.js, not ${target}`,
+          });
+        }
+        if (target.startsWith("providers/")) {
+          violations.push({
+            file: rel,
+            line,
+            message: `adapter ${layer} imports a provider (${target}); use the core surface`,
           });
         }
         const other = ["mcp", "cli", "http"].filter((l) => l !== layer);

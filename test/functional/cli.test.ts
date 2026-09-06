@@ -225,7 +225,8 @@ test("login --web runs the web login and auth-status reports the web session", a
 });
 
 test("a gated command without a web session fails with the login --web hint", async () => {
-  const { createCompositePortal, BrowserPortal } = await import("../../src/core/index.js");
+  const { createCompositePortal } = await import("../../src/core/index.js");
+  const { BrowserPortal, ROUTING } = await import("../../src/providers/schoolsoft/index.js");
   const session = {
     withPage: async () => {
       throw new Error("must not navigate");
@@ -233,6 +234,7 @@ test("a gated command without a web session fails with the login --web hint", as
     close: async () => {},
   };
   const portal = createCompositePortal({
+    routing: ROUTING,
     api: fakePortal as never,
     browser: new BrowserPortal({ session, hasWebSession: () => false }),
   });
@@ -249,7 +251,7 @@ test("a gated command without a web session fails with the login --web hint", as
 });
 
 test("browser verify reports every page, exit 0 when ok/drift and 1 when a page is broken", async () => {
-  const { PAGES } = await import("../../src/core/index.js");
+  const { PAGES } = await import("../../src/providers/schoolsoft/index.js");
   const make = (missing: string | null) => ({
     withPage: async (fn: (p: unknown) => Promise<unknown>) => {
       let current = "";
@@ -357,7 +359,12 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
 
   const { FileSessionStore } = await import("../../src/core/index.js");
   const stateDir = join(dir, "state");
-  new FileSessionStore(stateDir).save({ school: "taby", savedAt: 1, authMethod: "bankid-browser" });
+  new FileSessionStore(stateDir).save({
+    school: "taby",
+    data: {},
+    savedAt: 1,
+    authMethod: "bankid-browser",
+  });
   const ok = harness();
   ok.deps.fetchImpl = async () => {
     throw new Error("offline");
@@ -429,6 +436,7 @@ test("non-Error throws, doctor platform/engine/session variants, verify without 
   const { FileSessionStore } = await import("../../src/core/index.js");
   new FileSessionStore(join(dir, "state")).save({
     school: "taby",
+    data: {},
     savedAt: 1,
     authMethod: "bankid-browser",
     guardian: {
@@ -482,7 +490,7 @@ test("non-Error throws, doctor platform/engine/session variants, verify without 
   }
 
   // verify: fake returns the recorded fingerprints → ok
-  const { PAGES, FINGERPRINTS } = await import("../../src/core/index.js");
+  const { PAGES, FINGERPRINTS } = await import("../../src/providers/schoolsoft/index.js");
   const byPath = Object.fromEntries(Object.entries(PAGES).map(([k, s]) => [s.path, k]));
   const okSession = {
     withPage: async (fn: (p: unknown) => Promise<unknown>) => {

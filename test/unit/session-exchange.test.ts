@@ -7,7 +7,7 @@ import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   exchangeTokenForCookies,
   type ExchangeFetch,
-} from "../../src/core/auth/session-exchange.js";
+} from "../../src/providers/schoolsoft/auth/session-exchange.js";
 
 function fakeClient() {
   const calls: unknown[][] = [];

@@ -16,10 +16,10 @@ import {
   extractFiles,
   extractSubjectLinks,
   extractPageTitle,
-  inspectPage,
   extractTablePage,
-} from "../../src/core/portal/extractors.js";
-import { PAGES } from "../../src/core/portal/pages.js";
+} from "../../src/providers/schoolsoft/portal/extractors.js";
+import { inspectPage } from "../../src/core/portal/inspect.js";
+import { PAGES } from "../../src/providers/schoolsoft/portal/pages.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
 const status = await browserStatus({ kind: "chromium" });

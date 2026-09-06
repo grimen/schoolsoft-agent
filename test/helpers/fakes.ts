@@ -3,7 +3,6 @@
  * Portal, a fake auth strategy, and a context factory that wires them
  * into a real SessionManager (memory store, no network).
  */
-import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   SessionManager,
   MemorySessionStore,
@@ -14,8 +13,10 @@ import {
   type GuardianContext,
   type OperationContext,
   type Config,
+  type ProviderSession,
   createCompositePortal,
 } from "../../src/core/index.js";
+import { schoolsoftProvider, ROUTING } from "../../src/providers/schoolsoft/index.js";
 
 export const FAKE_LESSONS = [
   { name: "Matematik", startDate: "2026-08-31T08:30", endDate: "2026-08-31T09:50", room: "A12" },
@@ -42,16 +43,27 @@ export const CONTEXT: GuardianContext = {
   ],
 };
 
-export function fakeSchoolsoftClient(overrides: Partial<SchoolsoftClient> = {}): SchoolsoftClient {
+/** A provider-neutral fake session: what core needs plus the credentials the fake serializer persists. */
+export interface FakeSession extends ProviderSession {
+  accessToken: string | null;
+  refreshToken: string | null;
+}
+
+export function fakeSession(overrides: Partial<FakeSession> = {}): FakeSession {
   return {
     school: "testskola",
     accessToken: "tok",
     refreshToken: "ref",
-    cookieHeader: "JSESSIONID=x; hash=y; usertype=2",
-    verifySession: async () => true,
+    verify: async () => true,
+    cookieHeader: () => "JSESSIONID=x; hash=y; usertype=2",
     ...overrides,
-  } as unknown as SchoolsoftClient;
+  };
 }
+
+export const serializeFake = (s: FakeSession): Record<string, unknown> => ({
+  ...(s.accessToken ? { accessToken: s.accessToken } : {}),
+  ...(s.refreshToken ? { refreshToken: s.refreshToken } : {}),
+});
 
 export const fakePortal = {
   getScheduleWeek: async (_week: number) => FAKE_LESSONS,
@@ -118,25 +130,26 @@ export const fakePortal = {
   getGradePrognosis: async () => ({ reconciliationDates: [] }),
 } as unknown as Portal;
 
-export class FakeAuth implements AuthStrategy {
+export class FakeAuth implements AuthStrategy<FakeSession> {
   readonly id = "fake";
   context?: GuardianContext;
   loginCalls = 0;
-  async login(_c: SchoolsoftClient): Promise<LoginInfo> {
+  async login(_s: FakeSession): Promise<LoginInfo> {
     this.loginCalls++;
     this.context = { ...CONTEXT };
     return { name: "Test Testsson", schoolName: "Testskolan", userType: "parent" };
   }
-  async restore(_c: SchoolsoftClient, saved: PersistedSession): Promise<void> {
+  async restore(_s: FakeSession, saved: PersistedSession): Promise<void> {
     this.context = saved.guardian ?? { ...CONTEXT };
   }
-  async focusChild(_c: SchoolsoftClient, studentId: number): Promise<void> {
+  async focusChild(_s: FakeSession, studentId: number): Promise<void> {
     // Deliberately non-validating: SessionManager must guard this.
     this.context = { ...this.context!, childInFocus: studentId };
   }
 }
 
 export const testConfig: Config = {
+  provider: "schoolsoft",
   school: "testskola",
   userType: "parent",
   clientId: "vApp",
@@ -157,20 +170,24 @@ export function makeContext(
 ) {
   const store = opts.store ?? new MemorySessionStore();
   const strategy = new FakeAuth();
-  const manager = new SessionManager({
+  const manager = new SessionManager<FakeSession>({
     school: "testskola",
     store,
     strategies: [strategy],
-    clientFactory: () => fakeSchoolsoftClient(),
+    createSession: () => fakeSession(),
+    serialize: serializeFake,
     webLogin: opts.webLogin,
   });
   const logs: string[] = [];
   const ctx: OperationContext = {
-    manager,
+    manager: manager as unknown as SessionManager,
+    provider: schoolsoftProvider as never,
     portal:
       opts.portal ??
       (opts.browserUnavailable
         ? createCompositePortal({
+            routing: ROUTING,
+            providerId: "schoolsoft",
             api: fakePortal as never,
             browser: null,
             browserUnavailableReason: opts.browserUnavailable,

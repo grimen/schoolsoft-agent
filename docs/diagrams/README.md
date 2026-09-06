@@ -12,8 +12,9 @@ and in Obsidian). Regenerate with `make diagrams`.
 
 [![System overview](dist/system-overview.svg)](src/system-overview.mmd)
 
-One core, two surfaces, many hosts. The core knows SchoolSoft; the surfaces know
-how agents talk; the hosts are somebody else's software.
+One vendor-neutral core, two surfaces, many hosts. Everything SchoolSoft-specific sits
+behind the SchoolProvider seam in src/providers/schoolsoft; the surfaces know how agents
+talk; the hosts are somebody else's software.
 
 ---
 
@@ -30,8 +31,11 @@ docs are derived from it, and a drift test fails when the docs go stale.
 
 [![Login, step by step](dist/login-flow.svg)](src/login-flow.mmd)
 
-SchoolSoft stamps the user type into the token from the OAuth client id
-(`vApp` = guardian); the cookie exchange binds the webview session to one child.
+Two logins, both BankID in the user's own browser. The app session (top) is what every
+API call uses; SchoolSoft stamps the user type into the token from the OAuth client id
+(`vApp` = guardian) and the cookie exchange binds it to one child. The web session
+(bottom) exists only because SchoolSoft's GDPR gate refuses app sessions on grades,
+documents, absence and criteria.
 
 ---
 
@@ -46,6 +50,9 @@ The retry exists because the alternative is a BankID round for the user.
 ## Session states
 
 [![Session states](dist/session-states.svg)](src/session-states.mmd)
+
+Two independent lifecycles. The app session refreshes itself; the web session is
+captured once and dies on SchoolSoft's inactivity timeout, so its errors name `login --web`.
 
 ---
 

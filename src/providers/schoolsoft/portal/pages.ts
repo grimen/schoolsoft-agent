@@ -1,31 +1,10 @@
 /**
- * The SchoolSoft web pages the browser provider reads, declared in one
- * place: path, whether the page sits behind the GDPR gate (web-login
- * cookies), and the anchors a healthy page must contain. Extractors key on
- * these anchors, `browser verify` and the live structure suite check them,
- * and `make fingerprints` records each page's structural fingerprint so an
- * upstream redesign shows up as named drift instead of empty data.
+ * The SchoolSoft web pages the browser provider reads, declared once (see
+ * core/portal/page-spec.ts for what a declaration carries). Extractors key
+ * on these anchors; `browser verify` and `make fingerprints` check them.
  */
-import type { PortalPage } from "../browser/session.js";
+import type { PageSpec } from "../../../core/portal/page-spec.js";
 import { extractSubjectLinks } from "./extractors.js";
-
-export interface PageSpec {
-  /** Path under the tenant, without query. */
-  readonly path: string;
-  /** Only reachable with the web-login cookies (SchoolSoft's "log in again" gate). */
-  readonly web: boolean;
-  /** Selectors that must match at least once on a healthy page. */
-  readonly anchors: readonly string[];
-  /**
-   * Query string a verification visit needs (pages that render nothing
-   * without a parameter), resolved on another page visited with that page's
-   * own session (the subject menu only exists under the app session).
-   */
-  readonly exampleQuery?: {
-    readonly from: PageKey;
-    readonly resolve: (page: PortalPage) => Promise<string>;
-  };
-}
 
 export type PageKey =
   | "contacts"

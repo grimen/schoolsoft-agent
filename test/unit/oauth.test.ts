@@ -10,7 +10,7 @@ import {
   refreshTokens,
   decodeJwtClaims,
   type TokenFetch,
-} from "../../src/core/auth/oauth.js";
+} from "../../src/providers/schoolsoft/auth/oauth.js";
 
 function jwt(payload: Record<string, unknown>): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");

@@ -5,10 +5,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { webLogin, isPortalUrl } from "../../src/core/browser/web-login.js";
+import { webLogin } from "../../src/core/browser/web-login.js";
+import { isPortalUrl, webLoginSpec } from "../../src/providers/schoolsoft/web-login.js";
 import type { PlaywrightLike } from "../../src/core/browser/playwright.js";
 import { SessionManager, MemorySessionStore } from "../../src/core/index.js";
-import { FakeAuth, fakeSchoolsoftClient } from "../helpers/fakes.js";
+import { FakeAuth, fakeSession, serializeFake } from "../helpers/fakes.js";
 
 function fakePw(
   urls: string[],
@@ -51,12 +52,12 @@ function fakePw(
 
 test("isPortalUrl accepts parent pages and rejects login steps", () => {
   const o = "https://sms.schoolsoft.se";
-  assert.ok(isPortalUrl(`${o}/taby/jsp/student/right_student_startpage.jsp`, o, "taby"));
-  assert.ok(isPortalUrl(`${o}/taby/react/#/parent/calendar`, o, "taby"));
-  assert.ok(!isPortalUrl(`${o}/taby/jsp/Login.jsp`, o, "taby"));
-  assert.ok(!isPortalUrl(`${o}/taby/samlLogin.jsp?usertype=parent`, o, "taby"));
-  assert.ok(!isPortalUrl("https://etjanst.taby.se/wa/auth/saml/", o, "taby"));
-  assert.ok(!isPortalUrl(`${o}/other/jsp/student/x.jsp`, o, "taby"));
+  assert.ok(isPortalUrl(`${o}/taby/jsp/student/right_student_startpage.jsp`, "taby"));
+  assert.ok(isPortalUrl(`${o}/taby/react/#/parent/calendar`, "taby"));
+  assert.ok(!isPortalUrl(`${o}/taby/jsp/Login.jsp`, "taby"));
+  assert.ok(!isPortalUrl(`${o}/taby/samlLogin.jsp?usertype=parent`, "taby"));
+  assert.ok(!isPortalUrl("https://etjanst.taby.se/wa/auth/saml/", "taby"));
+  assert.ok(!isPortalUrl(`${o}/other/jsp/student/x.jsp`, "taby"));
 });
 
 test("webLogin opens the tenant root in a headed window, waits for the portal, keeps tenant cookies only", async () => {
@@ -75,6 +76,7 @@ test("webLogin opens the tenant root in a headed window, waits for the portal, k
   const opened: string[] = [];
   const web = await webLogin({
     school: "taby",
+    spec: webLoginSpec,
     loader: async () => pw,
     pollMs: 1,
     onOpen: (u) => opened.push(u),
@@ -95,7 +97,13 @@ test("webLogin opens the tenant root in a headed window, waits for the portal, k
 test("webLogin times out without a portal page and closes the browser", async () => {
   const { pw, state } = fakePw(["https://sms.schoolsoft.se/taby/jsp/Login.jsp"], []);
   await assert.rejects(
-    webLogin({ school: "taby", loader: async () => pw, pollMs: 1, timeoutMs: 20 }),
+    webLogin({
+      school: "taby",
+      spec: webLoginSpec,
+      loader: async () => pw,
+      pollMs: 1,
+      timeoutMs: 20,
+    }),
     /timed out/,
   );
   assert.equal(state.closed, 1);
@@ -112,7 +120,8 @@ test("SessionManager stores, exposes, and clears the web session next to the app
     school: "testskola",
     store,
     strategies: [new FakeAuth()],
-    clientFactory: () => fakeSchoolsoftClient(),
+    createSession: () => fakeSession(),
+    serialize: serializeFake,
     webLogin: async () => web,
   });
   await manager.login();
@@ -128,7 +137,8 @@ test("SessionManager stores, exposes, and clears the web session next to the app
     school: "testskola",
     store,
     strategies: [new FakeAuth()],
-    clientFactory: () => fakeSchoolsoftClient(),
+    createSession: () => fakeSession(),
+    serialize: serializeFake,
   });
   assert.equal(again.getWebSession()?.cookies.length, 1);
   again.clearWebSession();
@@ -141,7 +151,13 @@ test("webLogin also accepts the portal appearing in another tab or popup", async
     ["POPUP"],
     [{ name: "JSESSIONID", value: "web", domain: "sms.schoolsoft.se", path: "/", expires: -1 }],
   );
-  const web = await webLogin({ school: "taby", loader: async () => pw, pollMs: 1, timeoutMs: 200 });
+  const web = await webLogin({
+    school: "taby",
+    spec: webLoginSpec,
+    loader: async () => pw,
+    pollMs: 1,
+    timeoutMs: 200,
+  });
   assert.equal(
     web.landedOn,
     "https://sms.schoolsoft.se/taby/jsp/student/right_student_startpage.jsp",
@@ -156,6 +172,7 @@ test("cdp engine connects instead of launching; default poll interval is used wh
   );
   const session = await webLogin({
     school: "taby",
+    spec: webLoginSpec,
     engine: { kind: "cdp", endpoint: "ws://obscura" },
     loader: async () => pw,
   });

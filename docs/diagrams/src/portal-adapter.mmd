@@ -1,6 +1,7 @@
 flowchart LR
-  OP[Operation<br/>e.g. get_contacts] --> PORTAL[Portal<br/>one method per capability]
-  PORTAL --> PROV{PROVIDERS<br/>static, per capability}
+  OP[Operation<br/>e.g. get_contacts] --> PORTAL[Portal<br/>one method per capability, vendor-neutral]
+  PORTAL --> PROV{routing<br/>declared by the SchoolProvider}
+  VENDOR[[src/providers/schoolsoft<br/>SchoolProvider: routing · auth · portals · pages]] -.-> PROV
   PROV -->|api first| API[ApiPortal<br/>fetch + cookies / Bearer]
   PROV -->|browser only where no API| BP[BrowserPortal<br/>navigate + in-page extractor]
   BP --> SESS[BrowserSession<br/>read-only guard: non-GET aborted,<br/>Login.jsp / app_blocked → typed errors]

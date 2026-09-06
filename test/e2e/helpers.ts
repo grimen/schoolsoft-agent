@@ -60,13 +60,25 @@ export function loadPersisted(): PersistedSession | null {
   return e2eStore().load();
 }
 
+/** SchoolSoft's persisted credentials (the provider-owned data blob). */
+export function creds(saved: PersistedSession | null): {
+  accessToken?: string;
+  refreshToken?: string;
+  accessTokenExpiresAt?: number;
+} {
+  return (saved?.data ?? {}) as never;
+}
+
 /** Force the access token to look expired, keeping the refresh token. */
 export function forceExpireAccessToken(): boolean {
   const store = e2eStore();
   const saved = store.load();
-  if (!saved?.refreshToken) return false;
+  if (!saved || !creds(saved).refreshToken) return false;
   // Unix seconds, like ssp-node.
-  store.save({ ...saved, accessTokenExpiresAt: Math.floor(Date.now() / 1000) - 60 });
+  store.save({
+    ...saved,
+    data: { ...saved.data, accessTokenExpiresAt: Math.floor(Date.now() / 1000) - 60 },
+  });
   return true;
 }
 

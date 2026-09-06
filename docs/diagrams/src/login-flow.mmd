@@ -7,6 +7,8 @@ sequenceDiagram
   participant E as Eva API
   participant W as Webview REST
 
+  rect rgb(245,245,245)
+  Note over A,W: login - the app session (tokens + cookies), used by every API call
   A->>S: login
   S->>S: start one-shot HTTP server on 127.0.0.1:43117
   S->>B: open https://sms.schoolsoft.se/<school>/react/#/login/parent?client_id=vApp&code_challenge=…&redirect_uri=http://127.0.0.1:43117/callback
@@ -19,5 +21,18 @@ sequenceDiagram
   E-->>S: userId, children[{studentId, schools[{orgId}]}]
   S->>W: GET /eva-apps/auth/login/parent  headers: token, userId, orgId, childInFocus
   W-->>S: Set-Cookie JSESSIONID, hash, usertype=2
-  S->>S: persist tokens + cookies + guardian context (AES-256-GCM)
+  S->>S: persist tokens + guardian context (AES-256-GCM)
   S-->>A: { status: "logged_in", user: { name, schoolName, children } }
+  end
+
+  rect rgb(235,242,250)
+  Note over A,W: login --web - the web session, only for SchoolSoft's GDPR-gated pages
+  A->>S: login --web
+  S->>B: open a visible browser window at https://sms.schoolsoft.se/<school>/
+  B->>L: user completes the normal web login (BankID), possibly in a second tab
+  L-->>B: lands on /jsp/student/right_student_startpage.jsp
+  S->>S: poll every tab until a portal URL appears, read the tenant's cookies
+  S->>S: persist web cookies next to the tokens and close the window
+  S-->>A: { status: "web_logged_in", cookies }
+  Note over S,W: gated reads align the web session's child first: GET /rest-api/parent/header/parent, PUT …?childId&orgId when it differs
+  end

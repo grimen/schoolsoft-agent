@@ -7,7 +7,7 @@
  * användaren". Everything varying by user type / client id lives here.
  */
 import { makePkcePair, makeState, schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
-import type { SchoolsoftUserType } from "../constants.js";
+import type { SchoolsoftUserType } from "../../../core/constants.js";
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 

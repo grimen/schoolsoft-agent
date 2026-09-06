@@ -17,7 +17,7 @@
  *    [id^=description] (text), .inner_right_info label+div pairs.
  *  - Filer & länkar: #library_con_content table tr > td > a[href] (+ div).
  */
-import type { Booking, ContactGroup, PortalFile, TablePage } from "./types.js";
+import type { Booking, ContactGroup, PortalFile, TablePage } from "../../../core/portal/types.js";
 
 const text = (el: Element | null | undefined): string =>
   (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -190,49 +190,4 @@ export function extractTablePage(): TablePage {
     sections.push({ ...(heading ? { heading } : {}), headers, rows });
   }
   return { title, ...(message ? { message } : {}), sections };
-}
-
-/** What inspectPage() reports for one page: anchor hits and a structural fingerprint. */
-export interface PageInspection {
-  title: string;
-  anchors: Record<string, number>;
-  /** FNV-1a hash of the sorted set of tag#id.class skeletons under #content (ids/classes with digits dropped). */
-  fingerprint: string;
-  nodes: number;
-}
-
-/**
- * Structure probe used by `browser verify`, the live structure suite and
- * `make fingerprints`: counts each anchor selector and hashes the page's
- * skeleton (tags, ids and classes only, never text; hashed MUI classes and
- * numbered ids are dropped so data volume does not move the fingerprint).
- */
-export function inspectPage(anchors: string[]): PageInspection {
-  const t = (el: Element | null | undefined) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-  const root = document.querySelector("#content") ?? document.body;
-  const counts: Record<string, number> = {};
-  for (const a of anchors) counts[a] = document.querySelectorAll(a).length;
-  const seen = new Set<string>();
-  for (const el of Array.from(root.querySelectorAll("*"))) {
-    if (el.closest("#top-box")) continue;
-    const cls = Array.from(el.classList)
-      .filter((c) => !/\d/.test(c))
-      .sort()
-      .join(".");
-    const id = el.id && !/\d/.test(el.id) ? "#" + el.id : "";
-    seen.add(el.tagName.toLowerCase() + id + (cls ? "." + cls : ""));
-  }
-  const skeleton = Array.from(seen).sort();
-  const str = skeleton.join("\n");
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return {
-    title: t(root.querySelector(".h1")),
-    anchors: counts,
-    fingerprint: h.toString(16).padStart(8, "0"),
-    nodes: skeleton.length,
-  };
 }

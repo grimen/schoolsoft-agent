@@ -11,22 +11,34 @@ flowchart LR
     MCP[src/mcp<br/>stdio MCP server]
     CLI[src/cli<br/>commands, JSON out]
     SK[skills/schoolsoft<br/>SKILL.md + wrapper script]
-    subgraph core[src/core]
-      REG[operations registry]
-      SES[session manager + encrypted store]
-      AUTH[auth: OAuth/PKCE, browser flow, cookie exchange]
-      API[api: guardian, school directory]
-      CFG[config]
+    subgraph core[src/core - vendor-neutral]
+      REG[operations registry<br/>one definition per capability]
+      PORTAL[Portal + routing<br/>api first, browser where no API]
+      SES[session manager<br/>encrypted store, web session]
+      BANKID[BankID in the user's browser<br/>callback server · headed cookie capture]
+      BROWSER[browser session guard<br/>Playwright / CDP, read-only]
+      PROVIF[[SchoolProvider seam]]
+    end
+    subgraph prov[src/providers/schoolsoft]
+      SAUTH[auth: OAuth/PKCE, token → cookies]
+      SAPI[api: Eva · webview REST · legacy /rest · web-session REST]
+      SPAGES[pages + extractors + fingerprints]
     end
   end
   subgraph ss[SchoolSoft]
-    LOGIN[core/login + municipality SAML IdP]
+    LOGIN[login + municipality IdP + BankID]
     EVA[Eva API<br/>Bearer token]
-    WEB[Webview REST<br/>session cookies]
+    WEBAPI[Webview REST<br/>session cookies]
+    JSP[legacy JSP pages<br/>incl. GDPR-gated ones]
   end
   CC & CD & OC & OW & HA -->|MCP over stdio| MCP
   CC & OC & OW & HA & PI -->|shell| SK --> CLI
   MCP --> REG
   CLI --> REG
-  REG --> SES --> AUTH --> LOGIN
-  REG --> API --> EVA & WEB
+  REG --> PORTAL --> PROVIF
+  REG --> SES --> BANKID --> LOGIN
+  PROVIF --> SAUTH & SAPI & SPAGES
+  SAPI --> EVA & WEBAPI
+  SPAGES --> BROWSER --> JSP
+  classDef seam stroke-dasharray: 4 3
+  class PROVIF seam

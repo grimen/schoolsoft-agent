@@ -3,7 +3,7 @@
  * Only read queries; the one verb here is a POST the page itself uses as a
  * filtered list fetch (observed 2026-09-06).
  */
-import type { ActivityEntry } from "../types.js";
+import type { ActivityEntry } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
 
 interface Block {

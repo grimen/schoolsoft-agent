@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { OperationContext } from "./types.js";
-import { type GuardianChild } from "../portal/api-portal.js";
+import type { GuardianChild } from "../portal/types.js";
 import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
 
 export function isoWeek(date = new Date()): number {

@@ -15,9 +15,10 @@ export function stageMcpb(root: string): string {
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   manifest.version = pkg.version;
   writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest, null, 2));
-  cpSync(join(root, "dist", "core"), join(out, "server", "dist", "core"), { recursive: true });
-  cpSync(join(root, "dist", "mcp"), join(out, "server", "dist", "mcp"), { recursive: true });
-  cpSync(join(root, "dist", "shared"), join(out, "server", "dist", "shared"), { recursive: true });
+  // Every runtime layer the server imports; the hosts E2E launches this bundle and fails if one is missing.
+  for (const layer of ["core", "providers", "mcp", "shared"]) {
+    cpSync(join(root, "dist", layer), join(out, "server", "dist", layer), { recursive: true });
+  }
   writeFileSync(join(out, "server", "index.js"), 'import "./dist/mcp/index.js";\n');
   writeFileSync(
     join(out, "server", "package.json"),

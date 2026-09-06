@@ -1,10 +1,17 @@
 /**
  * CompositePortal routes every capability to the first provider listed in
- * PROVIDERS. The browser provider is optional: when a browser-only capability
+ * the school provider's routing table. The browser provider is optional: when a browser-only capability
  * is called without one, the caller gets BrowserRequiredError with the
  * install hint instead of a stack trace.
  */
-import { PROVIDERS, BrowserRequiredError, type Capability, type Portal } from "./types.js";
+import {
+  CAPABILITIES,
+  BrowserRequiredError,
+  CapabilityNotSupportedError,
+  type Capability,
+  type CapabilityRouting,
+  type Portal,
+} from "./types.js";
 
 export type ApiPortalPart = Pick<
   Portal,
@@ -41,6 +48,10 @@ export type BrowserPortalPart = Pick<
 >;
 
 export interface CompositePortalOptions {
+  /** Provider order per capability (SchoolProvider.routing). */
+  routing: CapabilityRouting;
+  /** Provider id, named in the error for capabilities it does not offer. */
+  providerId?: string;
   api: ApiPortalPart;
   /** Absent when Playwright is not installed / not configured. */
   browser?: BrowserPortalPart | null;
@@ -50,9 +61,14 @@ export interface CompositePortalOptions {
 
 export function createCompositePortal(o: CompositePortalOptions): Portal {
   const portal: Partial<Record<Capability, (...args: unknown[]) => Promise<unknown>>> = {};
-  for (const capability of Object.keys(PROVIDERS) as Capability[]) {
-    const provider = PROVIDERS[capability][0];
+  for (const capability of CAPABILITIES) {
+    const provider = o.routing[capability]?.[0];
     portal[capability] = (...args: unknown[]) => {
+      if (!provider) {
+        return Promise.reject(
+          new CapabilityNotSupportedError(capability, o.providerId ?? "unknown"),
+        );
+      }
       if (provider === "api") {
         const fn = (o.api as unknown as Record<string, (...a: unknown[]) => Promise<unknown>>)[
           capability
@@ -71,7 +87,10 @@ export function createCompositePortal(o: CompositePortalOptions): Portal {
   return portal as unknown as Portal;
 }
 
-/** Which provider serves a capability (for docs and diagnostics). */
-export function providerOf(capability: Capability): "api" | "browser" {
-  return PROVIDERS[capability][0];
+/** Which provider serves a capability (for docs and diagnostics); null when not offered. */
+export function providerOf(
+  routing: CapabilityRouting,
+  capability: Capability,
+): "api" | "browser" | null {
+  return routing[capability]?.[0] ?? null;
 }

@@ -12,8 +12,8 @@
  *
  * Verified live against Täby 2026-09-06; see docs/schoolsoft-api.md.
  */
-import type { ApiPortalPart } from "./composite.js";
-import type { ActivityEntry, GuardianParent, SubjectRoom } from "./types.js";
+import type { ApiPortalPart } from "../../../core/portal/composite.js";
+import type { ActivityEntry, GuardianParent, SubjectRoom } from "../../../core/portal/types.js";
 import { SchoolsoftHttp, type ApiFetch } from "./api/transport.js";
 import { EvaApi } from "./api/eva-api.js";
 import { WebviewApi } from "./api/webview-api.js";
@@ -21,8 +21,6 @@ import { LegacyApi } from "./api/legacy-api.js";
 import { WebSessionApi, type WebChild } from "./api/web-session-api.js";
 
 export type { ApiFetch } from "./api/transport.js";
-export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
-export { childOf, orgIdOf, type GuardianContext } from "./guardian.js";
 
 export interface GuardianApiOptions {
   school: string;
