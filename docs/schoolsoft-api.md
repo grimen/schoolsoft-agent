@@ -117,7 +117,7 @@ Consequences:
   activity log). Contact lists, bookings and files are read through the
   headless browser provider (see the Provider column and
   `docs/architecture.md`, "Portal adapter").
-- **Page structure is declared once** (`src/core/portal/pages.ts`: path,
+- **Page structure is declared once** (`src/providers/schoolsoft/portal/pages.ts`: path,
   gate, anchors). `schoolsoft-agent browser verify` and the live structure
   suite check the anchors and compare each page's structural fingerprint
   (hash of its tag/id/class skeleton, recorded by `make fingerprints`), so a
@@ -145,6 +145,119 @@ Consequences:
   child in focus the API session controls.
 - Loading `Login.jsp` (e.g. via the tenant root) invalidates the cookie
   session; probes must never follow redirects.
+
+## Data only reachable through the web pages
+
+Everything below has no JSON endpoint SchoolSoft's apps use, so the browser
+provider loads the legacy JSP page with the user's cookies and runs an
+in-page extractor (`src/providers/schoolsoft/portal/extractors.ts`). Pages
+are declared once in `portal/pages.ts` (path, whether the GDPR gate applies,
+the anchors a healthy page must contain); `browser verify` and the live
+structure suite check those anchors and a structural fingerprint per page.
+Every visit is a GET; the session guard aborts any other verb.
+
+### Reachable with the app session
+
+| Page (menu item)         | Path                            | What is extracted                                                                                                                                                                                     | Result shape                                                               |
+| ------------------------ | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Kontaktlistor            | `right_student_class.jsp`       | `#contAll_content`: `.h3_bold` group headings, then table rows with `.display-info` blocks (`#name`, `#email a[href^=mailto]`, `#phone`, `#role`/`#type`)                                             | `ContactGroup[] = [{ title, people: [{ name, role, email?, phone? }] }]`   |
+| Bokningar                | `right_student_timebooking.jsp` | `#timebook_con_content .accordion-group`: heading text, `.accordion-heading-date-wide`, `[id^=description]`, `.inner_right_info` label/value pairs; status inferred from words (bokad, stängd, ledig) | `Booking[] = [{ title, description?, slots: [{ start, status }], info? }]` |
+| Alla filer & länkar      | `right_student_library.jsp`     | `#library_con_content`: `.h3_bold` category headings, `td > a[href]`; `file_download.jsp` or a document extension means `file`, else `link`                                                           | `PortalFile[] = [{ name, url, type: "file" \| "link", category? }]`        |
+| Ämne (subject menu only) | `right_student_subject.jsp`     | `#subject_menu a[href*=requestid]`: subject name and its `requestid`. Only read to resolve the id the criteria page needs (see below); subject rooms themselves come from the REST                    | `{ subject, url, subjectId }[]`                                            |
+
+### Behind the GDPR gate (web-login session required)
+
+SchoolSoft answers these with `302 → right_student_app_blocked.jsp` ("requires a
+login to be shown, log in again") for any app-derived session, and with 200
+for a session created by the normal web login. All five are read with the
+generic table extractor and return the same shape:
+
+```
+TablePage = { title, message?, sections: [{ heading?, headers: string[], rows: [{ cells: string[], url? }] }] }
+```
+
+The extractor takes `#content .h1` as the title, `.alert .message-text` as the
+message, and every table outside `#top-box`, forms and `.h2_box` as a
+section; header rows are `tr.longlistheader`, `th` rows or a single
+`td.header` (which becomes the section heading, also when it sits in its own
+one-row table right before the list); the first non-`javascript:` link in a
+row becomes `url`.
+
+| Page (menu item)  | Path                                                | Observed structure (Täby, 2026-09-06)                                                                                                                                                                                                                                  | Caveats                                                                                                                                     |
+| ----------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Betyg             | `right_student_gradesubject.jsp`                    | Title "Betyg"; no tables until the school publishes grades (`sections: []`)                                                                                                                                                                                            | An empty result is normal for younger children; the session-warning table under `#top-box` is excluded on purpose.                          |
+| Elevdokument      | `right_student_review.jsp`                          | `#review_cont` (current documents, empty here); a one-row table with `td.header` "Arkiverade elevdokument", then `table.longlist` with header "Rubrik / Skapad av / Datum" and `tr.value` rows linking to `right_student_review.jsp?action=view&archive=1&requestid=N` | The document body behind `?action=view` is not read yet.                                                                                    |
+| Oanmäld frånvaro  | `right_parent_absence_message.jsp`                  | Either `.alert .message-text` "Det finns ingen oanmäld frånvaro att ta del av" or a list                                                                                                                                                                               | Only the empty state has been observed live.                                                                                                |
+| Rapport (närvaro) | `right_student_absence_student.jsp`                 | A `form[name=select]` with `weekFROM`/`weekTO` selects (POST, never submitted) and one `table.table-striped.table-condensed.table-pointer` summary for the default range                                                                                               | The default range is what the page shows on load; choosing another range would need the POST, which is a write-shaped request and not done. |
+| Kriterier         | `right_student_ability.jsp?subject=ID&schooltype=7` | Without `subject` the page renders nothing. With it: `.alert` publication message, an options form, `table.table-condensed` with `tr.longlistheader` and one `tr` per ability with a cell per level                                                                    | `ID` is the JSP `requestid` (see structural facts). `schooltype=7` is grundskola; other codes were not probed.                              |
+| Avstämning        | `right_student_gradeprognosis.jsp` → React          | The page is a React root that fetches `GET /rest-api/parent/gradeprognosis/options/reconciliationdates`; that call answers the web cookies directly, so no page load is needed                                                                                         | Response observed as an empty array for these children; the item shape is unknown.                                                          |
+| Översikt          | `right_student_lesson_status.jsp`                   | Gated; not mapped                                                                                                                                                                                                                                                      | Candidate for a later capability.                                                                                                           |
+
+### Structural facts that shape the code
+
+- **Two child selections.** The app session's child is set by the cookie
+  exchange (`childInFocus`); the web session has its own, changed by the
+  portal's child menu: `GET /rest-api/parent/header/parent` (web cookies)
+  returns `{ children: [{ id, firstName, lastName, schools: [{ orgId, className, schoolName, parentAllowedAccess, studentActive }] }], currentChildId, currentOrgId, logoutURL }`;
+  `PUT /rest-api/parent/header/parent?childId=N&orgId=M` (no body) switches
+  it. Gated reads align the web child with the requested `child_id` first.
+  That PUT is the only non-GET the web session sends; it changes session
+  state, never school data.
+- **Two subject ids.** The REST subject rooms
+  (`/rest-api/parent/ps/subjectroom/all`) carry `activityId`; the criteria
+  page takes the JSP subject menu's `requestid`. They are different numbers
+  (disjoint sets on the same child). `get_assessment_criteria` therefore
+  takes a subject name and resolves the `requestid` from the menu.
+- **The subject menu only renders under the app session.** Under the web
+  session the same JSP page shows SchoolSoft's React sidebar instead and
+  `#subject_menu` is empty. The criteria flow reads the menu with the app
+  cookies and loads the criteria page with the web cookies, in that order.
+- **Web sessions expire on inactivity.** SchoolSoft's web UI has an
+  inactivity logout; a gated call then redirects to `Login.jsp`, which the
+  guard turns into a `SessionLostError` that names `login --web`. The app
+  session is unaffected. Loading `Login.jsp` with the app cookies would
+  invalidate them, which is why the guard never follows that redirect.
+- **Selectors are ids, not classes,** for contacts, bookings and files
+  (`#contAll_content`, `#timebook_con_content`, `#library_con_content`); the
+  gated pages are read by table semantics only. A SchoolSoft redesign would
+  therefore break the three id-keyed extractors first, and `browser verify`
+  names which.
+
+## Response shapes not listed above
+
+Observed live on Täby, 2026-09-06, field names only; values redacted.
+
+| Call                                                              | Shape                                                                                                                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /rest-api/parent/ps/subjectroom/all` (app cookies)           | `[{ activityId, subject, groupNames: string[], color, isPreSchool, access, isSubjectRoom, hiddenForStudents }]`                                                                                                                                                                                                                                                                                       |
+| `GET /rest-api/parent/ps/subjectroom/<activityId>/teachers`       | `[{ id, firstName, lastName, role }]`                                                                                                                                                                                                                                                                                                                                                                 |
+| `GET /rest-api/parent/ps/subjectroom/<activityId>/entities`       | `[]` here; the React view lists plannings and assignments in it                                                                                                                                                                                                                                                                                                                                       |
+| `GET /rest-api/parent/ps/subjectroom/unread_entities`             | `{ assignments, plannings, results, sum }` (numbers)                                                                                                                                                                                                                                                                                                                                                  |
+| `GET /rest-api/parent/holistic_assessment/rows` (app cookies)     | `[{ title, subTitle, color, subjectWarning, updatedAt, friendlyUpdatedAt, publishedAt, friendlyPublishedAt, holisticAssessmentId, published, read }]`; `…/overview` gives `{ isActionPlan, actionPlanTitle, actionPlanText }`. Not used yet (candidate capability).                                                                                                                                   |
+| `POST /rest/blogpost/getbyloggedinuser` (app cookies, read-only)  | Body `{ userId: -1, userType: -1, week: -1, subjects: [], archives: [], tags: [], freeText: "", goalIds: [], groupOrStudent: "", offset, row_count }`; rows `[{ blogPost: { id, creDate (epoch ms), name, description (HTML) }, author, recipientsNamesString, numberOfComments, content: [{ contentBlockDTOList: [{ blockType: "text" \| "image" \| …, contentBlocks: [{ content (HTML) }] }] }] }]` |
+| `GET /rest-api/parent/gradeprognosis/options/reconciliationdates` | Array; empty for these children, item shape unknown                                                                                                                                                                                                                                                                                                                                                   |
+| `GET /eva/api/v1/parent/<userId>/schools/<orgId>/messages/<id>`   | Full message: the inbox fields plus `recipients` and `attachments`; exact field list not recorded                                                                                                                                                                                                                                                                                                     |
+| `GET …/news/calendarevent/next?studentId=<sid>`                   | One event or `null`; field list not recorded                                                                                                                                                                                                                                                                                                                                                          |
+| `GET /rest-api/parent/ps/assignments/<id>/view` and `/sections`   | `view`: the assignment; `sections`: its parts (may 404 → returned as `null`); field lists not recorded                                                                                                                                                                                                                                                                                                |
+
+The three "not recorded" rows are the next things to capture, redacted, the
+next time the live suite runs with a discovery probe.
+
+## Observation log
+
+Dated, so the provenance of every claim above is clear. Add a line whenever
+something is learned live; never paste data, only shapes and behaviour.
+
+| Date       | Observation                                                                                                                                          |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-09-06 | Guardian login needs route `parent` and client id `vApp`; `eApp` mints STUDENT tokens ("Vi kunde inte hitta användaren").                            |
+| 2026-09-06 | Cookie exchange needs `userId`, `orgId`, `childInFocus` headers; cookies bound to one child. Access token 15 min; refresh rotates.                   |
+| 2026-09-06 | SchoolSoft accepts `http://127.0.0.1:43117/callback` as `redirect_uri`.                                                                              |
+| 2026-09-06 | GUI inventory: three tiers (Eva, webview REST, JSP) plus the GDPR gate; write actions are JSP form posts (not mapped).                               |
+| 2026-09-06 | Web-login cookies (3, incl. `JSESSIONID`) pass the gate on all gated pages; the IdP may continue in a popup, so all tabs are watched.                |
+| 2026-09-06 | The web session has its own child in focus (`header/parent` GET + PUT); under web cookies the JSP subject menu is empty (React sidebar instead).     |
+| 2026-09-06 | Subject rooms are served by `/rest-api/parent/ps/subjectroom/*` to the app session; `activityId` ≠ JSP `requestid`.                                  |
+| 2026-09-06 | Web session returned 401 on `header/parent` hours after capture: consistent with an inactivity logout (not re-verified before the session was lost). |
 
 ## What ssp-node gets wrong for guardians
 

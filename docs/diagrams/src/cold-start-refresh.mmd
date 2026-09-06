@@ -23,7 +23,7 @@ sequenceDiagram
       Str->>E: retry
     end
     Str->>Str: cookie exchange for remembered childInFocus
-    M->>St: save(refreshed tokens, cookies, context)
-    M->>M: verifySession() via cookies
-    M-->>O: live client
+    M->>St: save(provider data blob with refreshed tokens, guardian context, web cookies kept)
+    M->>M: session.verify() via cookies
+    M-->>O: live provider session
   end

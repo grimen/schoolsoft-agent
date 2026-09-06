@@ -1,15 +1,30 @@
 stateDiagram-v2
-  [*] --> None
-  None --> TokensOnly: login → code exchanged
-  TokensOnly --> Established: profile + cookie exchange ok
-  TokensOnly --> None: exchange fails and no refresh token
-  Established --> Established: operation / child switch (re-exchange)
-  Established --> Expired: access token > 15 min old
-  Expired --> Established: restore → refresh ok
-  Expired --> None: refresh rejected (refresh token dead)
-  Established --> None: logout
+  state "App session (tokens + cookies)" as app {
+    [*] --> None
+    None --> TokensOnly: login → code exchanged
+    TokensOnly --> Established: profile + cookie exchange ok
+    TokensOnly --> None: exchange fails and no refresh token
+    Established --> Established: operation / child switch (re-exchange)
+    Established --> Expired: access token > 15 min old
+    Expired --> Established: restore → refresh ok
+    Expired --> None: refresh rejected (refresh token dead)
+    Established --> None: logout
+  }
+  state "Web session (cookies from login --web)" as web {
+    [*] --> NoWeb
+    NoWeb --> Captured: login --web, user lands on the portal
+    Captured --> Captured: gated read (child aligned via header PUT)
+    Captured --> Gone: SchoolSoft inactivity logout → SessionLostError names login --web
+    Gone --> Captured: login --web again
+    Captured --> NoWeb: logout
+  }
   note right of TokensOnly
     Persisted even when a later step fails,
     so a bug in the exchange never costs
     the user another BankID.
+  end note
+  note right of Captured
+    Independent of the app session:
+    never refreshed automatically,
+    has its own child in focus.
   end note

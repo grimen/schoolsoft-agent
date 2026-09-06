@@ -8,7 +8,7 @@ One core, two surfaces, many hosts. The core knows SchoolSoft; the surfaces know
 
 [![System overview](diagrams/dist/system-overview.svg)](diagrams/src/system-overview.mmd)
 
-Three rules keep this honest, and a script enforces them (`make boundaries`):
+One vendor-neutral core, two surfaces, many hosts. Everything SchoolSoft-specific sits behind the `SchoolProvider` seam in `src/providers/schoolsoft`; a second vendor is a new directory there. Three rules keep this honest, and a script enforces them (`make boundaries`):
 
 1. `src/core` never imports from an adapter and never reads `process.env`. It receives a `Config` object.
 2. Adapters (`src/mcp`, `src/cli`, `src/shared`) import core only through `src/core/index.ts`.
