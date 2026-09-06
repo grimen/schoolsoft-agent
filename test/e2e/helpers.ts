@@ -11,9 +11,8 @@
 import { appendFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { FileSessionStore } from "../../src/services/file-store.js";
-import { DEFAULT_STATE_DIR_ENV } from "../../src/constants.js";
-import type { PersistedSession } from "../../src/services/store.js";
+import { FileSessionStore, type PersistedSession, type OperationContext } from "../../src/core/index.js";
+import { loadConfig, loadContext } from "../../src/shared/bootstrap.js";
 
 export const LIVE = process.env.SCHOOLSOFT_E2E === "1";
 export const skip = LIVE
@@ -41,8 +40,15 @@ export function record(id: string, question: string, finding: string): void {
   console.log(`[finding ${id}] ${question} → ${clean}`);
 }
 
+const inputs = () => ({ env: process.env, home: homedir(), platform: process.platform });
+
+/** The same context production adapters build. */
+export function e2eContext(): OperationContext {
+  return loadContext(inputs())();
+}
+
 export function e2eStore(): FileSessionStore {
-  return FileSessionStore.fromEnv(DEFAULT_STATE_DIR_ENV);
+  return new FileSessionStore(loadConfig(inputs()).stateDir);
 }
 
 export function loadPersisted(): PersistedSession | null {
@@ -60,5 +66,5 @@ export function forceExpireAccessToken(): boolean {
 }
 
 export function stateDirInfo(): string {
-  return process.env[DEFAULT_STATE_DIR_ENV] ?? join(homedir(), ".schoolsoft-mcp");
+  return loadConfig(inputs()).stateDir;
 }

@@ -5,14 +5,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionManager, guardianApi } from "../../src/services/wiring.js";
+import { e2eContext } from "./helpers.js";
 import { skip, record } from "./helpers.js";
 
 test("D1: guardian context + webview session shape", { skip }, async () => {
-  const manager = sessionManager();
+  const manager = e2eContext().manager;
   await manager.ensureSession();
   const ctx = manager.guardian();
-  const session = await guardianApi(manager).getSession();
+  const session = await e2eContext().api.getSession();
   record(
     "Q3",
     "Multi-child session shape",
@@ -26,9 +26,9 @@ test("D1: guardian context + webview session shape", { skip }, async () => {
 });
 
 test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
-  const manager = sessionManager();
+  const manager = e2eContext().manager;
   await manager.ensureSession();
-  const api = guardianApi(manager);
+  const api = e2eContext().api;
   const ctx = manager.guardian();
   const child = ctx.children.find((c) => c.studentId === ctx.childInFocus)!;
   const orgId = child.schools[0].orgId;
