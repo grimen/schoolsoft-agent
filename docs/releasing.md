@@ -5,18 +5,24 @@ a human does along the way: merge the release PR.
 
 ## Where it publishes
 
-`PUBLISH_REGISTRY` at the top of `ci.yml` selects the registry:
+Both registries, from the same Publish job, controlled by two flags at the top
+of `ci.yml`:
 
-- **`github` (current):** GitHub Packages, as `@grimen/schoolsoft-agent`,
-  using the workflow's own `GITHUB_TOKEN`. Nothing to set up. The scoped name
-  is applied only in the publish step; the repository, the bins
-  (`schoolsoft-agent`, `schoolsoft-agent-mcp`) and the Claude Desktop bundle
-  keep the unscoped name. Consumers need a GitHub token with `read:packages`
-  even for public packages, so the parent-facing `npx -y schoolsoft-agent`
-  lines in the guides only work once we are on npm; until then the install
-  path is in `docs/troubleshooting.md` ("not on npm yet").
-- **`npm` (later):** npmjs.com as `schoolsoft-agent` with provenance. Flip
-  the value and add the `NPM_TOKEN` secret; nothing else changes.
+- **GitHub Packages** (`PUBLISH_GITHUB: "true"`): always, as
+  `@grimen/schoolsoft-agent`, using the workflow's own `GITHUB_TOKEN`. Nothing
+  to set up. The scoped name is applied only in that step; the repository,
+  the bins (`schoolsoft-agent`, `schoolsoft-agent-mcp`) and the Claude Desktop
+  bundle keep the unscoped name. Consumers need a GitHub token with
+  `read:packages` even for public packages, so the parent-facing
+  `npx -y schoolsoft-agent` lines in the guides only work once we are on npm;
+  until then the install path is in `docs/troubleshooting.md` ("not on npm
+  yet").
+- **npm** (`PUBLISH_NPM: "auto"`): as `schoolsoft-agent` with provenance,
+  automatically as soon as the `NPM_TOKEN` secret exists; until then the step
+  is skipped, never failed. `"true"` / `"false"` force it either way.
+
+Verify runs once per registry that was actually published to, installing the
+exact version from it.
 
 ## The short version
 

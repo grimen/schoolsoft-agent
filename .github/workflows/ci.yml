@@ -15,12 +15,14 @@ name: CI
 # runs here. A docs-only PR stops after Checks (classified by the Changes
 # job in checks.yml); main skips docs-only pushes via paths-ignore.
 #
-# Publishing (PUBLISH_REGISTRY below selects the registry):
-#   - `github` (current): GitHub Packages, as @grimen/schoolsoft-agent, with
-#     the workflow's own GITHUB_TOKEN; no secret to set up. Consumers need a
-#     token with read:packages even for public packages (docs/releasing.md).
-#   - `npm` (later): npmjs.com as schoolsoft-agent with provenance; needs the
-#     NPM_TOKEN secret (GITHUB_TOKEN cannot publish to npmjs.com).
+# Publishing (PUBLISH_GITHUB / PUBLISH_NPM below):
+#   - GitHub Packages, as @grimen/schoolsoft-agent, with the workflow's own
+#     GITHUB_TOKEN; always on, nothing to set up. Consumers need a token with
+#     read:packages even for public packages (docs/releasing.md).
+#   - npmjs.com, as schoolsoft-agent with provenance, whenever the NPM_TOKEN
+#     secret exists (PUBLISH_NPM=auto); the step is skipped, not failed,
+#     until then. GITHUB_TOKEN cannot publish to npmjs.com.
+#   Verify installs from every registry that was actually published to.
 #   - Stable (`latest`): only when a GitHub Release is published or
 #     release-please.yml dispatches this workflow at a tag (`release_tag`).
 #     The tag IS the version (vX.Y.Z -> X.Y.Z). A prerelease tag
@@ -48,8 +50,8 @@ permissions:
   contents: read
 
 env:
-  # "github" (GitHub Packages, @grimen scope, GITHUB_TOKEN) or "npm" (npmjs.com, NPM_TOKEN).
-  PUBLISH_REGISTRY: github
+  PUBLISH_GITHUB: "true" # GitHub Packages, @grimen scope, GITHUB_TOKEN
+  PUBLISH_NPM: "auto" # "auto": when NPM_TOKEN exists; "true" / "false" to force
   GITHUB_PACKAGE_NAME: "@grimen/schoolsoft-agent"
 
 # PR refs: a newer push supersedes an in-flight run. main: never cancel a
@@ -143,6 +145,7 @@ jobs:
     outputs:
       version: ${{ steps.ver.outputs.version }}
       disttag: ${{ steps.ver.outputs.disttag }}
+      registries: ${{ steps.targets.outputs.registries }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -159,7 +162,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          registry-url: ${{ env.PUBLISH_REGISTRY == 'npm' && 'https://registry.npmjs.org' || 'https://npm.pkg.github.com' }}
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
@@ -175,26 +177,53 @@ jobs:
       - name: Build + generated artifacts
         run: make build skills
 
-      # GitHub Packages only accepts packages scoped to the repository owner;
-      # the scoped name lives only in this step so npm later ships unscoped.
-      - name: Scope the package name for GitHub Packages
-        if: env.PUBLISH_REGISTRY == 'github'
-        run: npm pkg set name="$GITHUB_PACKAGE_NAME"
-
-      - name: Publish to the registry
+      # Which registries this run publishes to: GitHub Packages per the flag,
+      # npm per the flag or (auto) whenever the secret exists.
+      - name: Decide the target registries
+        id: targets
+        env:
+          HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
         run: |
-          if [ "$PUBLISH_REGISTRY" = "npm" ]; then
-            npm publish --provenance --access public --tag "$DIST_TAG"
-          else
-            npm publish --access public --tag "$DIST_TAG"
-          fi
+          github=false; npm=false
+          [ "$PUBLISH_GITHUB" = "true" ] && github=true
+          case "$PUBLISH_NPM" in
+            true) npm=true ;;
+            auto) [ "$HAS_NPM_TOKEN" = "true" ] && npm=true ;;
+          esac
+          list="[]"
+          $github && $npm && list='["github","npm"]'
+          $github && ! $npm && list='["github"]'
+          ! $github && $npm && list='["npm"]'
+          {
+            echo "github=$github"
+            echo "npm=$npm"
+            echo "registries=$list"
+          } >> "$GITHUB_OUTPUT"
+          echo "publishing to: $list"
+
+      # GitHub Packages only accepts packages scoped to the repository owner;
+      # the scoped name lives only in this step so npm ships unscoped.
+      - name: Publish to GitHub Packages
+        if: steps.targets.outputs.github == 'true'
+        run: |
+          printf '//npm.pkg.github.com/:_authToken=%s\n' "$GH_TOKEN" > "$RUNNER_TEMP/npmrc-github"
+          npm pkg set name="$GITHUB_PACKAGE_NAME"
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/npmrc-github" \
+            npm publish --access public --tag "$DIST_TAG" --registry https://npm.pkg.github.com
+          git checkout -- package.json
         env:
           DIST_TAG: ${{ steps.ver.outputs.disttag }}
-          NODE_AUTH_TOKEN: ${{ env.PUBLISH_REGISTRY == 'npm' && secrets.NPM_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Restore the unscoped package name for the bundle
-        if: env.PUBLISH_REGISTRY == 'github'
-        run: git checkout -- package.json
+      - name: Publish to npm
+        if: steps.targets.outputs.npm == 'true'
+        run: |
+          printf '//registry.npmjs.org/:_authToken=%s\n' "$NPM_TOKEN" > "$RUNNER_TEMP/npmrc-npm"
+          NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/npmrc-npm" \
+            npm publish --provenance --access public --tag "$DIST_TAG" --registry https://registry.npmjs.org
+        env:
+          DIST_TAG: ${{ steps.ver.outputs.disttag }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Build the Claude Desktop bundle
         run: make mcpb
@@ -211,11 +240,16 @@ jobs:
   registry-smoke:
     name: Verify
     needs: [publish]
+    if: needs.publish.outputs.registries != '[]'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
       contents: read
       packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        registry: ${{ fromJSON(needs.publish.outputs.registries) }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -223,5 +257,6 @@ jobs:
           node-version: 24
       - name: Install the published version and assert the consumer contract
         env:
-          NODE_AUTH_TOKEN: ${{ env.PUBLISH_REGISTRY == 'npm' && '' || secrets.GITHUB_TOKEN }}
+          PUBLISH_REGISTRY: ${{ matrix.registry }}
+          NODE_AUTH_TOKEN: ${{ matrix.registry == 'github' && secrets.GITHUB_TOKEN || '' }}
         run: bash scripts/release/registry-smoke.sh "${{ needs.publish.outputs.version }}"
