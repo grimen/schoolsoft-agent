@@ -1,13 +1,14 @@
 /**
- * Exchange a SchoolSoft OAuth access token for web session cookies
- * (JSESSIONID + hash), which every legacy REST/JSP endpoint needs.
+ * Exchange a SchoolSoft access token for the React-webview session cookies
+ * (JSESSIONID + hash + usertype), which `/rest-api/parent/...` needs.
  *
- * ssp-node's `mobileGetSession` does the same thing but hardcodes the
- * *student* endpoint (`/eva-apps/auth/login/student`). SchoolSoft resolves
- * the token's identity as the user type in the path, so guardians must hit
- * `/eva-apps/auth/login/parent` — verified live 2026-09-06: the student
- * path returned no cookies for a parent token, and an unauthenticated
- * probe shows `/parent` exists (303) while `/teacher` is 404.
+ * Verified live (Täby, 2026-09-06): `/eva-apps/auth/login/parent` only
+ * returns cookies when the request names the guardian's userId, the
+ * school orgId and the child in focus (`childInFocus`). Without those it
+ * 303s to `...?error=other` with no cookies. ssp-node's equivalent
+ * (`mobileGetSession`) hardcodes the student path and none of these
+ * headers, so it can never work for guardians. Header names follow
+ * sebdanielsson/better-schoolsoft.
  */
 import {
   schoolsoftFetch,
@@ -37,21 +38,14 @@ export type ExchangeFetch = (
 
 export interface ExchangeOptions {
   userType: SchoolsoftUserType;
-  /** SchoolSoft user id from fetchMobileSessionInfo(), if known. */
-  userId?: number;
-  orgid?: string;
+  userId: number;
+  orgId: number;
+  /** Student the cookie session should be bound to (guardians). */
+  childInFocus?: number;
   fetchImpl?: ExchangeFetch;
 }
 
-/** Mirrors the headers SchoolSoft's native app sends (from ssp-node). */
-const APP_HEADERS = {
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-  "X-Requested-With": "com.schoolsoft.eapp.android",
-  language: "sw",
-  theme: "dark",
-  useros: "android",
-};
-const APP_UA = "nyEva";
+const APP_UA = "SchoolSoftPlus-Mobile/1.0";
 
 export async function exchangeTokenForCookies(
   client: SchoolsoftClient,
@@ -66,12 +60,16 @@ export async function exchangeTokenForCookies(
   const { userType } = options;
 
   const headers: Record<string, string> = {
-    ...APP_HEADERS,
     token,
+    userId: String(options.userId),
+    orgId: String(options.orgId),
+    userOS: "android",
+    language: "sw",
     redirecturl: `https://sms.schoolsoft.se/${school}/react/#/${userType}/start`,
   };
-  if (options.orgid !== undefined) headers.orgid = options.orgid;
-  if (options.userId !== undefined) headers.userid = String(options.userId);
+  if (options.childInFocus !== undefined) {
+    headers.childInFocus = String(options.childInFocus);
+  }
 
   const result = await fetchImpl(
     ssUrl(school, `/eva-apps/auth/login/${userType}`),
@@ -89,8 +87,8 @@ export async function exchangeTokenForCookies(
       `Session exchange failed for user type "${userType}" — SchoolSoft ` +
         `did not return JSESSIONID/hash cookies (status ${result.status}` +
         (location ? `, redirect ${String(location)}` : "") +
-        `). The access token may be expired, or ${userType} is not the ` +
-        `right user type for this account.`,
+        `). The access token may be expired, or the user/org/child ids ` +
+        `do not match this account.`,
     );
   }
   client.setSessionCookies(jsessionid, hash, usertype);

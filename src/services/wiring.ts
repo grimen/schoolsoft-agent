@@ -5,6 +5,7 @@
  */
 import { FileSessionStore } from "./file-store.js";
 import { SessionManager } from "./session-manager.js";
+import { GuardianApi } from "../api/guardian.js";
 import { BankIdBrowserStrategy } from "../auth/bankid-browser.js";
 import {
   SCHOOL_ENV,
@@ -13,7 +14,7 @@ import {
   USER_TYPE_ENV,
   DEFAULT_USER_TYPE,
   CLIENT_ID_ENV,
-  DEFAULT_CLIENT_ID,
+  DEFAULT_CLIENT_ID_BY_USER_TYPE,
   SCHOOLSOFT_USER_TYPES,
   type SchoolsoftUserType,
 } from "../constants.js";
@@ -44,6 +45,22 @@ export function userTypeFromEnv(): SchoolsoftUserType {
 
 let manager: SessionManager | null = null;
 
+/** Guardian data API bound to the live session of a SessionManager. */
+export function guardianApi(m: SessionManager): GuardianApi {
+  const client = m.getClient();
+  return new GuardianApi({
+    school: client.school,
+    accessToken: () => client.accessToken,
+    cookieHeader: () => {
+      try {
+        return client.cookieHeader;
+      } catch {
+        return null;
+      }
+    },
+  });
+}
+
 /** Lazily built process-wide SessionManager (one user per stdio server). */
 export function sessionManager(): SessionManager {
   if (!manager) {
@@ -54,7 +71,9 @@ export function sessionManager(): SessionManager {
         new BankIdBrowserStrategy({
           orgid: process.env[ORGID_ENV],
           userType: userTypeFromEnv(),
-          clientId: process.env[CLIENT_ID_ENV] || DEFAULT_CLIENT_ID,
+          clientId:
+            process.env[CLIENT_ID_ENV] ||
+            DEFAULT_CLIENT_ID_BY_USER_TYPE[userTypeFromEnv()],
         }),
       ],
     });

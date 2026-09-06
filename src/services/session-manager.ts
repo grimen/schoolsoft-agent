@@ -9,6 +9,7 @@
 import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "../auth/strategy.js";
 import type { PersistedSession, SessionStore } from "./store.js";
+import { childOf, type GuardianContext } from "../api/guardian.js";
 
 export class NotAuthenticatedError extends Error {
   constructor(reason: string) {
@@ -61,12 +62,15 @@ export class SessionManager {
   private reset(): void {
     this.client = null;
     this.established = false;
+    this.activeStrategy = null;
   }
 
   private persist(authMethod: string): void {
     const c = this.getClient();
+    const strategy = this.strategies.get(authMethod);
     this.store.save({
       school: this.school,
+      guardian: strategy?.context,
       accessToken: c.accessToken ?? undefined,
       refreshToken: c.refreshToken ?? undefined,
       savedAt: Date.now(),
@@ -86,6 +90,7 @@ export class SessionManager {
       );
     }
     this.reset();
+    this.activeStrategy = strategy;
     let info: LoginInfo;
     try {
       info = await strategy.login(this.getClient());
@@ -126,6 +131,7 @@ export class SessionManager {
 
     const strategy =
       this.strategies.get(saved.authMethod) ?? this.defaultStrategy;
+    this.activeStrategy = strategy;
     try {
       await strategy.restore(this.getClient(), saved);
       this.persist(strategy.id); // tokens may have been refreshed
@@ -151,6 +157,32 @@ export class SessionManager {
   status(): { saved: PersistedSession | null; established: boolean } {
     return { saved: this.store.load(), established: this.established };
   }
+
+  /** Guardian context of the live session (children, child in focus). */
+  guardian(): GuardianContext {
+    const ctx = this.activeStrategy?.context;
+    if (!this.established || !ctx) {
+      throw new NotAuthenticatedError("no guardian context");
+    }
+    return ctx;
+  }
+
+  /** Re-bind the cookie session to another child and persist the choice. */
+  async focusChild(studentId: number): Promise<GuardianContext> {
+    const client = await this.ensureSession();
+    const strategy = this.activeStrategy;
+    if (!strategy?.focusChild) {
+      throw new Error(`Auth strategy "${strategy?.id}" cannot switch child.`);
+    }
+    childOf(this.guardian(), studentId); // validate before any side effect
+    if (strategy.context?.childInFocus !== studentId) {
+      await strategy.focusChild(client, studentId);
+      this.persist(strategy.id);
+    }
+    return this.guardian();
+  }
+
+  private activeStrategy: AuthStrategy | null = null;
 
   logout(): void {
     this.store.clear();

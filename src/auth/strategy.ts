@@ -14,11 +14,14 @@
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { PersistedSession } from "../services/store.js";
+import type { GuardianContext } from "../api/guardian.js";
 
 export interface LoginInfo {
   name: string | null;
   schoolName: string | null;
   userType: string | null;
+  /** Children on a guardian account (studentId + first name). */
+  children?: { studentId: number; firstName: string }[];
 }
 
 export interface AuthStrategy {
@@ -38,4 +41,17 @@ export interface AuthStrategy {
    * Throws if the saved state is unusable (caller falls back to login).
    */
   restore(client: SchoolsoftClient, saved: PersistedSession): Promise<void>;
+
+  /**
+   * Guardian context established by login()/restore(), persisted by
+   * SessionManager and handed back on restore. Undefined for strategies
+   * that don't model guardians.
+   */
+  readonly context?: GuardianContext;
+
+  /**
+   * Re-bind the cookie session to another child (guardians). Optional;
+   * SessionManager reports "not supported" if absent.
+   */
+  focusChild?(client: SchoolsoftClient, studentId: number): Promise<void>;
 }

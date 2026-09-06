@@ -87,6 +87,7 @@ test("M4: get_assignments returns an array", { skip }, async () => {
   const first = data.assignments[0];
   if (first?.id) {
     const detail = await call("schoolsoft_get_assignment_detail", { id: first.id });
+    record("M4b", "Assignment detail by id", detail.isError ? "FAIL" : "OK");
     assert.notEqual(detail.isError, true, detail.content[0]?.text);
   }
 });
@@ -96,9 +97,27 @@ test("M5: get_news returns items", { skip }, async () => {
   assert.notEqual(res.isError, true, res.content[0]?.text);
 });
 
-test("M6: get_subjects returns subject rooms", { skip }, async () => {
-  const res = await call("schoolsoft_get_subjects");
-  assert.notEqual(res.isError, true, res.content[0]?.text);
+test("M6: list_children + get_messages work for the guardian", { skip }, async () => {
+  const kids = await call("schoolsoft_list_children");
+  assert.notEqual(kids.isError, true, kids.content[0]?.text);
+  const data = kids.structuredContent as { children: { studentId: number }[]; childInFocus: number };
+  assert.ok(data.children.length >= 1);
+  record("Q3", "Multi-child accounts", `${data.children.length} children, focus=${data.childInFocus}`);
+
+  const msgs = await call("schoolsoft_get_messages", { limit: 5 });
+  assert.notEqual(msgs.isError, true, msgs.content[0]?.text);
+  const list = (msgs.structuredContent as { messages: { id: number }[] }).messages;
+  record("M6", "Inbox messages (limit 5)", String(list.length));
+  if (list[0]?.id) {
+    const one = await call("schoolsoft_get_message", { id: list[0].id });
+    assert.notEqual(one.isError, true, one.content[0]?.text);
+  }
+  // Switch to the other child if there is one — exercises the cookie re-bind.
+  const other = data.children.find((c) => c.studentId !== data.childInFocus);
+  if (other) {
+    const sched = await call("schoolsoft_get_schedule", { child_id: other.studentId });
+    assert.notEqual(sched.isError, true, sched.content[0]?.text);
+  }
 });
 
 test("M7: response sizes stay under the character limit", { skip }, async () => {
@@ -109,7 +128,8 @@ test("M7: response sizes stay under the character limit", { skip }, async () => 
     "schoolsoft_get_lunch_menu",
     "schoolsoft_get_assignments",
     "schoolsoft_get_news",
-    "schoolsoft_get_subjects",
+    "schoolsoft_get_messages",
+    "schoolsoft_list_children",
   ]) {
     const res = await call(name);
     const len = res.content[0]?.text.length ?? 0;

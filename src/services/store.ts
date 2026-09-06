@@ -6,6 +6,7 @@
  * OS-keychain-backed implementation (keytar / DPAPI / Secret Service)
  * or an in-memory fake for tests without touching orchestration code.
  */
+import type { GuardianContext } from "../api/guardian.js";
 
 export interface PersistedSession {
   school: string;
@@ -17,6 +18,8 @@ export interface PersistedSession {
   jsessionid?: string;
   hash?: string;
   usertype?: string;
+  /** Guardian profile + child in focus (see src/api/guardian.ts). */
+  guardian?: GuardianContext;
   /** Bookkeeping. */
   savedAt: number;
   authMethod: string;

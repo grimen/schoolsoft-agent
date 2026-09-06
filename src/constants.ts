@@ -16,14 +16,19 @@ export const USER_TYPE_ENV = "SCHOOLSOFT_USER_TYPE";
 export const DEFAULT_USER_TYPE: SchoolsoftUserType = "parent";
 
 /**
- * OAuth client id sent to SchoolSoft. `eApp` is what ssp-node and the
- * student app use; the login app also recognises `vApp` (guardian app?).
- * Live finding 2026-09-06: with eApp + the parent route, SchoolSoft still
- * minted a token with user_type=STUDENT, so this may need to be vApp for
- * guardians.
+ * OAuth client id sent to SchoolSoft. SchoolSoft stamps the token's
+ * user_type from the client id, not from the login route: eApp (student
+ * app) → STUDENT, vApp (guardian app) → PARENT. Override only for
+ * experiments.
  */
 export const CLIENT_ID_ENV = "SCHOOLSOFT_CLIENT_ID";
-export const DEFAULT_CLIENT_ID = "eApp";
+/** Verified live 2026-09-06: eApp mints STUDENT tokens, vApp mints PARENT. */
+export const DEFAULT_CLIENT_ID_BY_USER_TYPE: Record<SchoolsoftUserType, string> = {
+  parent: "vApp",
+  student: "eApp",
+  teacher: "eApp",
+};
+export const DEFAULT_CLIENT_ID = DEFAULT_CLIENT_ID_BY_USER_TYPE[DEFAULT_USER_TYPE];
 
 /** Optional org id (defaults to ssp-node's default). */
 export const ORGID_ENV = "SCHOOLSOFT_ORGID";

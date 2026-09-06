@@ -5,46 +5,53 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { sessionManager } from "../../src/services/wiring.js";
+import { sessionManager, guardianApi } from "../../src/services/wiring.js";
 import { skip, record } from "./helpers.js";
 
-test("D1: session shape — multi-child / org inspection", { skip }, async () => {
-  const client = await sessionManager().ensureSession();
-  const session = await client.getSession();
-  const json = JSON.stringify(session);
-  // Heuristics: look for arrays that could be children/orgs/students.
-  const childish = ["students", "children", "orgs", "pupils"].filter((k) =>
-    json.toLowerCase().includes(`"${k}"`),
-  );
+test("D1: guardian context + webview session shape", { skip }, async () => {
+  const manager = sessionManager();
+  await manager.ensureSession();
+  const ctx = manager.guardian();
+  const session = await guardianApi(manager).getSession();
   record(
     "Q3",
     "Multi-child session shape",
-    childish.length
-      ? `candidate keys: ${childish.join(", ")} — inspect e2e-session-dump.json`
-      : "no obvious child/org arrays — switching may be a separate endpoint",
+    `${ctx.children.length} children (${ctx.children.map((c) => c.schools[0]?.className).join(", ")}), ` +
+      `focus=${ctx.childInFocus}; /rest-api/session keys: ${Object.keys(session as object).join(",")}`,
   );
   const { writeFileSync } = await import("node:fs");
-  writeFileSync("e2e-session-dump.json", JSON.stringify(session, null, 2));
+  writeFileSync("e2e-session-dump.json", JSON.stringify({ ctx, session }, null, 2));
   console.log("session dump → e2e-session-dump.json (gitignored)");
   assert.ok(session);
 });
 
-test("D2: startpage + class list availability (guardian account)", { skip }, async () => {
-  const client = await sessionManager().ensureSession();
+test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
+  const manager = sessionManager();
+  await manager.ensureSession();
+  const api = guardianApi(manager);
+  const ctx = manager.guardian();
+  const child = ctx.children.find((c) => c.studentId === ctx.childInFocus)!;
+  const orgId = child.schools[0].orgId;
+  const week = 37;
+  const probes: [string, () => Promise<unknown>][] = [
+    ["lunch", () => api.getLunchWeek(orgId, week)],
+    ["news", () => api.getNews(ctx.userId, orgId, child.studentId)],
+    ["inbox", () => api.getInbox(ctx.userId, orgId)],
+    ["nextEvent", () => api.getNextCalendarEvent(ctx.userId, orgId, child.studentId)],
+    ["schedule", () => api.getScheduleWeek(week)],
+    ["assignments", () => api.getAssignmentsWeek(week, new Date().getFullYear())],
+  ];
   const results: string[] = [];
-  try {
-    await client.getStartpage();
-    results.push("getStartpage: OK");
-  } catch (e) {
-    results.push(`getStartpage: FAIL (${e instanceof Error ? e.message : e})`);
+  for (const [name, fn] of probes) {
+    try {
+      const r = await fn();
+      results.push(`${name}: OK${Array.isArray(r) ? `(${r.length})` : ""}`);
+    } catch (e) {
+      results.push(`${name}: FAIL (${e instanceof Error ? e.message : e})`);
+    }
   }
-  try {
-    const students = await client.getClassStudents();
-    results.push(`getClassStudents: OK (${students.length})`);
-  } catch (e) {
-    results.push(`getClassStudents: FAIL (${e instanceof Error ? e.message : e})`);
-  }
-  record("D2", "ssp-node guardian coverage", results.join("; "));
+  record("D2", "Guardian API coverage", results.join("; "));
+  assert.ok(results.every((r) => !r.includes("FAIL")), results.join("; "));
 });
 
 test("D3: token lifetime snapshot for longitudinal tracking", { skip }, async () => {

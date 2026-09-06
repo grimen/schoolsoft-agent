@@ -29,7 +29,7 @@ Args:
     "bankid-browser". Only pass this if a previous login attempt
     explicitly suggested an alternative.
 
-Returns: { status, user: { name, schoolName, userType } } on success.
+Returns: { status, user: { name, schoolName, userType, children } } on success.
 
 Use when: any other schoolsoft_* tool returned "Not authenticated".
 Don't use when: a session is already active (check schoolsoft_auth_status).`,
@@ -82,6 +82,11 @@ authentication errors from other tools.`,
           school: requiredSchool(),
           authMethod: saved?.authMethod,
           savedAt: saved ? new Date(saved.savedAt).toISOString() : undefined,
+          childInFocus: saved?.guardian?.childInFocus,
+          children: saved?.guardian?.children.map((c) => ({
+            studentId: c.studentId,
+            firstName: c.firstName,
+          })),
         });
       } catch (e) {
         if (e instanceof NotAuthenticatedError) {

@@ -1,6 +1,5 @@
 /**
- * Unit tests for the user-type-aware token → cookie exchange. The HTTP
- * call is injected, so no network.
+ * Unit tests for the guardian token → cookie exchange. HTTP is injected.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -22,52 +21,49 @@ function fakeClient() {
   return { client, calls };
 }
 
-test("hits the parent eva-apps endpoint and installs the cookies", async () => {
+const COOKIES = [
+  "JSESSIONID=JS1; Path=/; HttpOnly",
+  "hash=H1; Path=/",
+  "usertype=2; Path=/",
+  "clientType=; Path=/",
+];
+
+test("hits the parent eva-apps endpoint with user/org/child ids and installs cookies", async () => {
   const { client, calls } = fakeClient();
   const seen: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl: ExchangeFetch = async (url, _school, options) => {
     seen.push({ url, headers: options.headers as Record<string, string> });
-    return {
-      status: 303,
-      data: "",
-      headers: {},
-      setCookies: [
-        "JSESSIONID=JS1; Path=/; HttpOnly",
-        "hash=H1; Path=/",
-        "usertype=2; Path=/",
-      ],
-    };
+    return { status: 303, data: "", headers: {}, setCookies: COOKIES };
   };
   await exchangeTokenForCookies(client, {
     userType: "parent",
     userId: 42,
+    orgId: 20,
+    childInFocus: 777,
     fetchImpl,
   });
   assert.equal(seen.length, 1);
-  assert.equal(
-    seen[0].url,
-    "https://sms.schoolsoft.se/testskola/eva-apps/auth/login/parent",
-  );
+  assert.equal(seen[0].url, "https://sms.schoolsoft.se/testskola/eva-apps/auth/login/parent");
   assert.equal(seen[0].headers.token, "ACCESS");
-  assert.equal(seen[0].headers.userid, "42");
+  assert.equal(seen[0].headers.userId, "42");
+  assert.equal(seen[0].headers.orgId, "20");
+  assert.equal(seen[0].headers.childInFocus, "777");
   assert.match(seen[0].headers.redirecturl, /\/react\/#\/parent\//);
   assert.deepEqual(calls, [["JS1", "H1", "2"]]);
 });
 
-test("student user type uses the student endpoint", async () => {
+test("student user type uses the student endpoint and no childInFocus", async () => {
   const { client } = fakeClient();
   let url = "";
-  const fetchImpl: ExchangeFetch = async (u) => {
+  let headers: Record<string, string> = {};
+  const fetchImpl: ExchangeFetch = async (u, _s, o) => {
     url = u;
-    return {
-      status: 303,
-      data: "",
-      headers: {},
-      setCookies: ["JSESSIONID=a; Path=/", "hash=b; Path=/"],
-    };
+    headers = o.headers as Record<string, string>;
+    return { status: 303, data: "", headers: {}, setCookies: COOKIES };
   };
-  await exchangeTokenForCookies(client, { userType: "student", fetchImpl });
+  await exchangeTokenForCookies(client, { userType: "student", userId: 1, orgId: 2, fetchImpl });
   assert.match(url, /\/eva-apps\/auth\/login\/student$/);
+  assert.equal(headers.childInFocus, undefined);
 });
 
 test("missing cookies fail with an actionable error", async () => {
@@ -79,7 +75,7 @@ test("missing cookies fail with an actionable error", async () => {
     setCookies: [],
   });
   await assert.rejects(
-    exchangeTokenForCookies(client, { userType: "parent", fetchImpl }),
+    exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
     /Session exchange failed.*parent.*error=other/s,
   );
 });
@@ -87,7 +83,14 @@ test("missing cookies fail with an actionable error", async () => {
 test("refuses to run without an access token", async () => {
   const client = { school: "s", accessToken: null } as unknown as SchoolsoftClient;
   await assert.rejects(
-    exchangeTokenForCookies(client, { userType: "parent", fetchImpl: async () => { throw new Error("should not be called"); } }),
+    exchangeTokenForCookies(client, {
+      userType: "parent",
+      userId: 1,
+      orgId: 2,
+      fetchImpl: async () => {
+        throw new Error("should not be called");
+      },
+    }),
     /No access token/,
   );
 });
