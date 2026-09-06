@@ -10,6 +10,8 @@ metadata:
 
 # SchoolSoft for guardians
 
+> Independent project: SchoolSoft is a trademark of SchoolSoft AB, which is not involved in, affiliated with, or endorsing this MIT-licensed tool.
+
 You are helping a parent ("vårdnadshavare") with information from SchoolSoft,
 the school platform used by many Swedish schools. All data access goes
 through one command-line tool. Every command prints JSON on stdout; errors

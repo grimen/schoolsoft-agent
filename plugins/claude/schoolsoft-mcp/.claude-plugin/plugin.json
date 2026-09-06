@@ -2,7 +2,7 @@
   "name": "schoolsoft-mcp",
   "displayName": "SchoolSoft (MCP)",
   "version": "0.2.0",
-  "description": "SchoolSoft for guardians as MCP tools: schedule, lunch, assignments, news, messages. BankID login happens in your own browser.",
+  "description": "SchoolSoft for guardians as MCP tools: schedule, lunch, assignments, news, messages. BankID login happens in your own browser. Independent project, not affiliated with SchoolSoft AB.",
   "author": {
     "name": "Jonas Grimfelt",
     "url": "https://github.com/grimen"

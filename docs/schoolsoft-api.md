@@ -1,6 +1,6 @@
 # SchoolSoft's unofficial API, as used by this project
 
-Everything here was verified live against a Täby kommun guardian account on 2026-09-06. SchoolSoft can change any of it without notice; the live E2E suite is the canary.
+SchoolSoft is a trademark of SchoolSoft AB; this document describes observed behaviour of their unofficial API for an independent project SchoolSoft AB is not involved in. Everything here was verified live against a Täby kommun guardian account on 2026-09-06. SchoolSoft can change any of it without notice; the live E2E suite is the canary.
 
 Base URL for a tenant: `https://sms.schoolsoft.se/<slug>/`. The slug is the municipality or school-group tenant (`taby`), not the individual school; schools inside a tenant are `orgId`s.
 

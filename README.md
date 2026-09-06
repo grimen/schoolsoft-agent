@@ -17,7 +17,7 @@ Two surfaces, one core. Pick the one your host supports or you prefer:
 
 Both are the same npm package and behave identically, because every capability is defined once as an _operation_ and both surfaces are generated from that list. See [docs/architecture.md](docs/architecture.md).
 
-> Unofficial. Not affiliated with SchoolSoft AB. It uses the same APIs the SchoolSoft app uses; read [Privacy](#privacy) before installing.
+> **Independent project.** SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. It talks to SchoolSoft through the same unofficial APIs the SchoolSoft app uses; read [Trademark and independence](#trademark-and-independence) and [Privacy](#privacy) before installing.
 
 ## 60-second install
 
@@ -85,6 +85,10 @@ Layout, boundaries and the test pyramid are in [docs/architecture.md](docs/archi
 - Write operations: report absence, send message (separate spec; confirmation-gated).
 - Remote transport (streamable HTTP with per-user storage) so ChatGPT and hosted agents can use it.
 - Claude Desktop extension directory listing.
+
+## Trademark and independence
+
+SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed community project: it is not affiliated with, endorsed by, or supported by SchoolSoft AB, and SchoolSoft has no involvement in it. The name is used only to describe what the software connects to. If SchoolSoft AB objects to any use of the name or to the automated access, open an issue and it will be addressed.
 
 ## License
 

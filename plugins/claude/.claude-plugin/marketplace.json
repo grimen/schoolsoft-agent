@@ -1,8 +1,11 @@
 {
   "name": "schoolsoft-agent",
-  "owner": { "name": "Jonas Grimfelt", "url": "https://github.com/grimen" },
+  "owner": {
+    "name": "Jonas Grimfelt",
+    "url": "https://github.com/grimen"
+  },
   "metadata": {
-    "description": "SchoolSoft for AI agents — pick the MCP server or the skill, both share one core.",
+    "description": "SchoolSoft for AI agents — pick the MCP server or the skill, both share one core. Independent project, not affiliated with SchoolSoft AB.",
     "version": "0.2.0"
   },
   "plugins": [
