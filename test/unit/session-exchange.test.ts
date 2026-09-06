@@ -76,7 +76,7 @@ test("missing cookies fail with an actionable error", async () => {
   });
   await assert.rejects(
     exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
-    /Session exchange failed.*parent.*error=other/s,
+    /did not open a session.*"parent".*error=other/s,
   );
 });
 
@@ -91,7 +91,7 @@ test("refuses to run without an access token", async () => {
         throw new Error("should not be called");
       },
     }),
-    /No access token/,
+    /no access token/,
   );
 });
 
@@ -105,6 +105,6 @@ test("failure message without a redirect location", async () => {
   });
   await assert.rejects(
     exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
-    /status 302\)\. The access token/,
+    /status 302\)\. The token/,
   );
 });

@@ -11,7 +11,7 @@
 import type { SchoolProvider } from "../../core/provider/types.js";
 import type { Config } from "../../core/config.js";
 import { BankIdBrowserStrategy, type BankIdBrowserOptions } from "./auth/bankid-browser.js";
-import { ApiPortal } from "./portal/api-portal.js";
+import { ApiPortal, type ApiFetch } from "./portal/api-portal.js";
 import { BrowserPortal } from "./portal/browser-portal.js";
 import { PAGES } from "./portal/pages.js";
 import { FINGERPRINTS } from "./portal/fingerprints.js";
@@ -50,6 +50,7 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       cookieHeader: () => session.cookieHeader(),
       webCookieHeader: ctx.webCookieHeader,
       webChildTarget: ctx.webChildTarget,
+      fetchImpl: ctx.fetchImpl as ApiFetch | undefined,
     }),
 
   createBrowserPortal: (browser, ctx) =>

@@ -162,54 +162,63 @@ export interface GuardianParent {
 
 // ----- errors -----
 
+import { AgentError } from "../errors/index.js";
+
+/** Kept for callers that embed the install instruction in their own text. */
 export const BROWSER_INSTALL_HINT =
   'This needs the headless browser: run "schoolsoft-agent browser install" once (downloads Chromium), or point SCHOOLSOFT_BROWSER_CDP at a CDP endpoint.';
 
 /** A GDPR-gated capability was requested without a web-login session. */
-export class WebLoginRequiredError extends Error {
+export class WebLoginRequiredError extends AgentError {
   constructor(capability: string) {
-    super(
-      `${capability} is behind SchoolSoft's "log in again" gate and needs a web login session: run "schoolsoft-agent login --web" (or the login tool with web: true) once, then retry.`,
-    );
-    this.name = "WebLoginRequiredError";
+    super({
+      kind: "not_authenticated",
+      key: "web_login_required",
+      params: { what: capability },
+      hint: "login_web",
+    });
   }
 }
 
 /** A browser-only capability was requested but no browser session is available. */
-export class BrowserRequiredError extends Error {
+export class BrowserRequiredError extends AgentError {
   constructor(capability: string, reason?: string) {
-    super(
-      `${capability} is only available through the SchoolSoft web pages. ${BROWSER_INSTALL_HINT}${reason ? ` (${reason})` : ""}`,
-    );
-    this.name = "BrowserRequiredError";
+    super({
+      kind: "not_available",
+      key: "browser_required",
+      params: { what: capability, reason },
+      hint: "browser_install",
+    });
   }
 }
 
 /** The page redirected to SchoolSoft's "log in again" gate (GDPR-protected content). */
-export class PortalGatedError extends Error {
+export class PortalGatedError extends AgentError {
   constructor(page: string) {
-    super(
-      `SchoolSoft requires a fresh web login to show ${page}; it is not reachable with the app session.`,
-    );
-    this.name = "PortalGatedError";
+    super({ kind: "not_authenticated", key: "portal_gated", params: { page }, hint: "login_web" });
   }
 }
 
 /** The page redirected to the login page: the cookie session is gone. */
-export class SessionLostError extends Error {
+export class SessionLostError extends AgentError {
+  readonly web: boolean;
   constructor(page: string, web = false) {
-    super(
-      web
-        ? `SchoolSoft redirected ${page} to the login page: the web login session expired (inactivity). Run "schoolsoft-agent login --web" again.`
-        : `SchoolSoft redirected ${page} to the login page: the web session expired. Retry (it re-authenticates silently) or run login.`,
-    );
-    this.name = "SessionLostError";
+    super({
+      kind: "not_authenticated",
+      key: web ? "web_session_lost" : "app_session_lost",
+      params: { page },
+      hint: web ? "login_web" : "login",
+    });
+    this.web = web;
   }
 }
 
-export class CapabilityNotSupportedError extends Error {
+export class CapabilityNotSupportedError extends AgentError {
   constructor(capability: string, provider: string) {
-    super(`${capability} is not offered by the "${provider}" school portal provider.`);
-    this.name = "CapabilityNotSupportedError";
+    super({
+      kind: "not_available",
+      key: "capability_not_supported",
+      params: { what: capability, provider },
+    });
   }
 }

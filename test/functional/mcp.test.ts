@@ -80,7 +80,7 @@ test("login → schedule → structured content, child switch, messages", async 
     arguments: { child_id: 999 },
   });
   assert.equal(bad.isError, true);
-  assert.match(text(bad), /Unknown child id 999/);
+  assert.match(text(bad), /No child with id 999/);
 
   const unread = await client.callTool({
     name: "schoolsoft_get_messages",
@@ -114,6 +114,6 @@ test("a NotConfiguredError from the context factory surfaces per call, server st
   await Promise.all([server.connect(st), c.connect(ct)]);
   const res = await c.callTool({ name: "schoolsoft_find_school", arguments: { query: "täby" } });
   assert.equal(res.isError, true);
-  assert.match(text(res), /schoolsoft-agent configure/);
+  assert.match(text(res), /schoolsoft_find_school/);
   await c.close();
 });

@@ -166,6 +166,7 @@ export function makeContext(
     store?: MemorySessionStore;
     portal?: Portal;
     config?: Partial<Config>;
+    pending?: import("../../src/core/index.js").PendingLoginStore;
   } = {},
 ) {
   const store = opts.store ?? new MemorySessionStore();
@@ -177,6 +178,8 @@ export function makeContext(
     createSession: () => fakeSession(),
     serialize: serializeFake,
     webLogin: opts.webLogin,
+    pending: opts.pending,
+    pid: 1,
   });
   const logs: string[] = [];
   const ctx: OperationContext = {

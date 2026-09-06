@@ -80,7 +80,7 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
   return () => {
     if (ctx) return ctx;
     const config = loadConfig(inputs);
-    const manager = createSessionManager(config);
+    const manager = createSessionManager(config, { pid: process.pid });
     const built: OperationContext = {
       manager,
       portal: createPortal(manager, { engine: config.browser }),

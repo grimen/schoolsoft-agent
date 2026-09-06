@@ -10,11 +10,14 @@ import { SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
 import type { SessionStore } from "./session/store.js";
 import { createCompositePortal, type BrowserPortalPart } from "./portal/composite.js";
+import { withSessionRecovery } from "./portal/recovering.js";
 import type { Portal } from "./portal/types.js";
 import { childOf, orgIdOf } from "./portal/guardian.js";
 import type { BrowserEngine } from "./browser/session.js";
 import { PlaywrightSession, type PlaywrightLoader } from "./browser/playwright.js";
 import { webLogin, type WebSession } from "./browser/web-login.js";
+import { defaultOpenInBrowser } from "./auth/open-browser.js";
+import { FilePendingLoginStore, type PendingLoginStore } from "./session/pending-login.js";
 import type { ApiPortalContext, SchoolProvider } from "./provider/types.js";
 import { getProvider } from "../providers/index.js";
 
@@ -33,20 +36,39 @@ export interface SessionDeps {
   /** Override the interactive web login (tests); default opens a headed Playwright window. */
   webLogin?: (school: string) => Promise<WebSession>;
   playwrightLoader?: PlaywrightLoader;
+  /** Where a login in progress is recorded; default a file in the state dir. */
+  pending?: PendingLoginStore;
+  pid?: number;
 }
 
 /** Production wiring of a SessionManager for a resolved Config. */
 export function createSessionManager(config: Config, deps: SessionDeps = {}): SessionManager {
   const provider = resolveProvider(config);
-  return new SessionManager({
+  let manager: SessionManager | null = null;
+  const open = deps.openBrowser ?? defaultOpenInBrowser;
+  manager = new SessionManager({
     school: config.school,
     provider: provider.id,
     store: deps.store ?? new FileSessionStore(config.stateDir),
+    pending: deps.pending ?? new FilePendingLoginStore(config.stateDir),
+    pid: deps.pid,
+    isAlive: (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    },
     createSession: (school) => provider.createSession(school),
     serialize: (s) => provider.serializeSession(s),
     strategies: provider.createAuthStrategies(config, {
       fetchImpl: deps.fetchImpl,
-      openBrowser: deps.openBrowser,
+      // Record the URL for callers that did not wait (login --background), then open it.
+      openBrowser: (url) => {
+        manager?.noteLoginUrl(url);
+        open(url);
+      },
     }),
     webLogin:
       deps.webLogin ??
@@ -61,6 +83,7 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
             console.error(`Web login: complete BankID/SAML in the browser window (${url})`),
         })),
   });
+  return manager;
 }
 
 /** Portal bound to the manager's live session: API provider always; browser provider when supplied. */
@@ -71,6 +94,8 @@ export interface PortalDeps {
   /** Engine for the default PlaywrightSession; defaults to config.browser. */
   engine?: BrowserEngine;
   playwrightLoader?: PlaywrightLoader;
+  /** Injected HTTP for the API provider (tests). */
+  fetchImpl?: unknown;
 }
 
 /** The browser session bound to the manager's live cookies (app) and its web-login cookies (gated pages). */
@@ -90,8 +115,9 @@ export function createBrowserSession(
   });
 }
 
-function apiContext(manager: SessionManager): ApiPortalContext {
+function apiContext(manager: SessionManager, fetchImpl?: unknown): ApiPortalContext {
   return {
+    fetchImpl,
     webCookieHeader: () => {
       const w = manager.getWebSession();
       return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
@@ -108,13 +134,16 @@ function apiContext(manager: SessionManager): ApiPortalContext {
 }
 
 /** API provider bound to the manager's live session, app cookies and web-login cookies. */
-export function createApiPortal(manager: SessionManager) {
-  return getProvider(manager.providerId).createApiPortal(manager.getSession(), apiContext(manager));
+export function createApiPortal(manager: SessionManager, deps: Pick<PortalDeps, "fetchImpl"> = {}) {
+  return getProvider(manager.providerId).createApiPortal(
+    manager.getSession(),
+    apiContext(manager, deps.fetchImpl),
+  );
 }
 
 export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
   const provider = getProvider(manager.providerId);
-  const api = createApiPortal(manager);
+  const api = createApiPortal(manager, deps);
   const browser =
     deps.browser === undefined
       ? provider.createBrowserPortal(createBrowserSession(manager, deps), {
@@ -122,11 +151,12 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
           syncWebChild: () => api.syncWebChild(),
         })
       : deps.browser;
-  return createCompositePortal({
+  const composite = createCompositePortal({
     routing: provider.routing,
     providerId: provider.id,
     api,
     browser,
     browserUnavailableReason: deps.browserUnavailableReason,
   });
+  return withSessionRecovery(composite, { recover: () => manager.reauthenticate() });
 }

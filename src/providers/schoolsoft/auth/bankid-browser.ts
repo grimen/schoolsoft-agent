@@ -25,6 +25,7 @@ import { exchangeTokenForCookies, type ExchangeFetch } from "./session-exchange.
 import { exchangeCode, refreshTokens, decodeJwtClaims, type TokenFetch } from "./oauth.js";
 import { GuardianApi, type ApiFetch } from "../portal/api-portal.js";
 import { childOf, orgIdOf, type GuardianContext } from "../../../core/portal/guardian.js";
+import { AgentError, UpstreamError } from "../../../core/errors/index.js";
 
 export interface BankIdBrowserOptions {
   orgid?: string;
@@ -87,7 +88,12 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
     const client = session.client;
     const creds = saved.data as SchoolsoftCredentials;
     if (!creds.accessToken) {
-      throw new Error("saved session has no access token");
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "saved session has no access token" },
+        hint: "login",
+      });
     }
     client.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
     // Access tokens live ~15 min. Refresh up front when expired or when we
@@ -100,7 +106,7 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
     } catch (e) {
       // Clock skew / early revocation: one refresh-and-retry before giving
       // up, since giving up costs the user a BankID round.
-      if (!/HTTP 401/.test(String(e)) || !client.refreshToken) throw e;
+      if (!(e instanceof UpstreamError && e.sessionRejected) || !client.refreshToken) throw e;
       await this.refresh(client);
       await this.establish(client, saved.guardian?.childInFocus);
     }
@@ -108,7 +114,12 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
 
   private async refresh(client: SchoolsoftClient): Promise<void> {
     if (!client.refreshToken) {
-      throw new Error("access token expired and no refresh token saved");
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "access token expired and no refresh token saved" },
+        hint: "login",
+      });
     }
     const t = await refreshTokens({
       school: client.school,
@@ -125,7 +136,13 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
 
   async focusChild(session: SchoolsoftSession, studentId: number): Promise<void> {
     const client = session.client;
-    if (!this.context) throw new Error("No guardian context — log in first.");
+    if (!this.context)
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "no guardian context yet" },
+        hint: "login",
+      });
     const child = childOf(this.context, studentId); // validates
     await this.exchange(client, this.context, child.studentId);
     this.context = { ...this.context, childInFocus: child.studentId };
@@ -147,7 +164,7 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
   ): Promise<LoginInfo> {
     const parent = await this.api(client).getParent();
     if (!parent.children?.length) {
-      throw new Error("SchoolSoft returned a guardian profile with no children — nothing to show.");
+      throw new AgentError({ kind: "upstream", key: "no_children" });
     }
     const childInFocus =
       parent.children.find((c) => c.studentId === preferredChild)?.studentId ??

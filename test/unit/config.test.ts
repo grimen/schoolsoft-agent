@@ -30,7 +30,7 @@ test("student user type defaults to the eApp client id; explicit clientId wins",
 
 test("missing school → NotConfiguredError naming configure", () => {
   assert.throws(() => resolveConfig([{}, { school: "" }], defaults), NotConfiguredError);
-  assert.throws(() => resolveConfig([], defaults), /schoolsoft-agent configure/);
+  assert.throws(() => resolveConfig([], defaults), /Not configured/);
 });
 
 test("invalid user type and port are rejected", () => {
@@ -40,11 +40,11 @@ test("invalid user type and port are rejected", () => {
   );
   assert.throws(
     () => resolveConfig([{ school: "s", callbackPort: "abc" }], defaults),
-    /Invalid callbackPort/,
+    /is not a port number/,
   );
   assert.throws(
     () => resolveConfig([{ school: "s", callbackPort: 70000 }], defaults),
-    /Invalid callbackPort/,
+    /is not a port number/,
   );
 });
 
@@ -96,9 +96,9 @@ test("createSessionManager / createPortal wire a working manager without touchin
     openBrowser: () => {},
   });
   const api = createPortal(manager);
-  await assert.rejects(api.getParent(), /No access token/);
-  await assert.rejects(api.getScheduleWeek(1), /No session cookies/);
-  await assert.rejects(manager.ensureSession(), /Not authenticated/);
+  await assert.rejects(api.getParent(), /no access token/);
+  await assert.rejects(api.getScheduleWeek(1), /no session cookies/);
+  await assert.rejects(manager.ensureSession(), /Not logged in/);
 });
 
 test("browser engine config: chromium default, cdp needs an endpoint", () => {
@@ -119,7 +119,7 @@ test("browser engine config: chromium default, cdp needs an endpoint", () => {
   );
   assert.throws(
     () => resolveConfig([{ school: "s", browserEngine: "firefox" }], defaults),
-    /Invalid browserEngine/,
+    /browserEngine "firefox" is not supported/,
   );
   assert.deepEqual(
     envSource({ SCHOOLSOFT_BROWSER_ENGINE: "cdp", SCHOOLSOFT_BROWSER_CDP: "ws://x" }).browserEngine,
@@ -164,6 +164,9 @@ test("createPortal injects the web-login cookies into the browser session for ga
   };
   const browser = { newContext: async () => context, close: async () => {} };
   const portal = createPortal(manager, {
+    fetchImpl: async () => {
+      throw new Error("no network in tests");
+    },
     playwrightLoader: async () =>
       ({ chromium: { launch: async () => browser, connectOverCDP: async () => browser } }) as never,
   });
@@ -171,8 +174,8 @@ test("createPortal injects the web-login cookies into the browser session for ga
   assert.equal(grades.title, "Betyg");
   await assert.rejects(
     portal.getGradePrognosis(),
-    /HTTP 401|no network in tests/,
-    "web cookie header built, request attempted",
+    /Could not reach SchoolSoft \(no network in tests\)/,
+    "web cookie header built and the request attempted",
   );
   assert.deepEqual(
     injected.map((c) => `${c.name}=${c.value}`),
@@ -180,7 +183,7 @@ test("createPortal injects the web-login cookies into the browser session for ga
     "the web cookies, not the app cookie header, reach the browser for a gated page",
   );
   injected.length = 0;
-  await assert.rejects(portal.getContacts(), /No session cookies|Login|login/);
+  await assert.rejects(portal.getContacts(), /Not logged in/);
   assert.deepEqual(injected, [], "a non-gated page never gets the web cookies");
 });
 
@@ -269,9 +272,15 @@ test("createPortal honours an explicit null browser; web cookies are null withou
     },
     openBrowser: () => {},
   });
-  const portal = createPortal(manager, { browser: null, browserUnavailableReason: "tests" });
-  await assert.rejects(portal.getContacts(), /browser install.*\(tests\)/);
-  await assert.rejects(portal.getGradePrognosis(), /login --web/);
+  const portal = createPortal(manager, {
+    browser: null,
+    browserUnavailableReason: "tests",
+    fetchImpl: async () => {
+      throw new Error("no network in tests");
+    },
+  });
+  await assert.rejects(portal.getContacts(), /headless browser \(tests\)/);
+  await assert.rejects(portal.getGradePrognosis(), /web login session/);
   const session = createBrowserSession(manager, {
     playwrightLoader: async () => {
       throw new Error("must not load");
@@ -279,7 +288,7 @@ test("createPortal honours an explicit null browser; web cookies are null withou
   });
   await assert.rejects(
     session.withPage(async () => 0, { web: true }),
-    /login --web/,
+    /web login session/,
   );
 });
 
@@ -293,4 +302,127 @@ test("provider: defaults to schoolsoft, taken from SCHOOLSOFT_PROVIDER or a sour
     () => resolveProvider({ provider: "other" }),
     /Unknown school portal provider "other"/,
   );
+});
+
+test("createPortal recovers a mid-session 401 by re-establishing the session and repeating the call", async () => {
+  const { createSessionManager, createPortal } = await import("../../src/core/wiring.js");
+  const { MemorySessionStore } = await import("../../src/core/session/store.js");
+  const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
+  let rejectOnce = true;
+  const calls: string[] = [];
+  const jwt = (p: Record<string, unknown>) => {
+    const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    return `${b64({ alg: "RS256" })}.${b64(p)}.sig`;
+  };
+  const parent = {
+    userId: 21,
+    firstName: "P",
+    lastName: "T",
+    children: [
+      {
+        studentId: 100,
+        firstName: "E",
+        lastName: "T",
+        schools: [{ orgId: 20, name: "S", className: "4B" }],
+      },
+    ],
+  };
+  const fetchImpl = async (url: string, _s: string, _o: { headers?: Record<string, string> }) => {
+    const path = url.replace(/^https:\/\/sms\.schoolsoft\.se\/taby/, "").split("?")[0];
+    calls.push(path);
+    if (path === "/rest-api/login/token")
+      return {
+        status: 200,
+        data: { access_token: jwt({ exp: 9_999_999_999 }), refresh_token: "R2" },
+        headers: {},
+        setCookies: [],
+      };
+    if (path === "/eva/api/v1/parent")
+      return { status: 200, data: parent, headers: {}, setCookies: [] };
+    if (path === "/eva-apps/auth/login/parent")
+      return {
+        status: 303,
+        data: "",
+        headers: {},
+        setCookies: ["JSESSIONID=j; Path=/", "hash=h; Path=/", "usertype=2; Path=/"],
+      };
+    if (path === "/rest-api/session") return { status: 200, data: {}, headers: {}, setCookies: [] };
+    if (path === "/rest-api/parent/calendar/lessons/week/37") {
+      if (rejectOnce) {
+        rejectOnce = false;
+        return { status: 401, data: null, headers: {}, setCookies: [] };
+      }
+      return { status: 200, data: [{ name: "Matte" }], headers: {}, setCookies: [] };
+    }
+    return { status: 404, data: null, headers: {}, setCookies: [] };
+  };
+  const store = new MemorySessionStore();
+  store.save({
+    provider: "schoolsoft",
+    school: "taby",
+    data: {
+      accessToken: jwt({ exp: 9_999_999_999 }),
+      refreshToken: "R1",
+      accessTokenExpiresAt: 9_999_999_999,
+    },
+    guardian: { userId: 21, parentName: "P T", children: parent.children, childInFocus: 100 },
+    savedAt: 1,
+    authMethod: "bankid-browser",
+  });
+  const manager = createSessionManager(config, {
+    store,
+    fetchImpl: fetchImpl as never,
+    openBrowser: () => {},
+  });
+  // the ssp-node client verifies the session via /rest-api/session; stub it to avoid a real request
+  const session = manager.getSession() as unknown as { verify: () => Promise<boolean> };
+  session.verify = async () => true;
+  await manager.ensureSession();
+  const portal = createPortal(manager, { browser: null, fetchImpl });
+  const lessons = await portal.getScheduleWeek(37);
+  assert.deepEqual(lessons, [{ name: "Matte" }]);
+  const lessonCalls = calls.filter((c) => c.endsWith("/week/37"));
+  assert.equal(lessonCalls.length, 2, "401 then the retry");
+  assert.ok(
+    calls.filter((c) => c === "/eva-apps/auth/login/parent").length >= 2,
+    "cookies re-exchanged during recovery",
+  );
+});
+
+test("createSessionManager: the login URL is recorded in the pending marker and a stale marker from a dead process is ignored", async () => {
+  const { createSessionManager } = await import("../../src/core/wiring.js");
+  const { MemorySessionStore } = await import("../../src/core/session/store.js");
+  const { MemoryPendingLoginStore } = await import("../../src/core/session/pending-login.js");
+  const config = resolveConfig(
+    [{ school: "taby", configDir: "/nowhere", callbackPort: 43555 }],
+    defaults,
+  );
+  const pending = new MemoryPendingLoginStore();
+  pending.write({ state: "running", startedAt: Date.now(), pid: 2_000_000_000 });
+  const opened: string[] = [];
+  const manager = createSessionManager(config, {
+    store: new MemorySessionStore(),
+    pending,
+    pid: 4,
+    openBrowser: (url) => opened.push(url),
+    fetchImpl: async () => {
+      throw new Error("no network in tests");
+    },
+  });
+  assert.equal(manager.pendingLogin(), null, "pid 2000000000 is not alive → cleared");
+  pending.write({ state: "running", startedAt: Date.now(), pid: process.pid });
+  assert.equal(manager.pendingLogin()?.pid, process.pid, "this test process is alive → kept");
+  pending.clear();
+  const started = await manager.startLogin(
+    undefined,
+    5000,
+    (ms) => new Promise((r) => setTimeout(r, Math.min(ms, 20))),
+  );
+  assert.match(started.url ?? "", /react\/#\/login\/parent/);
+  assert.equal(opened.length, 1, "the browser opener still runs");
+  // end the background login so its callback server does not keep the process alive
+  await fetch("http://127.0.0.1:43555/callback?error=cancelled");
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(pending.read()?.state, "failed");
+  assert.match(pending.read()?.error ?? "", /cancelled/);
 });

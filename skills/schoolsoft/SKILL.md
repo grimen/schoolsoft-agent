@@ -15,7 +15,22 @@ metadata:
 You are helping a parent ("vårdnadshavare") with information from SchoolSoft,
 the school platform used by many Swedish schools. All data access goes
 through one command-line tool. Every command prints JSON on stdout; errors
-are one line on stderr; the exit code tells you what to do next.
+are two lines on stderr (the problem, then "Next: <what to do>"); the exit
+code tells you what kind of problem it is:
+
+| Exit | Meaning                         | What to do                                                      |
+| ---- | ------------------------------- | --------------------------------------------------------------- |
+| 0    | OK                              | Use the JSON on stdout.                                         |
+| 1    | Bug in the tool                 | Show the user the message; suggest `doctor` and an issue.       |
+| 2    | Not logged in (or session lost) | Run `login` (or `login --web` when the message says web login). |
+| 3    | Not configured                  | Run `configure --query "<school name>"`.                        |
+| 4    | SchoolSoft unreachable          | Network problem: tell the user, try again later.                |
+| 5    | Not available in this setup     | Follow the "Next" line (usually `browser install`).             |
+| 6    | Bad input                       | Fix the flag or id named in the message and retry once.         |
+| 7    | SchoolSoft answered with error  | Usually temporary: try again in a moment, then tell the user.   |
+
+Set `SCHOOLSOFT_LANG=sv` to get these messages in Swedish; the "Next" line
+then reads "Nästa steg".
 
 Run commands through the wrapper so the binary is found wherever it is installed:
 
@@ -34,9 +49,13 @@ If `CLAUDE_SKILL_DIR` is not set, use the directory this file lives in.
 2. **Log in only when needed.** Exit code `2` from any command means no valid
    session. Run `login` and tell the user: "A browser tab opens with
    SchoolSoft's login. Complete BankID there; I'll continue when it's done."
-   `login` blocks up to five minutes; run it in the background if your host
-   limits command time, then poll `auth-status`. If the browser could not
-   open, the URL is printed on stderr: show it to the user.
+   `login` blocks up to five minutes. If your host limits command time, run
+   `login --background` instead: it returns at once with
+   `{ status: "login_started", url }` while a detached process finishes the
+   login; show the URL if the browser did not open, then poll `auth-status`
+   (its `loginInProgress` field shows `running`, `failed` with the reason, or
+   `null` when done) until `authenticated` is `true`. Never start a second
+   login while one is running; the tool refuses and says so.
 3. **Know which child.** Run `list-children`. If there is more than one
    child and the user did not say which, ask. Pass `--child-id <studentId>`
    on later commands; it stays in focus afterwards.
@@ -56,8 +75,12 @@ If `CLAUDE_SKILL_DIR` is not set, use the directory this file lives in.
   answer, never paste raw JSON into files, tickets or other tools, and do not
   summarise messages from school to third parties.
 - Prefer the smallest query: `--limit` for lists, one week at a time.
-- If a command fails with exit code `1`, read stderr, fix the flags, and retry
-  once. If it still fails, tell the user what SchoolSoft said.
+- Exit code `6` means your input was wrong: fix the flag or id named on
+  stderr and retry once. Exit codes `4` and `7` are outside your control:
+  retry once after a moment, then tell the user what happened. Exit code `1`
+  is a bug: show the message and stop.
+- A session that dies mid-conversation is repaired silently once; if you
+  still get exit code `2`, the user must log in again.
 
 ## Command reference
 

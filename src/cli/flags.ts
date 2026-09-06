@@ -8,6 +8,7 @@
  * users.
  */
 import { z } from "zod";
+import { InputError } from "../core/index.js";
 
 export interface FlagSpec {
   /** Operation argument key, e.g. "child_id". */
@@ -101,13 +102,13 @@ export function parseFlags(
     if (s.kind === "number") {
       const n = Number(v);
       if (!Number.isFinite(n))
-        throw new Error(`--${kebab(s.key)} must be a number, got "${String(v)}"`);
+        throw new InputError(`--${kebab(s.key)} must be a number, got "${String(v)}"`);
       args[s.key] = n;
     } else if (s.kind === "boolean") {
       args[s.key] = Boolean(v);
     } else if (s.kind === "enum") {
       if (!s.choices?.includes(String(v))) {
-        throw new Error(`--${kebab(s.key)} must be one of ${s.choices?.join(", ")}`);
+        throw new InputError(`--${kebab(s.key)} must be one of ${s.choices?.join(", ")}`);
       }
       args[s.key] = String(v);
     } else {

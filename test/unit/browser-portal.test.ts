@@ -78,7 +78,7 @@ test("gated pages refuse without a web session and never navigate; with one they
   const { session, visited, options } = fakeSession({ extractTablePage: page });
   const noWeb = new BrowserPortal({ session, hasWebSession: () => false });
   await assert.rejects(noWeb.getGrades(), WebLoginRequiredError);
-  await assert.rejects(noWeb.getAttendanceReport(), /login --web/);
+  await assert.rejects(noWeb.getAttendanceReport(), /web login session/);
   assert.deepEqual(visited, [], "no navigation without a web session");
   const order: string[] = [];
   const withWeb = new BrowserPortal({
@@ -152,10 +152,7 @@ test("assessment criteria resolves the subject by name from the menu, then loads
 test("criteria with an empty subject menu says so; the example-query resolver rejects an empty menu", async () => {
   const { session } = fakeSession({ extractSubjectLinks: [] });
   const portal = new BrowserPortal({ session, hasWebSession: () => true });
-  await assert.rejects(portal.getAssessmentCriteria("Bild"), /Available: \(none\)\./);
+  await assert.rejects(portal.getAssessmentCriteria("Bild"), /lists no subjects/);
   const page = { evaluate: async () => [] } as never;
-  await assert.rejects(
-    PAGES.assessmentCriteria.exampleQuery!.resolve(page),
-    /no subject with an id/,
-  );
+  await assert.rejects(PAGES.assessmentCriteria.exampleQuery!.resolve(page), /lists no subjects/);
 });

@@ -8,6 +8,7 @@ import { dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import type { BrowserEngine } from "./session.js";
 import { loadPlaywright } from "./optional-playwright.js";
+import { AgentError } from "../errors/index.js";
 
 export interface BrowserStatus {
   engine: BrowserEngine["kind"];
@@ -97,9 +98,15 @@ export async function installChromium(
   try {
     pkg = resolve();
   } catch {
-    throw new Error(
-      'playwright is not installed. Run "npm install -g playwright" (or reinstall schoolsoft-agent without --omit=optional), then "schoolsoft-agent browser install".',
-    );
+    throw new AgentError({
+      kind: "not_available",
+      key: "playwright_missing",
+      params: {
+        detail:
+          "playwright is not installed; reinstall schoolsoft-agent without --omit=optional or npm install -g playwright",
+      },
+      hint: "browser_install",
+    });
   }
   const cli = join(dirname(pkg), "cli.js");
   return spawner(process.execPath, [cli, "install", "chromium"]);

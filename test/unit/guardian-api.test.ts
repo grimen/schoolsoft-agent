@@ -75,8 +75,8 @@ test("missing token/cookies fail before any request", async () => {
       throw new Error("must not be called");
     },
   });
-  await assert.rejects(api.getParent(), /No access token/);
-  await assert.rejects(api.getScheduleWeek(1), /No session cookies/);
+  await assert.rejects(api.getParent(), /no access token/);
+  await assert.rejects(api.getScheduleWeek(1), /no session cookies/);
 });
 
 test("childOf/orgIdOf resolve the child in focus and reject unknown ids", () => {
@@ -101,7 +101,7 @@ test("childOf/orgIdOf resolve the child in focus and reject unknown ids", () => 
   };
   assert.equal(childOf(ctx).studentId, 2);
   assert.equal(orgIdOf(childOf(ctx, 3)), 21);
-  assert.throws(() => childOf(ctx, 9), /Unknown child id 9.*2 \(A\), 3 \(B\)/);
+  assert.throws(() => childOf(ctx, 9), /No child with id 9.*2 \(A\), 3 \(B\)/);
 });
 
 test("grade prognosis uses the web-login cookies and refuses without them", async () => {
@@ -116,7 +116,7 @@ test("grade prognosis uses the web-login cookies and refuses without them", asyn
     cookieHeader: () => "JSESSIONID=app",
     fetchImpl,
   });
-  await assert.rejects(noWeb.getGradePrognosis(), /login --web/);
+  await assert.rejects(noWeb.getGradePrognosis(), /web login session/);
   const withWeb = new ApiPortal({
     school: "taby",
     accessToken: () => "TOK",
@@ -184,7 +184,7 @@ test("web child sync: reads the web header, PUTs only when the child differs, no
     cookieHeader: () => "JSESSIONID=app",
     fetchImpl,
   });
-  await assert.rejects(noWeb.focusWebChild(1, 20), /login --web/);
+  await assert.rejects(noWeb.focusWebChild(1, 20), /web login session/);
   const rejecting = new ApiPortal({
     school: "taby",
     accessToken: () => "T",
@@ -192,7 +192,7 @@ test("web child sync: reads the web header, PUTs only when the child differs, no
     webCookieHeader: () => "JSESSIONID=web",
     fetchImpl: async () => ({ status: 401, data: "" }),
   });
-  await assert.rejects(rejecting.focusWebChild(1, 20), /login --web/);
+  await assert.rejects(rejecting.focusWebChild(1, 20), /web login session/);
 });
 
 test("subject rooms come from the subjectroom REST (app cookies): list, then teachers per room", async () => {
@@ -247,7 +247,7 @@ test("orgIdOf rejects a child without schools; focusWebChild surfaces other HTTP
         ? { status: 200, data: [{ activityId: 1, subject: "Bild" }] }
         : { status: 500, data: "" },
   });
-  await assert.rejects(api500.focusWebChild(1, 20), /HTTP 500 when selecting child 1/);
+  await assert.rejects(api500.focusWebChild(1, 20), /HTTP 500 for selecting child 1/);
   const rooms = await api500.getSubjectRooms().catch(() => null);
   assert.equal(rooms, null, "teachers call failed with 500");
   const apiRooms = new ApiPortal({
@@ -349,5 +349,29 @@ test("calendar event and session endpoints; activity log maps the legacy POST an
   assert.deepEqual(await mk(200, { not: "array" }).getActivityLog(), []);
   await assert.rejects(mk(401, null).getActivityLog(), /rejected the session \(HTTP 401\)/);
   await assert.rejects(mk(500, null).getActivityLog(), /HTTP 500/);
-  await assert.rejects(mk(200, [], null).getActivityLog(), /No session cookies/);
+  await assert.rejects(mk(200, [], null).getActivityLog(), /no session cookies/);
+});
+
+test("a transport failure becomes a NetworkError (exit 4), not a bug", async () => {
+  const { NetworkError } = await import("../../src/core/index.js");
+  const api = new ApiPortal({
+    school: "taby",
+    accessToken: () => "T",
+    cookieHeader: () => "JSESSIONID=a",
+    fetchImpl: async () => {
+      throw Object.assign(new Error("getaddrinfo ENOTFOUND sms.schoolsoft.se"), {
+        code: "ENOTFOUND",
+      });
+    },
+  });
+  await assert.rejects(api.getParent(), NetworkError);
+  await assert.rejects(api.getScheduleWeek(1), /Could not reach SchoolSoft \(ENOTFOUND\)/);
+  await assert.rejects(api.getActivityLog(), NetworkError);
+});
+
+test("childOf with no children at all says so instead of listing nothing", () => {
+  assert.throws(
+    () => childOf({ userId: 1, parentName: "P", children: [], childInFocus: 5 }),
+    /No child with id 5\. Known children: none\./,
+  );
 });

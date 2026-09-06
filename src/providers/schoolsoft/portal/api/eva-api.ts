@@ -5,6 +5,7 @@
  */
 import type { GuardianParent } from "../../../../core/portal/types.js";
 import type { SchoolsoftHttp } from "./transport.js";
+import { AgentError } from "../../../../core/errors/index.js";
 
 export class EvaApi {
   constructor(
@@ -14,7 +15,13 @@ export class EvaApi {
 
   private async bearer<T>(path: string): Promise<T> {
     const token = this.accessToken();
-    if (!token) throw new Error("No access token — log in first.");
+    if (!token)
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "no access token" },
+        hint: "login",
+      });
     return this.http.get<T>(path, { Authorization: `Bearer ${token}` });
   }
 

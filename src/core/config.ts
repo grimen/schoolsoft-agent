@@ -6,6 +6,7 @@
  */
 import { join } from "node:path";
 import { DEFAULT_CALLBACK_PORT } from "./auth/callback-server.js";
+import { AgentError, InputError } from "./errors/index.js";
 import {
   DEFAULT_CLIENT_ID_BY_USER_TYPE,
   DEFAULT_USER_TYPE,
@@ -45,13 +46,9 @@ export interface ConfigSource {
   browserCdp?: string;
 }
 
-export class NotConfiguredError extends Error {
+export class NotConfiguredError extends AgentError {
   constructor(reason: string) {
-    super(
-      `SchoolSoft is not configured (${reason}). Run "schoolsoft-agent configure" ` +
-        `or set SCHOOLSOFT_SCHOOL to your school slug (e.g. "taby").`,
-    );
-    this.name = "NotConfiguredError";
+    super({ kind: "not_configured", key: "not_configured", params: { reason }, hint: "configure" });
   }
 }
 
@@ -123,7 +120,7 @@ export function resolveConfig(
 
   const rawUserType = first(sources, "userType") ?? DEFAULT_USER_TYPE;
   if (!(SCHOOLSOFT_USER_TYPES as readonly string[]).includes(rawUserType)) {
-    throw new Error(
+    throw new InputError(
       `Invalid userType "${rawUserType}". Expected one of: ${SCHOOLSOFT_USER_TYPES.join(", ")}`,
     );
   }
@@ -132,7 +129,7 @@ export function resolveConfig(
   const rawPort = first(sources, "callbackPort");
   const callbackPort = rawPort === undefined ? DEFAULT_CALLBACK_PORT : Number(rawPort);
   if (!Number.isInteger(callbackPort) || callbackPort < 1 || callbackPort > 65535) {
-    throw new Error(`Invalid callbackPort "${rawPort}"`);
+    throw new InputError(`callbackPort "${rawPort}" is not a port number`);
   }
 
   const configDir =
@@ -141,12 +138,14 @@ export function resolveConfig(
   const cdp = first(sources, "browserCdp");
   let browser: BrowserEngine;
   if (engineKind === "cdp") {
-    if (!cdp) throw new Error(`browserEngine "cdp" needs a CDP endpoint (${ENV.browserCdp})`);
+    if (!cdp) throw new InputError(`browserEngine "cdp" needs a CDP endpoint (${ENV.browserCdp})`);
     browser = { kind: "cdp", endpoint: cdp };
   } else if (engineKind === "chromium") {
     browser = { kind: "chromium", headless: true };
   } else {
-    throw new Error(`Invalid browserEngine "${engineKind}". Expected chromium or cdp`);
+    throw new InputError(
+      `browserEngine "${engineKind}" is not supported; expected chromium or cdp`,
+    );
   }
   return {
     provider: first(sources, "provider") ?? "schoolsoft",

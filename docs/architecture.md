@@ -40,6 +40,16 @@ The registry in `src/providers/index.ts` maps ids to providers; `config.provider
 
 Swedish portals all end their login in BankID; the two capture paths above cover an OAuth-style redirect (SchoolSoft) and a plain SAML/e-tjänst web login (everyone else), so a new provider chooses one and writes no browser code.
 
+## Errors and recovery
+
+Every condition a user can meet is an `AgentError` (`src/core/errors`): a **kind** (fixes the exit code and whether a retry can help), a **message key with parameters** (rendered in English or Swedish), and a **hint key** (rendered as a shell command for the CLI or a tool name for MCP). Surfaces call `describeError` and print two lines, the problem and "Next: …"; MCP also returns `error.kind` and `retryable` as structured content. Anything that is not an `AgentError` is a bug and is rendered as one, with a report hint. Exit codes: 2 not authenticated, 3 not configured, 4 network, 5 not available, 6 input, 7 upstream, 1 bug.
+
+Three mitigations remove the common dead ends:
+
+- **Session loss mid-conversation.** `withSessionRecovery` wraps the portal: a 401/403 from the API or a redirect to the login page re-establishes the app session once (refresh + cookie exchange, no user interaction) and repeats the call; a second rejection names `login`. Web-session losses are not retried, because only the user can fix those.
+- **Network failures.** `guardNetwork` wraps every HTTP call and turns DNS, TCP, TLS and timeout failures into a `NetworkError` (exit 4, retryable) instead of a raw `ENOTFOUND`.
+- **Long logins in hosts that time out.** `login --background` (MCP: `background: true`) returns as soon as the login URL is known. The CLI hands the blocking login to a detached copy of itself so the callback server outlives the command; a pending-login marker in the state directory (`login-pending.json`, no credentials) carries the URL, the process id and the outcome, `auth-status` reports it as `loginInProgress`, and a second `login` refuses to open another window while one is running. Markers of dead processes or older than six minutes are ignored.
+
 ## Design principles
 
 The layout is SOLID by construction, and the boundary tests make it stay that way:

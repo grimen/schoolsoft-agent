@@ -22,6 +22,7 @@ function harness(
     home?: string;
     platform?: NodeJS.Platform;
     browserSession?: CliDeps["browserSession"];
+    detach?: CliDeps["detach"];
   } = {},
 ) {
   const out: string[] = [];
@@ -41,6 +42,7 @@ function harness(
     prompt: opts.prompt,
     fetchImpl: async () => ({ status: 200 }),
     browserSession: opts.browserSession,
+    detach: opts.detach,
   };
   const run = async (...argv: string[]) => {
     out.length = 0;
@@ -86,11 +88,12 @@ test("operation commands: flags map to args, JSON on stdout, child in output", a
   );
 });
 
-test("exit codes: not authenticated → 2, not configured → 3, error → 1, usage → 1", async () => {
+test("exit codes: not authenticated → 2, not configured → 3, bad input → 6, unknown command → 6", async () => {
   const { run } = harness();
   const na = await run("get-news");
   assert.equal(na.code, EXIT.NOT_AUTHENTICATED);
-  assert.match(na.err, /schoolsoft-agent login/);
+  assert.match(na.err, /Not logged in/);
+  assert.match(na.err, /Next: Run: schoolsoft-agent login/);
 
   const nc = harness({ unconfigured: true });
   const r3 = await nc.run("get-news");
@@ -102,11 +105,12 @@ test("exit codes: not authenticated → 2, not configured → 3, error → 1, us
 
   await run("login");
   const bad = await run("get-schedule", "--child-id", "999");
-  assert.equal(bad.code, EXIT.ERROR);
-  assert.match(bad.err, /Unknown child id 999/);
-  assert.equal((await run("get-schedule", "--week", "abc")).code, EXIT.ERROR);
-  assert.equal((await run("no-such-command")).code, EXIT.ERROR);
-  assert.equal((await run("find-school")).code, EXIT.ERROR, "required --query missing");
+  assert.equal(bad.code, EXIT.INPUT);
+  assert.match(bad.err, /No child with id 999/);
+  assert.match(bad.err, /Next: Run: schoolsoft-agent list-children/);
+  assert.equal((await run("get-schedule", "--week", "abc")).code, EXIT.INPUT);
+  assert.equal((await run("no-such-command")).code, EXIT.INPUT);
+  assert.equal((await run("find-school")).code, EXIT.INPUT, "required --query missing");
 });
 
 test("configure: non-interactive with --school/--org-id writes config.json", async () => {
@@ -192,14 +196,14 @@ test("browser status/install use injected probes and spawner; cdp engine needs n
   assert.equal(cdp2.json().status, "not_needed");
 });
 
-test("a browser-backed command without a browser fails with the install hint (exit 1)", async () => {
+test("a browser-backed command without a browser fails with the install hint (exit 5)", async () => {
   const { run } = harness({
     ctx: makeContext({ browserUnavailable: "playwright is not installed" }).ctx,
   });
   assert.equal((await run("login")).code, EXIT.OK);
   const r = await run("get-contacts");
-  assert.equal(r.code, EXIT.ERROR);
-  assert.match(r.err, /schoolsoft-agent browser install/);
+  assert.equal(r.code, EXIT.NOT_AVAILABLE);
+  assert.match(r.err, /headless browser/);
   assert.match(r.err, /playwright is not installed/);
   const ok = await run("get-activity-log", "--limit", "1");
   assert.equal(ok.code, EXIT.OK, "activity log is api-backed and still works");
@@ -241,8 +245,9 @@ test("a gated command without a web session fails with the login --web hint", as
   const { run } = harness({ ctx: makeContext({ portal }).ctx });
   assert.equal((await run("login")).code, EXIT.OK);
   const r = await run("get-grades");
-  assert.equal(r.code, EXIT.ERROR);
-  assert.match(r.err, /login --web/);
+  assert.equal(r.code, EXIT.NOT_AUTHENTICATED);
+  assert.match(r.err, /web login session/);
+  assert.match(r.err, /Next: Run: schoolsoft-agent login --web/);
   assert.equal(
     (await run("get-contacts")).code,
     EXIT.ERROR,
@@ -310,7 +315,7 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
   await h.run("login");
   const r = await h.run("get-schedule");
   assert.equal(r.code, EXIT.ERROR);
-  assert.match(r.err, /Error: upstream exploded/);
+  assert.match(r.err, /Unexpected error: upstream exploded/);
 
   // configure: config dir from env, then from the platform default; school only (no org id)
   const home = mkdtempSync(join(tmpdir(), "home-"));
@@ -430,7 +435,7 @@ test("non-Error throws, doctor platform/engine/session variants, verify without 
   await h.run("login");
   const r = await h.run("get-schedule");
   assert.equal(r.code, EXIT.ERROR);
-  assert.match(r.err, /Error: not an error object/);
+  assert.match(r.err, /Unexpected error: not an error object/);
 
   const dir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { FileSessionStore } = await import("../../src/core/index.js");
@@ -532,4 +537,81 @@ test("non-Error throws, doctor platform/engine/session variants, verify without 
     p.json().pages.every((x: { status: string }) => x.status === "error" || x.status === "skipped"),
     p.out,
   );
+});
+
+test("login --background hands the blocking login to a detached process and reports its URL; a running one is reported, not duplicated", async () => {
+  const { MemoryPendingLoginStore } = await import("../../src/core/index.js");
+  const pending = new MemoryPendingLoginStore();
+  const { ctx } = makeContext({ pending });
+  const spawned: string[][] = [];
+  const h = harness({
+    ctx,
+    detach: (argv) => {
+      spawned.push(argv);
+      // the "child" records its URL a moment later
+      setTimeout(
+        () =>
+          pending.write({
+            state: "running",
+            startedAt: Date.now(),
+            pid: 4242,
+            url: "https://login.example/bg",
+          }),
+        20,
+      );
+      return 4242;
+    },
+  });
+  const r = await h.run("--school", "taby", "login", "--background", "--strategy", "fake");
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.deepEqual(r.json(), {
+    status: "login_started",
+    url: "https://login.example/bg",
+    pid: 4242,
+    next: "Ask the user to complete BankID in the browser window, then run auth-status until authenticated is true.",
+  });
+  assert.deepEqual(spawned, [["--school", "taby", "login", "--strategy", "fake"]]);
+  // already running: no second spawn
+  const again = await h.run("login", "--background");
+  assert.equal(again.json().status, "login_started");
+  assert.equal(again.json().pid, 4242);
+  assert.equal(spawned.length, 1);
+  // without a detach hook the operation itself runs (in-process background)
+  const inProcess = harness({ ctx: makeContext({ pending: new MemoryPendingLoginStore() }).ctx });
+  const ip = await inProcess.run("login", "--background");
+  assert.equal(ip.json().status, "login_started");
+});
+
+test("login --background with a child that never reports a URL returns after the wait without one", async () => {
+  const { backgroundLogin } = await import("../../src/cli/program.js");
+  const { MemoryPendingLoginStore } = await import("../../src/core/index.js");
+  const { ctx } = makeContext({ pending: new MemoryPendingLoginStore() });
+  const deps = harness({ ctx, detach: () => 1 }).deps;
+  const r = await backgroundLogin(ctx, deps, {}, { background: true }, 30, async () => {});
+  assert.equal(r.status, "login_started");
+  assert.equal(r.url, undefined);
+  assert.equal(r.pid, 1);
+});
+
+test("errors render in Swedish when SCHOOLSOFT_LANG=sv; network failures exit 4 with the retry hint", async () => {
+  const sv = harness({ env: { SCHOOLSOFT_LANG: "sv" } });
+  const r = await sv.run("get-news");
+  assert.equal(r.code, EXIT.NOT_AUTHENTICATED);
+  assert.match(r.err, /Inte inloggad på SchoolSoft/);
+  assert.match(r.err, /Nästa steg: Kör: schoolsoft-agent login/);
+  const { NetworkError } = await import("../../src/core/index.js");
+  const offline = makeContext({
+    portal: {
+      ...fakePortal,
+      getScheduleWeek: async () => {
+        throw new NetworkError("ENOTFOUND");
+      },
+    } as never,
+  });
+  const h = harness({ ctx: offline.ctx });
+  await h.run("login");
+  const n = await h.run("get-schedule");
+  assert.equal(n.code, EXIT.NETWORK);
+  assert.match(n.err, /Could not reach SchoolSoft \(ENOTFOUND\)/);
+  assert.match(n.err, /Next: Try again in a moment/);
 });

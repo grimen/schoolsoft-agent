@@ -8,6 +8,7 @@
  */
 import { makePkcePair, makeState, schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
+import { AgentError, guardNetwork } from "../../../core/errors/index.js";
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 
@@ -62,15 +63,26 @@ export type TokenFetch = (
 
 function parseTokenResponse(status: number, data: unknown, what: string): TokenSet {
   if (status !== 200) {
-    const msg =
+    const said =
       data && typeof data === "object" && "userMessage" in data
-        ? ` SchoolSoft says: ${String((data as { userMessage: unknown }).userMessage)}`
-        : "";
-    throw new Error(`${what} failed — status ${status}.${msg}`);
+        ? String((data as { userMessage: unknown }).userMessage)
+        : `status ${status}`;
+    throw new AgentError({
+      kind: "not_authenticated",
+      key: "token_exchange_failed",
+      params: { what, detail: said },
+      hint: "login",
+    });
   }
   const d = (data ?? {}) as Record<string, unknown>;
   const accessToken = typeof d.access_token === "string" ? d.access_token : "";
-  if (!accessToken) throw new Error(`${what} failed — no access_token in response.`);
+  if (!accessToken)
+    throw new AgentError({
+      kind: "not_authenticated",
+      key: "token_exchange_failed",
+      params: { what, detail: "no access_token in the response" },
+      hint: "login",
+    });
   const refreshToken = typeof d.refresh_token === "string" ? d.refresh_token : null;
   // SchoolSoft has been seen omitting `expires`; fall back to the JWT exp.
   const expiresIn = typeof d.expires === "number" ? d.expires : null;
@@ -95,15 +107,13 @@ export async function exchangeCode(options: {
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=code&code=${encodeURIComponent(options.code)}` +
     `&codeVerifier=${encodeURIComponent(options.verifier)}`;
-  const r = await fetchImpl(
-    url,
-    options.school,
-    {
-      method: "POST",
-      headers: { Accept: "application/json" },
-      responseType: "json",
-    },
-    MOBILE_UA,
+  const r = await guardNetwork(() =>
+    fetchImpl(
+      url,
+      options.school,
+      { method: "POST", headers: { Accept: "application/json" }, responseType: "json" },
+      MOBILE_UA,
+    ),
   );
   return parseTokenResponse(r.status, r.data, "Token exchange");
 }
@@ -121,15 +131,13 @@ export async function refreshTokens(options: {
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=refresh_token` +
     `&refreshToken=${encodeURIComponent(options.refreshToken)}`;
-  const r = await fetchImpl(
-    url,
-    options.school,
-    {
-      method: "POST",
-      headers: { Accept: "application/json" },
-      responseType: "json",
-    },
-    MOBILE_UA,
+  const r = await guardNetwork(() =>
+    fetchImpl(
+      url,
+      options.school,
+      { method: "POST", headers: { Accept: "application/json" }, responseType: "json" },
+      MOBILE_UA,
+    ),
   );
   return parseTokenResponse(r.status, r.data, "Token refresh");
 }

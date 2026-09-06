@@ -38,6 +38,8 @@ export interface ApiPortalContext {
   webCookieHeader: () => string | null;
   /** Which child the caller wants the WEB session on; null = leave it. */
   webChildTarget: () => { childId: number; orgId: number } | null;
+  /** Injected HTTP for tests; the provider's default otherwise. */
+  fetchImpl?: unknown;
 }
 
 export interface BrowserPortalContext {

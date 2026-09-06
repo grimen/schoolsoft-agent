@@ -5,6 +5,7 @@
  */
 import type { PageSpec } from "../../../core/portal/page-spec.js";
 import { extractSubjectLinks } from "./extractors.js";
+import { AgentError } from "../../../core/errors/index.js";
 
 export type PageKey =
   | "contacts"
@@ -67,7 +68,7 @@ export const PAGES: Record<PageKey, PageSpec> = {
       from: "subjects",
       resolve: async (page) => {
         const first = (await page.evaluate(extractSubjectLinks)).find((l) => l.subjectId !== null);
-        if (!first) throw new Error("no subject with an id in the subject menu");
+        if (!first) throw new AgentError({ kind: "upstream", key: "subject_menu_empty" });
         return `?subject=${first.subjectId}&schooltype=7`;
       },
     },

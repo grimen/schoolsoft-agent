@@ -17,7 +17,7 @@ npx -y schoolsoft-agent configure --query "Rösjöskolan"
 
 The skill is filed under `education` in Hermes' hub. Hermes' docs: [Skills](https://hermes-agent.nousresearch.com/docs/user-guide/features/skills).
 
-**Timeout note.** Hermes runs commands with a 180-second default timeout; the BankID login waits up to five minutes. Raise `terminal.timeout` in `~/.hermes/config.yaml`, or run `npx -y schoolsoft-agent login` once in a normal terminal. The session is shared.
+**Timeout note.** Hermes runs commands with a 180-second default timeout; BankID can take longer. The skill therefore uses `login --background`, which returns at once with the login URL and finishes the login in a detached process; Hermes then polls `auth-status`. You can also raise `terminal.timeout` in `~/.hermes/config.yaml`, or run `npx -y schoolsoft-agent login` once in a normal terminal; the session is shared.
 
 ## Install: MCP
 

@@ -104,7 +104,7 @@ test("webLogin times out without a portal page and closes the browser", async ()
       pollMs: 1,
       timeoutMs: 20,
     }),
-    /timed out/,
+    /did not reach the school portal/,
   );
   assert.equal(state.closed, 1);
 });

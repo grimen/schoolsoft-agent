@@ -40,6 +40,12 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   `src/core/operations/` + one line in `registry.ts`. Never hand-write an MCP
   tool or CLI command. Then `make docs && make skills` and commit the output;
   drift tests fail otherwise.
+- **Errors are for users, not developers.** Any condition a user can meet is
+  an `AgentError` (`src/core/errors`) with a kind, a message key in both
+  languages and a hint key; never a raw `Error` with prose. Surfaces render
+  via `describeError` (two lines: problem, "Next: …"); exit codes follow the
+  kind. New messages go into `errors/messages.ts` in English and Swedish.
+  A raw `Error` reaching a user is treated as a bug (exit 1) by design.
 - **Never automate BankID.** Login opens the user's browser; the CLI prints
   the URL too.
 - **Children's data stays out of git and logs.** `e2e-report.md`,
