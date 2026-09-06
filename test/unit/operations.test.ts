@@ -167,3 +167,9 @@ test("list_children copes with a child without a school; auth_status: cleared st
   };
   await assert.rejects(run("auth_status", broken.ctx), /disk on fire/);
 });
+
+test("isoWeek treats Sunday as the last day of its week (the branch only the calendar used to cover)", async () => {
+  const { isoWeek } = await import("../../src/core/operations/_shared.js");
+  assert.equal(isoWeek(new Date(2026, 8, 6)), 36, "Sunday 2026-09-06 is still week 36");
+  assert.equal(isoWeek(new Date(2026, 8, 7)), 37);
+});
