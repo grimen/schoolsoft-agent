@@ -28,9 +28,11 @@ class FakeStrategy implements AuthStrategy {
   loginCalls = 0;
   restoreCalls = 0;
   restoreShouldFail = false;
+  loginShouldFailAfterTokens = false;
 
   async login(_client: SchoolsoftClient): Promise<LoginInfo> {
     this.loginCalls++;
+    if (this.loginShouldFailAfterTokens) throw new Error("exchange exploded");
     return { name: "Test Testsson", schoolName: "Testskolan", userType: "2" };
   }
 
@@ -128,5 +130,33 @@ test("dead session (verifySession false) throws and clears", async () => {
   const client = fakeClient({ verifySession: async () => false } as Partial<SchoolsoftClient>);
   const { manager } = makeManager({ store, client });
   await assert.rejects(() => manager.ensureSession(), NotAuthenticatedError);
+  assert.equal(store.load(), null);
+});
+
+test("login failure after tokens were obtained still persists the tokens", async () => {
+  // Scenario: BankID + code exchange succeeded (tokens on the client), but
+  // the later cookie exchange threw. The expensive part (BankID) must not
+  // be repeated: tokens are saved so restore() can retry the exchange.
+  const store = new MemorySessionStore();
+  const strategy = new FakeStrategy();
+  strategy.loginShouldFailAfterTokens = true;
+  const { manager } = makeManager({ store, strategy });
+  await assert.rejects(() => manager.login(), /exchange exploded/);
+  const saved = store.load();
+  assert.ok(saved, "tokens persisted despite login failure");
+  assert.equal(saved.accessToken, "tok");
+  assert.equal(saved.authMethod, "fake");
+});
+
+test("login failure before any token leaves the store empty", async () => {
+  const store = new MemorySessionStore();
+  const strategy = new FakeStrategy();
+  strategy.loginShouldFailAfterTokens = true;
+  const { manager } = makeManager({
+    store,
+    strategy,
+    client: fakeClient({ accessToken: null } as Partial<SchoolsoftClient>),
+  });
+  await assert.rejects(() => manager.login(), /exchange exploded/);
   assert.equal(store.load(), null);
 });

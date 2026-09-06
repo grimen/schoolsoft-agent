@@ -86,7 +86,18 @@ export class SessionManager {
       );
     }
     this.reset();
-    const info = await strategy.login(this.getClient());
+    let info: LoginInfo;
+    try {
+      info = await strategy.login(this.getClient());
+    } catch (err) {
+      // If the interactive part (BankID) already yielded tokens and a
+      // later step failed, keep the tokens: restore() can retry the rest
+      // without asking the user to authenticate again.
+      if (this.getClient().accessToken) {
+        this.persist(strategy.id);
+      }
+      throw err;
+    }
     this.persist(strategy.id);
     this.established = true;
     return info;

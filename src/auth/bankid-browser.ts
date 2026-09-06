@@ -7,7 +7,8 @@ import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { AuthStrategy, LoginInfo } from "./strategy.js";
 import type { PersistedSession } from "../services/store.js";
 import { runBrowserLogin } from "./browser-flow.js";
-import type { SchoolsoftUserType } from "../constants.js";
+import { DEFAULT_USER_TYPE, type SchoolsoftUserType } from "../constants.js";
+import { exchangeTokenForCookies } from "./session-exchange.js";
 
 export class BankIdBrowserStrategy implements AuthStrategy {
   readonly id = "bankid-browser";
@@ -50,10 +51,17 @@ export class BankIdBrowserStrategy implements AuthStrategy {
     await this.exchange(client);
   }
 
-  /** Exchange the access token for web session cookies. */
+  /**
+   * Exchange the access token for web session cookies. Uses our own
+   * user-type-aware exchange rather than ssp-node's student-only one.
+   */
   private async exchange(client: SchoolsoftClient): Promise<LoginInfo> {
     const info = await client.fetchMobileSessionInfo();
-    await client.mobileExchangeSession(info?.userId);
+    await exchangeTokenForCookies(client, {
+      userType: this.options.userType ?? DEFAULT_USER_TYPE,
+      userId: info?.userId,
+      orgid: this.options.orgid,
+    });
     return {
       name: info ? `${info.firstName} ${info.lastName}`.trim() : null,
       schoolName: info?.schoolName ?? null,
