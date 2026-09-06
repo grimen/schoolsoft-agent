@@ -12,7 +12,7 @@ GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login
 or the login tool with web: true, once) and the headless browser. Read only.
 
 Args:
-  - subject_id (number): from get_subject_rooms (subjectId).
+  - subject (string): subject name as listed by get_subject_rooms ("Matematik"; "matte" also matches).
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
@@ -20,14 +20,14 @@ Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows 
 
 Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".`,
   input: {
-    subject_id: z.number().int().describe("Subject id from get_subject_rooms"),
+    subject: z.string().min(1).describe("Subject name, e.g. Matematik"),
     school_type: z.number().int().optional().describe("SchoolSoft school type code, default 7"),
     child_id: ChildSchema,
   },
   annotations: READ_ONLY,
-  async run(ctx, { subject_id, school_type, child_id }) {
+  async run(ctx, { subject, school_type, child_id }) {
     const { childSummary } = await withChild(ctx, child_id);
-    const page = await ctx.portal.getAssessmentCriteria(subject_id, school_type);
+    const page = await ctx.portal.getAssessmentCriteria(subject, school_type);
     return { child: childSummary, page };
   },
 });

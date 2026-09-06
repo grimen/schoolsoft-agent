@@ -12,8 +12,8 @@
 export interface PortalPage {
   /** Navigate to a path under the tenant (e.g. "/jsp/student/right_student_class.jsp"). */
   goto(path: string): Promise<void>;
-  /** Run a function in the page and return its JSON-serialisable result. */
-  evaluate<T>(fn: () => T): Promise<T>;
+  /** Run a self-contained function in the page (optionally with one JSON argument) and return its JSON-serialisable result. */
+  evaluate<T, A = void>(fn: (arg: A) => T, arg?: A): Promise<T>;
   /** Current URL after navigation and redirects. */
   url(): string;
   /** Wait for a response whose URL matches, returning its JSON body. */

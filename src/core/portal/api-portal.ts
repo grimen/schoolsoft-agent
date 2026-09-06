@@ -21,6 +21,7 @@ import {
   type ActivityEntry,
   type GuardianChild,
   type GuardianParent,
+  type SubjectRoom,
 } from "./types.js";
 export type { GuardianChild, GuardianChildSchool, GuardianParent } from "./types.js";
 
@@ -108,6 +109,31 @@ export class ApiPortal {
     const cookie = this.o.webCookieHeader?.() ?? null;
     if (!cookie) throw new WebLoginRequiredError(capability);
     return this.get<T>(path, { Cookie: cookie });
+  }
+
+  /**
+   * Ämne: subject rooms from the webview REST the portal's React view uses
+   * (app session, child in focus): the room list, then each room's teachers.
+   */
+  async getSubjectRooms(): Promise<SubjectRoom[]> {
+    const rooms = await this.cookie<
+      { activityId: number; subject: string; groupNames?: string[]; isSubjectRoom?: boolean }[]
+    >("/rest-api/parent/ps/subjectroom/all");
+    return Promise.all(
+      rooms
+        .filter((r) => r.isSubjectRoom !== false)
+        .map(async (r) => {
+          const teachers = await this.cookie<{ firstName: string; lastName: string }[]>(
+            `/rest-api/parent/ps/subjectroom/${r.activityId}/teachers`,
+          );
+          return {
+            subject: r.subject,
+            subjectId: r.activityId,
+            groups: r.groupNames ?? [],
+            teachers: teachers.map((t) => `${t.firstName} ${t.lastName}`.trim()),
+          };
+        }),
+    );
   }
 
   /** The web session's own child in focus (header REST, web cookies). */

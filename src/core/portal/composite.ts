@@ -21,6 +21,7 @@ export type ApiPortalPart = Pick<
     | "getAssignmentsWeek"
     | "getAssignmentDetail"
     | "getActivityLog"
+    | "getSubjectRooms"
     | "getGradePrognosis"
   >
 >;
@@ -29,7 +30,6 @@ export type BrowserPortalPart = Pick<
   Extract<
     Capability,
     | "getContacts"
-    | "getSubjectRooms"
     | "getBookings"
     | "getFiles"
     | "getGrades"

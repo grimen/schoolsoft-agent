@@ -14,6 +14,8 @@ export {
   createSessionManager,
   createGuardianApi,
   createPortal,
+  createApiPortal,
+  createBrowserSession,
   type PortalDeps,
 } from "./config.js";
 export { CHARACTER_LIMIT, SCHOOLSOFT_USER_TYPES, type SchoolsoftUserType } from "./constants.js";
@@ -66,7 +68,14 @@ export { operations, getOperation } from "./operations/registry.js";
 export { defineOperation, READ_ONLY } from "./operations/types.js";
 export type { Operation, OperationAnnotations, OperationContext } from "./operations/types.js";
 export { isoWeek } from "./operations/_shared.js";
-export { BrowserPortal, PAGES as BROWSER_PAGES } from "./portal/browser-portal.js";
+export { BrowserPortal, normalizeSubject } from "./portal/browser-portal.js";
+export { PAGES, PAGE_KEYS } from "./portal/pages.js";
+export type { PageSpec, PageKey } from "./portal/pages.js";
+export { verifyPages } from "./portal/verify.js";
+export type { PageReport, PageStatus, VerifyOptions } from "./portal/verify.js";
+export { FINGERPRINTS } from "./portal/fingerprints.js";
+export { inspectPage } from "./portal/extractors.js";
+export type { PageInspection } from "./portal/extractors.js";
 export { PlaywrightSession } from "./browser/playwright.js";
 export type { PlaywrightLike, PlaywrightLoader } from "./browser/playwright.js";
 export { browserStatus, installChromium } from "./browser/install.js";

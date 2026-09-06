@@ -38,10 +38,9 @@ test("PROVIDERS lists every Portal capability with a non-empty provider list", (
     "getFiles",
     "getGrades",
     "getStudentDocuments",
-    "getSubjectRooms",
     "getUnreportedAbsence",
   ]);
-  assert.equal(API_CAPABILITIES.length, 12);
+  assert.equal(API_CAPABILITIES.length, 13);
 });
 
 test("api capabilities route to the api part with their arguments", async () => {

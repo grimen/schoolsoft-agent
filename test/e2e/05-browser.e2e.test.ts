@@ -13,7 +13,7 @@ const status = await browserStatus({ kind: "chromium" });
 const skip = liveSkip || (status.ready ? false : `headless browser not installed (${status.hint})`);
 
 test(
-  "B1: contacts, subject rooms, bookings, files via the browser provider",
+  "B1: contacts, bookings, files via the browser provider; subject rooms via the subjectroom REST",
   { skip },
   async () => {
     const ctx = e2eContext();

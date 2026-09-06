@@ -1,17 +1,16 @@
 /**
  * Browser provider of the Portal: the capabilities SchoolSoft only offers as
- * legacy web pages. Each method navigates (GET) to the page with the user's
- * cookies and runs a self-contained extractor inside it. Read-only by
- * construction: the session guard aborts every non-GET request.
+ * legacy web pages. Each method visits a page declared in pages.ts (GET,
+ * with the user's cookies) and runs a self-contained extractor inside it.
+ * Read-only by construction: the session guard aborts every non-GET request.
  */
-import type { BrowserSession } from "../browser/session.js";
+import type { BrowserSession, PortalPage } from "../browser/session.js";
 import type { BrowserPortalPart } from "./composite.js";
 import {
   WebLoginRequiredError,
   type Booking,
   type ContactGroup,
   type PortalFile,
-  type SubjectRoom,
   type TablePage,
 } from "./types.js";
 import {
@@ -19,22 +18,11 @@ import {
   extractContacts,
   extractFiles,
   extractSubjectLinks,
-  extractSubjectTeachers,
   extractTablePage,
 } from "./extractors.js";
+import { PAGES, type PageSpec } from "./pages.js";
 
-export const PAGES = {
-  contacts: "/jsp/student/right_student_class.jsp",
-  subjects: "/jsp/student/right_student_subject.jsp",
-  bookings: "/jsp/student/right_student_timebooking.jsp",
-  files: "/jsp/student/right_student_library.jsp",
-  // GDPR-gated (need the web session)
-  grades: "/jsp/student/right_student_gradesubject.jsp",
-  documents: "/jsp/student/right_student_review.jsp",
-  unreportedAbsence: "/jsp/student/right_parent_absence_message.jsp",
-  attendanceReport: "/jsp/student/right_student_absence_student.jsp",
-  assessmentCriteria: "/jsp/student/right_student_ability.jsp",
-} as const;
+export { PAGES } from "./pages.js";
 
 export interface BrowserPortalOptions {
   session: BrowserSession;
@@ -42,87 +30,102 @@ export interface BrowserPortalOptions {
   hasWebSession?: () => boolean;
   /** Align the web session's child in focus with the requested child before a gated page. */
   syncWebChild?: () => Promise<void>;
-  /** Cap on per-subject page visits when listing subject rooms. */
-  maxSubjectPages?: number;
+}
+
+/** Case- and diacritic-insensitive subject name match ("matte" finds "Matematik"). */
+export function normalizeSubject(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 export class BrowserPortal implements BrowserPortalPart {
   constructor(private readonly o: BrowserPortalOptions) {}
 
+  /** Visit one page and run its extractor; gated pages get the web cookies after the child sync. */
+  private async visit<T>(
+    capability: string,
+    spec: PageSpec,
+    run: (page: PortalPage) => Promise<T>,
+  ): Promise<T> {
+    if (spec.web) {
+      if (this.o.hasWebSession && !this.o.hasWebSession())
+        throw new WebLoginRequiredError(capability);
+      await this.o.syncWebChild?.();
+    }
+    return this.o.session.withPage(run, { web: spec.web });
+  }
+
+  private table(capability: string, spec: PageSpec, query = ""): Promise<TablePage> {
+    return this.visit(capability, spec, async (page) => {
+      await page.goto(spec.path + query);
+      return page.evaluate(extractTablePage);
+    });
+  }
+
   getContacts(): Promise<ContactGroup[]> {
-    return this.o.session.withPage(async (page) => {
-      await page.goto(PAGES.contacts);
+    return this.visit("getContacts", PAGES.contacts, async (page) => {
+      await page.goto(PAGES.contacts.path);
       return page.evaluate(extractContacts);
     });
   }
 
-  getSubjectRooms(): Promise<SubjectRoom[]> {
-    const max = this.o.maxSubjectPages ?? 25;
-    return this.o.session.withPage(async (page) => {
-      await page.goto(PAGES.subjects);
-      const links = await page.evaluate(extractSubjectLinks);
-      const rooms: SubjectRoom[] = [];
-      for (const link of links.slice(0, max)) {
-        await page.goto("/jsp/student/" + link.url.replace(/^\.?\/?/, ""));
-        const teachers = await page.evaluate(extractSubjectTeachers);
-        rooms.push({
-          subject: link.subject,
-          subjectId: link.subjectId,
-          teachers,
-          url: "/jsp/student/" + link.url,
-        });
-      }
-      return rooms;
-    });
-  }
-
   getBookings(): Promise<Booking[]> {
-    return this.o.session.withPage(async (page) => {
-      await page.goto(PAGES.bookings);
+    return this.visit("getBookings", PAGES.bookings, async (page) => {
+      await page.goto(PAGES.bookings.path);
       return page.evaluate(extractBookings);
     });
   }
 
-  /**
-   * GDPR-gated pages: carried by the web-login cookies (`web: true`), after
-   * the web session's child in focus is aligned with the requested child.
-   */
-  private async gated(capability: string, path: string): Promise<TablePage> {
-    if (this.o.hasWebSession && !this.o.hasWebSession())
-      throw new WebLoginRequiredError(capability);
-    await this.o.syncWebChild?.();
-    return this.o.session.withPage(
-      async (page) => {
-        await page.goto(path);
-        return page.evaluate(extractTablePage);
-      },
-      { web: true },
-    );
+  getFiles(): Promise<PortalFile[]> {
+    return this.visit("getFiles", PAGES.files, async (page) => {
+      await page.goto(PAGES.files.path);
+      return page.evaluate(extractFiles);
+    });
   }
 
   getGrades(): Promise<TablePage> {
-    return this.gated("getGrades", PAGES.grades);
+    return this.table("getGrades", PAGES.grades);
   }
   getStudentDocuments(): Promise<TablePage> {
-    return this.gated("getStudentDocuments", PAGES.documents);
+    return this.table("getStudentDocuments", PAGES.documents);
   }
   getUnreportedAbsence(): Promise<TablePage> {
-    return this.gated("getUnreportedAbsence", PAGES.unreportedAbsence);
+    return this.table("getUnreportedAbsence", PAGES.unreportedAbsence);
   }
   getAttendanceReport(): Promise<TablePage> {
-    return this.gated("getAttendanceReport", PAGES.attendanceReport);
-  }
-  getAssessmentCriteria(subjectId: number, schoolType = 7): Promise<TablePage> {
-    return this.gated(
-      "getAssessmentCriteria",
-      `${PAGES.assessmentCriteria}?subject=${subjectId}&schooltype=${schoolType}`,
-    );
+    return this.table("getAttendanceReport", PAGES.attendanceReport);
   }
 
-  getFiles(): Promise<PortalFile[]> {
-    return this.o.session.withPage(async (page) => {
-      await page.goto(PAGES.files);
-      return page.evaluate(extractFiles);
+  /**
+   * Criteria for one subject, by name. The page takes SchoolSoft's internal
+   * `requestid`, which only the subject menu exposes, so the menu is read
+   * first in the same (web) session; ids never leak into the tool contract.
+   */
+  async getAssessmentCriteria(subject: string, schoolType = 7): Promise<TablePage> {
+    const spec = PAGES.assessmentCriteria;
+    const wanted = normalizeSubject(subject);
+    // The JSP subject menu only renders under the app session (the web
+    // session shows SchoolSoft's React sidebar), so resolve the id there.
+    const links = await this.visit("getAssessmentCriteria", PAGES.subjects, async (page) => {
+      await page.goto(PAGES.subjects.path);
+      return page.evaluate(extractSubjectLinks);
     });
+    const hit =
+      links.find((l) => normalizeSubject(l.subject) === wanted) ??
+      links.find((l) => normalizeSubject(l.subject).includes(wanted));
+    if (!hit || hit.subjectId === null) {
+      throw new Error(
+        `No subject matching "${subject}" for this child. Available: ${links.map((l) => l.subject).join(", ") || "(none)"}.`,
+      );
+    }
+    const table = await this.table(
+      "getAssessmentCriteria",
+      spec,
+      `?subject=${hit.subjectId}&schooltype=${schoolType}`,
+    );
+    return { ...table, title: table.title || hit.subject };
   }
 }

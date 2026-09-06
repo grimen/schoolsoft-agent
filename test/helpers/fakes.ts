@@ -75,11 +75,7 @@ export const fakePortal = {
     { title: "Elever", people: [{ name: "Test Elev", role: "Elev", email: "e@example.test" }] },
   ],
   getSubjectRooms: async () => [
-    {
-      subject: "Matematik",
-      teachers: ["Lärare Test"],
-      url: "/jsp/student/right_student_subject.jsp?requestid=1",
-    },
+    { subject: "Matematik", subjectId: 1, groups: ["4B"], teachers: ["Lärare Test"] },
   ],
   getBookings: async () => [
     { title: "Utvecklingssamtal", slots: [{ start: "2026-10-01 15:00", status: "available" }] },
@@ -115,8 +111,8 @@ export const fakePortal = {
       { headers: ["Orsak", "Lektioner", "Timmar"], rows: [{ cells: ["Sjuk", "2", "1"] }] },
     ],
   }),
-  getAssessmentCriteria: async (subjectId: number) => ({
-    title: `Kriterier ${subjectId}`,
+  getAssessmentCriteria: async (subject: string) => ({
+    title: `Kriterier ${subject}`,
     sections: [{ headers: ["Förmåga", "E", "C", "A"], rows: [{ cells: ["Läsa", "…", "…", "…"] }] }],
   }),
   getGradePrognosis: async () => ({ reconciliationDates: [] }),

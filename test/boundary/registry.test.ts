@@ -52,7 +52,6 @@ test("every browser capability is used by an operation whose description says ho
     readFileSync(join(process.cwd(), "src/core/operations", name), "utf8");
   for (const [op, file] of [
     ["get_contacts", "get-contacts.ts"],
-    ["get_subject_rooms", "get-subject-rooms.ts"],
     ["get_bookings", "get-bookings.ts"],
     ["get_files", "get-files.ts"],
   ]) {

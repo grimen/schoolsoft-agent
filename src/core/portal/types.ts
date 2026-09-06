@@ -44,7 +44,8 @@ export interface Portal {
   /** Rapport: attendance report for the default week range. */
   getAttendanceReport(): Promise<TablePage>;
   /** Kriterier för bedömning: assessment criteria matrix for one subject. */
-  getAssessmentCriteria(subjectId: number, schoolType?: number): Promise<TablePage>;
+  /** Criteria for one subject, matched by name (case/diacritic-insensitive). */
+  getAssessmentCriteria(subject: string, schoolType?: number): Promise<TablePage>;
   /** Avstämning: grade prognosis reconciliation dates (gated REST, web session). */
   getGradePrognosis(): Promise<{ reconciliationDates: unknown }>;
 }
@@ -65,7 +66,7 @@ export const PROVIDERS: Record<Capability, readonly PortalProvider[]> = {
   getAssignmentDetail: ["api"],
   getActivityLog: ["api"],
   getContacts: ["browser"],
-  getSubjectRooms: ["browser"],
+  getSubjectRooms: ["api"],
   getBookings: ["browser"],
   getFiles: ["browser"],
   getGrades: ["browser"],
@@ -107,10 +108,11 @@ export interface ContactGroup {
 }
 export interface SubjectRoom {
   subject: string;
-  /** SchoolSoft subject id (`requestid` in the page URL), used by get_assessment_criteria. */
-  subjectId: number | null;
+  /** SchoolSoft subject-room id (`activityId` in the REST API). */
+  subjectId: number;
+  /** Class / group names the room belongs to. */
+  groups: string[];
   teachers: string[];
-  url: string;
 }
 
 /** A server-rendered page made of tables: what the gated pages are. */

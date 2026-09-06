@@ -138,7 +138,8 @@ export class PlaywrightSession implements BrowserSession {
           throw new SessionLostError(path, Boolean(web?.length));
         if (/right_student_app_blocked\.jsp/.test(landed)) throw new PortalGatedError(path);
       },
-      evaluate: <T>(fn: () => T) => page.evaluate(fn),
+      evaluate: <T, A>(fn: (arg: A) => T, arg?: A) =>
+        page.evaluate(fn as never, arg as never) as Promise<T>,
       url: () => page.url(),
       waitForJson: async <T>(urlPattern: RegExp, timeoutMs = 30_000) => {
         const res = await page.waitForResponse((r) => urlPattern.test(r.url()), {

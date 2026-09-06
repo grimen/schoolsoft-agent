@@ -3,7 +3,13 @@
  * for capabilities SchoolSoft only offers as web pages.
  */
 import type { Command } from "commander";
-import { browserStatus, installChromium } from "../../core/index.js";
+import {
+  browserStatus,
+  createApiPortal,
+  createBrowserSession,
+  installChromium,
+  verifyPages,
+} from "../../core/index.js";
 import { loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit, globalOverrides } from "../program.js";
@@ -13,7 +19,7 @@ export function registerBrowser(program: Command, deps: CliDeps, emit: (d: unkno
   const browser = program
     .command("browser")
     .description(
-      "Manage the optional headless browser (needed for contact lists, subject rooms, bookings, files)",
+      "Manage the optional headless browser (contact lists, bookings, files and the GDPR-gated pages)",
     );
 
   browser
@@ -42,6 +48,37 @@ export function registerBrowser(program: Command, deps: CliDeps, emit: (d: unkno
         throw new CliExit(EXIT.ERROR, `playwright install chromium exited with ${code}`);
       const status = await browserStatus(engine, deps.browserProbes);
       emit({ status: status.ready ? "installed" : "installed_but_not_ready", ...status });
+    });
+
+  browser
+    .command("verify")
+    .description(
+      "Load every page the browser reads and check its anchors and structural fingerprint (after a SchoolSoft update)",
+    )
+    .action(async () => {
+      const ctx = await deps.getContext(globalOverrides(program.opts()));
+      await ctx.manager.ensureSession();
+      const session = deps.browserSession
+        ? deps.browserSession(ctx)
+        : createBrowserSession(ctx.manager, { engine: ctx.config.browser });
+      try {
+        const pages = await verifyPages(session, {
+          hasWebSession: ctx.manager.getWebSession() !== null,
+          syncWebChild: () => createApiPortal(ctx.manager).syncWebChild(),
+        });
+        const bad = pages.filter((p) => p.status === "broken" || p.status === "error");
+        emit({
+          status: bad.length ? "broken" : pages.some((p) => p.status === "drift") ? "drift" : "ok",
+          pages,
+        });
+        if (bad.length)
+          throw new CliExit(
+            EXIT.ERROR,
+            `${bad.length} page(s) no longer match: ${bad.map((p) => p.page).join(", ")}`,
+          );
+      } finally {
+        await session.close();
+      }
     });
 }
 

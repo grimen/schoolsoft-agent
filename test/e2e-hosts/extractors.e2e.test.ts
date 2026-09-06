@@ -15,10 +15,11 @@ import {
   extractContacts,
   extractFiles,
   extractSubjectLinks,
-  extractSubjectTeachers,
   extractPageTitle,
+  inspectPage,
   extractTablePage,
 } from "../../src/core/portal/extractors.js";
+import { PAGES } from "../../src/core/portal/pages.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
 const status = await browserStatus({ kind: "chromium" });
@@ -69,7 +70,7 @@ test(
 );
 
 test(
-  "subject extractors: menu links deduplicated by href; teacher names from a subject page",
+  "subject menu extractor: links deduplicated by href, requestid as subjectId",
   { skip },
   async () => {
     const s = session();
@@ -82,11 +83,49 @@ test(
         { subject: "Bild", url: "right_student_subject.jsp?requestid=1301", subjectId: 1301 },
         { subject: "Matematik", url: "right_student_subject.jsp?requestid=1302", subjectId: 1302 },
       ]);
-      const teachers = await s.withPage(async (p) => {
-        await p.goto("/right_student_subject_one.jsp.html");
-        return p.evaluate(extractSubjectTeachers);
-      });
-      assert.deepEqual(teachers, ["Bild Lärare"]);
+    } finally {
+      await s.close();
+    }
+  },
+);
+
+test(
+  "inspectPage: anchor counts, a fingerprint that ignores text/data and differs between pages",
+  { skip },
+  async () => {
+    const s = session();
+    try {
+      const load = (f: string, anchors: string[]) =>
+        s.withPage(async (p) => {
+          await p.goto("/" + f);
+          return p.evaluate(inspectPage, anchors);
+        });
+      const a = await load("right_student_class.jsp.html", [
+        "#content .h1",
+        "#contAll_content",
+        "#nope",
+      ]);
+      assert.equal(a.title, "Kontaktlistor");
+      assert.deepEqual(a.anchors, { "#content .h1": 1, "#contAll_content": 1, "#nope": 0 });
+      assert.match(a.fingerprint, /^[0-9a-f]{8}$/);
+      const again = await load("right_student_class.jsp.html", []);
+      assert.equal(again.fingerprint, a.fingerprint, "stable across loads");
+      const b = await load("right_student_review.jsp.html", []);
+      assert.notEqual(b.fingerprint, a.fingerprint, "different pages, different skeletons");
+      for (const [file, key] of [
+        ["right_student_review.jsp.html", "documents"],
+        ["right_parent_absence_message.jsp.html", "unreportedAbsence"],
+        ["right_student_absence_student.jsp.html", "attendanceReport"],
+        ["right_student_ability.jsp.html", "assessmentCriteria"],
+        ["right_student_gradesubject.jsp.html", "grades"],
+        ["right_student_timebooking.jsp.html", "bookings"],
+        ["right_student_library.jsp.html", "files"],
+        ["right_student_subject.jsp.html", "subjects"],
+      ] as const) {
+        const r = await load(file, [...PAGES[key].anchors]);
+        const missing = PAGES[key].anchors.filter((x) => r.anchors[x] === 0);
+        assert.deepEqual(missing, [], `fixture ${file} satisfies its page anchors`);
+      }
     } finally {
       await s.close();
     }

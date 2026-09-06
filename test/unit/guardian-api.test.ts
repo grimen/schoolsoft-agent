@@ -198,3 +198,40 @@ test("web child sync: reads the web header, PUTs only when the child differs, no
   });
   await assert.rejects(rejecting.focusWebChild(1, 20), /login --web/);
 });
+
+test("subject rooms come from the subjectroom REST (app cookies): list, then teachers per room", async () => {
+  const calls: string[] = [];
+  const fetchImpl: ApiFetch = async (url, _school, options) => {
+    const path = new URL(url).pathname.replace(/^\/taby/, "");
+    calls.push(`${path} cookie=${(options.headers as Record<string, string>).Cookie}`);
+    if (path.endsWith("/subjectroom/all"))
+      return {
+        status: 200,
+        data: [
+          { activityId: 11, subject: "Matematik", groupNames: ["4B"], isSubjectRoom: true },
+          { activityId: 12, subject: "Fritids", isSubjectRoom: false },
+          { activityId: 13, subject: "Bild", groupNames: ["4B", "4C"] },
+        ],
+      };
+    return {
+      status: 200,
+      data: [{ firstName: "Lärare", lastName: "Test", id: 1, role: "TEACHER" }],
+    };
+  };
+  const api = new ApiPortal({
+    school: "taby",
+    accessToken: () => "T",
+    cookieHeader: () => "JSESSIONID=app",
+    fetchImpl,
+  });
+  const rooms = await api.getSubjectRooms();
+  assert.deepEqual(rooms, [
+    { subject: "Matematik", subjectId: 11, groups: ["4B"], teachers: ["Lärare Test"] },
+    { subject: "Bild", subjectId: 13, groups: ["4B", "4C"], teachers: ["Lärare Test"] },
+  ]);
+  assert.deepEqual(calls, [
+    "/rest-api/parent/ps/subjectroom/all cookie=JSESSIONID=app",
+    "/rest-api/parent/ps/subjectroom/11/teachers cookie=JSESSIONID=app",
+    "/rest-api/parent/ps/subjectroom/13/teachers cookie=JSESSIONID=app",
+  ]);
+});

@@ -34,6 +34,8 @@ export interface CliDeps {
   /** Injectable probes / spawner for the browser commands and doctor. */
   browserProbes?: import("../core/index.js").StatusProbes;
   spawner?: import("../core/index.js").Spawner;
+  /** Browser session for `browser verify`; defaults to the production one, injectable for tests. */
+  browserSession?: (ctx: OperationContext) => import("../core/index.js").BrowserSession;
 }
 
 export class CliExit extends Error {

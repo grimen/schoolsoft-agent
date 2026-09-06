@@ -49,9 +49,9 @@ test(
     const ctx = e2eContext();
     await ctx.manager.ensureSession();
     const rooms = await ctx.portal.getSubjectRooms();
-    const first = rooms.find((r) => r.subjectId !== null);
-    assert.ok(first, "a subject with an id");
-    const crit = await ctx.portal.getAssessmentCriteria(first!.subjectId!);
+    const first = rooms[0];
+    assert.ok(first, "a subject room");
+    const crit = await ctx.portal.getAssessmentCriteria(first.subject);
     assert.ok(crit.title.length > 0);
     const prog = await ctx.portal.getGradePrognosis();
     assert.ok("reconciliationDates" in prog);

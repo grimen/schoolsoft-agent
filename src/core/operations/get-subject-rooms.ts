@@ -4,14 +4,12 @@ import { ChildSchema, withChild } from "./_shared.js";
 export const getSubjectRooms = defineOperation({
   name: "get_subject_rooms",
   title: "Get subject rooms",
-  description: `List the child's subjects (Ämne) with their teachers.
-
-Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+  description: `List the child's subject rooms (Ämne) with groups and teachers.
 
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, subjects: [{ subject, teachers, url }] }.
+Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
 
 Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".`,
   input: { child_id: ChildSchema },

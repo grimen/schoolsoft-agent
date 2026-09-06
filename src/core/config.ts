@@ -211,15 +211,30 @@ export interface PortalDeps {
   engine?: BrowserEngine;
   playwrightLoader?: PlaywrightLoader;
 }
-export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
+/** The browser session bound to the manager's live cookies (app) and its web-login cookies (gated pages). */
+export function createBrowserSession(
+  manager: SessionManager,
+  deps: Pick<PortalDeps, "engine" | "playwrightLoader"> = {},
+): PlaywrightSession {
   const client = manager.getClient();
-  const cookieHeader = () => {
-    try {
-      return client.cookieHeader;
-    } catch {
-      return null;
-    }
-  };
+  return new PlaywrightSession({
+    school: client.school,
+    cookieHeader: () => {
+      try {
+        return client.cookieHeader;
+      } catch {
+        return null;
+      }
+    },
+    webCookies: () => manager.getWebSession()?.cookies ?? null,
+    engine: deps.engine,
+    loader: deps.playwrightLoader,
+  });
+}
+
+/** API provider bound to the manager's live client, app cookies and web-login cookies. */
+export function createApiPortal(manager: SessionManager): ApiPortal {
+  const client = manager.getClient();
   const webCookieHeader = () => {
     const w = manager.getWebSession();
     return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
@@ -245,18 +260,17 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
       }
     },
   });
+  return api;
+}
+
+export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
+  const api = createApiPortal(manager);
   const browser =
     deps.browser === undefined
       ? new BrowserPortal({
           hasWebSession: () => manager.getWebSession() !== null,
           syncWebChild: () => api.syncWebChild(),
-          session: new PlaywrightSession({
-            school: client.school,
-            cookieHeader,
-            webCookies: () => manager.getWebSession()?.cookies ?? null,
-            engine: deps.engine,
-            loader: deps.playwrightLoader,
-          }),
+          session: createBrowserSession(manager, deps),
         })
       : deps.browser;
   return createCompositePortal({

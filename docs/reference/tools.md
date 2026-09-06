@@ -334,14 +334,12 @@ Example call:
 
 ## `schoolsoft_get_subject_rooms`
 
-List the child's subjects (Ämne) with their teachers.
-
-Served through the headless browser (no API); run "schoolsoft-agent browser install" once.
+List the child's subject rooms (Ämne) with groups and teachers.
 
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, subjects: [{ subject, teachers, url }] }.
+Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
 
 Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
 
@@ -534,7 +532,7 @@ GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login
 or the login tool with web: true, once) and the headless browser. Read only.
 
 Args:
-  - subject_id (number): from get_subject_rooms (subjectId).
+  - subject (string): subject name as listed by get_subject_rooms ("Matematik"; "matte" also matches).
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
@@ -544,7 +542,7 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
-| `subject_id` | number | yes | Subject id from get_subject_rooms |
+| `subject` | string | yes | Subject name, e.g. Matematik |
 | `school_type` | number | no | SchoolSoft school type code, default 7 |
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
 
@@ -554,7 +552,7 @@ Example call:
 {
   "name": "schoolsoft_get_assessment_criteria",
   "arguments": {
-    "subject_id": 1
+    "subject": "Rösjöskolan"
   }
 }
 ```

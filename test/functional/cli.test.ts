@@ -20,6 +20,7 @@ function harness(
     prompt?: CliDeps["prompt"];
     env?: Record<string, string>;
     home?: string;
+    browserSession?: CliDeps["browserSession"];
   } = {},
 ) {
   const out: string[] = [];
@@ -38,6 +39,7 @@ function harness(
     version: "9.9.9",
     prompt: opts.prompt,
     fetchImpl: async () => ({ status: 200 }),
+    browserSession: opts.browserSession,
   };
   const run = async (...argv: string[]) => {
     out.length = 0;
@@ -243,4 +245,51 @@ test("a gated command without a web session fails with the login --web hint", as
     EXIT.ERROR,
     "non-gated browser page tries to navigate (fake session throws)",
   );
+});
+
+test("browser verify reports every page, exit 0 when ok/drift and 1 when a page is broken", async () => {
+  const { PAGES } = await import("../../src/core/index.js");
+  const make = (missing: string | null) => ({
+    withPage: async (fn: (p: unknown) => Promise<unknown>) => {
+      let current = "";
+      return fn({
+        goto: async (p: string) => {
+          current = p;
+        },
+        url: () => current,
+        evaluate: async (f: { name: string }, arg?: string[]) =>
+          f.name === "extractSubjectLinks"
+            ? [{ subject: "Bild", url: "x", subjectId: 1 }]
+            : {
+                title: "T",
+                anchors: Object.fromEntries((arg ?? []).map((a) => [a, a === missing ? 0 : 1])),
+                fingerprint: "00",
+                nodes: 1,
+              },
+        waitForJson: async () => ({}),
+      });
+    },
+    close: async () => {},
+  });
+  const ok = harness({ ctx: makeContext().ctx, browserSession: () => make(null) as never });
+  assert.equal((await ok.run("login")).code, EXIT.OK);
+  const r = await ok.run("browser", "verify");
+  assert.equal(r.code, EXIT.OK, r.err);
+  assert.ok(
+    ["ok", "drift"].includes(r.json().status),
+    "fake fingerprints differ from the recorded ones: drift, not broken",
+  );
+  assert.equal(r.json().pages.length, Object.keys(PAGES).length);
+  assert.ok(
+    r.json().pages.some((p: { status: string }) => p.status === "skipped"),
+    "gated pages skipped without web session",
+  );
+  const broken = harness({
+    ctx: makeContext().ctx,
+    browserSession: () => make("#contAll_content") as never,
+  });
+  await broken.run("login");
+  const b = await broken.run("browser", "verify");
+  assert.equal(b.code, EXIT.ERROR);
+  assert.match(b.err, /contacts/);
 });

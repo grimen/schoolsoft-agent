@@ -116,6 +116,6 @@ test("browser-backed and web-gated operations return the child plus the portal p
     assert.ok(r.child, `${name} names the child`);
     assert.ok(key in r, `${name} returns ${key}: ${Object.keys(r)}`);
   }
-  const crit = await run("get_assessment_criteria", ctx, { subject_id: 1301 });
-  assert.equal(crit.page.title, "Kriterier 1301");
+  const crit = await run("get_assessment_criteria", ctx, { subject: "Bild" });
+  assert.equal(crit.page.title, "Kriterier Bild");
 });

@@ -10,8 +10,8 @@
  *  - Kontaktlistor: #contAll_content > .h3_bold (group) + table rows with
  *    .display-info blocks: #name.heading_bold, #email a[href^=mailto], #phone,
  *    #address, #type, #role, #contact.
- *  - Ämne: #subject_menu a[href*=requestid] (subject list); a subject page
- *    has #teacher_con_content .display-info (#name, #type, #email a).
+ *  - Ämne: #subject_menu a[href*=requestid] (subject list with the requestid
+ *    the criteria page takes; subject rooms themselves come from the API).
  *  - Bokningar: #timebook_con_content .accordion-group with
  *    .accordion-heading-left > div (title), .accordion-heading-date-wide,
  *    [id^=description] (text), .inner_right_info label+div pairs.
@@ -70,15 +70,6 @@ export function extractSubjectLinks(): {
     seen.add(href);
     const m = /requestid=(\d+)/.exec(href);
     out.push({ subject: name, url: href, subjectId: m ? Number(m[1]) : null });
-  }
-  return out;
-}
-
-export function extractSubjectTeachers(): string[] {
-  const out: string[] = [];
-  for (const info of Array.from(document.querySelectorAll("#teacher_con_content .display-info"))) {
-    const name = (info.querySelector("#name")?.textContent ?? "").replace(/\s+/g, " ").trim();
-    if (name) out.push(name);
   }
   return out;
 }
@@ -199,4 +190,49 @@ export function extractTablePage(): TablePage {
     sections.push({ ...(heading ? { heading } : {}), headers, rows });
   }
   return { title, ...(message ? { message } : {}), sections };
+}
+
+/** What inspectPage() reports for one page: anchor hits and a structural fingerprint. */
+export interface PageInspection {
+  title: string;
+  anchors: Record<string, number>;
+  /** FNV-1a hash of the sorted set of tag#id.class skeletons under #content (ids/classes with digits dropped). */
+  fingerprint: string;
+  nodes: number;
+}
+
+/**
+ * Structure probe used by `browser verify`, the live structure suite and
+ * `make fingerprints`: counts each anchor selector and hashes the page's
+ * skeleton (tags, ids and classes only, never text; hashed MUI classes and
+ * numbered ids are dropped so data volume does not move the fingerprint).
+ */
+export function inspectPage(anchors: string[]): PageInspection {
+  const t = (el: Element | null | undefined) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
+  const root = document.querySelector("#content") ?? document.body;
+  const counts: Record<string, number> = {};
+  for (const a of anchors) counts[a] = document.querySelectorAll(a).length;
+  const seen = new Set<string>();
+  for (const el of Array.from(root.querySelectorAll("*"))) {
+    if (el.closest("#top-box")) continue;
+    const cls = Array.from(el.classList)
+      .filter((c) => !/\d/.test(c))
+      .sort()
+      .join(".");
+    const id = el.id && !/\d/.test(el.id) ? "#" + el.id : "";
+    seen.add(el.tagName.toLowerCase() + id + (cls ? "." + cls : ""));
+  }
+  const skeleton = Array.from(seen).sort();
+  const str = skeleton.join("\n");
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return {
+    title: t(root.querySelector(".h1")),
+    anchors: counts,
+    fingerprint: h.toString(16).padStart(8, "0"),
+    nodes: skeleton.length,
+  };
 }
