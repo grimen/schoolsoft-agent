@@ -4,6 +4,26 @@ SchoolSoft is a trademark of SchoolSoft AB; this document describes observed beh
 
 Base URL for a tenant: `https://sms.schoolsoft.se/<slug>/`. The slug is the municipality or school-group tenant (`taby`), not the individual school; schools inside a tenant are `orgId`s.
 
+## Is any of this official?
+
+No. SchoolSoft publishes no API for guardians or students. Its only documented
+integration is [SS12000](https://github.com/skolverket/dnp-ss12000-reference-api),
+the Swedish standard for exchanging school data between organisations' systems;
+SchoolSoft enables it per organisation on request (see e.g.
+[Skolon's note](https://support.skolon.com/sv/kb/articles/schoolsoft)). It carries
+provisioning data for administrators, not a parent's view of their child, so it
+cannot serve this project.
+
+Everything below is the private backend of SchoolSoft's own apps, learned by
+observing them, exactly as every community client does
+([ssp-node](https://github.com/elias4044/ssp-node),
+[SchoolSoft+ Developer](https://developer.ssp.elias4044.com/),
+[better-schoolsoft](https://github.com/sebdanielsson/better-schoolsoft)). It can
+change without notice; the live E2E suite is the canary. One external
+confirmation of the key finding: Google Play lists the guardian app as
+`com.schoolsoft.vapp` ("SchoolSoft Vårdnadshavare"), matching the `vApp`
+client id that mints guardian tokens.
+
 ## Discovery
 
 | Endpoint                                                                        | Auth | Purpose                                                                                                                                      |
