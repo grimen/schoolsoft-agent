@@ -1,28 +1,31 @@
 /** Short lived owner sessions. Restarting the service signs the owner console out. */
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 export interface OwnerSession {
   csrf: string;
   expires: number;
 }
 export class OwnerSessions {
   private sessions = new Map<string, OwnerSession>();
+  private readonly passwordBytes: Buffer;
   private attempts = new Map<string, number[]>();
   constructor(
-    private password: string,
+    password: string,
     private now: () => number = Date.now,
-  ) {}
+  ) {
+    this.passwordBytes = Buffer.from(password);
+  }
   login(password: unknown, client = "local"): { token: string; session: OwnerSession } | undefined {
     const now = this.now();
     const attempts = (this.attempts.get(client) ?? []).filter((t) => t > now - 60_000);
     if (attempts.length >= 5) return undefined;
     if (this.attempts.size >= 1024) this.attempts.delete(this.attempts.keys().next().value!);
     this.attempts.set(client, [...attempts, now]);
+    // This is a high-entropy deployment secret, not a stored user-password hash.
+    if (typeof password !== "string") return undefined;
+    const candidate = Buffer.from(password);
     if (
-      typeof password !== "string" ||
-      !timingSafeEqual(
-        createHash("sha256").update(password).digest(),
-        createHash("sha256").update(this.password).digest(),
-      )
+      candidate.length !== this.passwordBytes.length ||
+      !timingSafeEqual(candidate, this.passwordBytes)
     )
       return undefined;
     for (const [token, session] of this.sessions)

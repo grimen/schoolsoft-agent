@@ -94,7 +94,7 @@ test("owner sessions bound attempts, expire, discard malformed cookies and reset
   assert.equal(sessions.get("other=x"), undefined);
   assert.equal(sessions.get("__Host-owner=unknown"), undefined);
   assert.equal(sessions.login(12), undefined);
-  assert.equal(sessions.login("wrong"), undefined);
+  assert.equal(sessions.login("incorrc"), undefined);
   const result = sessions.login("correct")!;
   assert.ok(result);
   assert.equal(sessions.get("other=x; __Host-owner=" + result.token), result.session);

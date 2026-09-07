@@ -144,6 +144,36 @@ test("owner console enforces host, password, session, origin and CSRF and comple
       ).status,
       302,
     );
+    // Endpoint middleware bounds both password and upstream login attempts per caller.
+    for (let i = 0; i < 20; i++)
+      assert.equal(
+        (await request("/owner/login", { password: "wrong" }, { "X-Forwarded-For": "192.0.2.20" }))
+          .status,
+        401,
+      );
+    const limited = await request(
+      "/owner/login",
+      { password: "wrong" },
+      { "X-Forwarded-For": "192.0.2.20" },
+    );
+    assert.equal(limited.status, 429);
+    assert.ok(limited.headers.has("retry-after"));
+    for (let i = 0; i < 20; i++)
+      assert.equal(
+        (await request("/owner/schoolsoft/login", { csrf }, { "X-Forwarded-For": "192.0.2.21" }))
+          .status,
+        200,
+      );
+    assert.equal(
+      (await request("/owner/schoolsoft/login", { csrf }, { "X-Forwarded-For": "192.0.2.21" }))
+        .status,
+      429,
+    );
+    assert.equal(
+      (await request("/owner/schoolsoft/login", { csrf }, { "X-Forwarded-For": "192.0.2.22" }))
+        .status,
+      200,
+    );
     pending = true;
     assert.match(await (await request("/owner")).text(), /waiting for BankID/);
     pending = false;

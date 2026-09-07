@@ -3,7 +3,7 @@
 # Diagrams
 
 Pre-rendered SVGs for instant loading; click a diagram to open its editable
-Mermaid source in [src/](src) (which renders natively on GitHub, in VS Code,
+Mermaid source in [src/](src/) (which renders natively on GitHub, in VS Code,
 and in Obsidian). Regenerate with `make diagrams`.
 
 ---

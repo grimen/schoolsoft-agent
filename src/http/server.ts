@@ -1,5 +1,6 @@
 /* oxlint-disable oxc/no-async-endpoint-handlers -- Express 5 forwards rejected promises; http-owner.test.ts verifies sanitized failures. */
 /** HTTP transport and owner-only routes. School data is accessed only through the runtime. */
+import { rateLimit } from "express-rate-limit";
 import express, { type Request, type Response, type NextFunction } from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -52,6 +53,12 @@ export function createConnectorApp({
   app.get("/", (_req, res) => {
     res.redirect("/owner");
   });
+  const ownerAuthLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  });
   app.get("/owner/login", (req, res) => {
     const request = typeof req.query.request === "string" ? req.query.request : "";
     res.send(
@@ -61,7 +68,7 @@ export function createConnectorApp({
       ),
     );
   });
-  app.post("/owner/login", (req, res) => {
+  app.post("/owner/login", ownerAuthLimit, (req, res) => {
     if (req.get("origin") !== config.publicUrl) {
       res.status(403).end();
       return;
@@ -140,7 +147,7 @@ export function createConnectorApp({
       ),
     );
   });
-  app.post("/owner/schoolsoft/login", async (_req, res) => {
+  app.post("/owner/schoolsoft/login", ownerAuthLimit, async (_req, res) => {
     const { url } = await runtime.beginLogin();
     res.send(
       page(

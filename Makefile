@@ -39,7 +39,7 @@ check-code: lint typecheck format-check boundaries ## Lint + typecheck + format 
 shellcheck: ## shellcheck every repo shell script (scripts/**, skills/**)
 	shellcheck -x scripts/*.sh scripts/*/*.sh skills/schoolsoft/scripts/*.sh
 
-check-ci: shellcheck ## Lint the CI itself: actionlint (workflows) + shellcheck (scripts)
+check-ci: shellcheck diagrams-check ## CI lint and generated diagram freshness
 	actionlint
 
 audit: ## Dependency audit (audit-ci.jsonc allowlist)
