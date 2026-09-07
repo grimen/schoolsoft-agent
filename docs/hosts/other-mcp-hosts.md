@@ -2,6 +2,10 @@
 
 Any assistant that can start a local MCP server over stdio can use this project. The server is `schoolsoft-agent-mcp`, shipped in the `schoolsoft-agent` npm package.
 
+## Starting from scratch
+
+First install your chosen assistant from its official guide, connect its model account and confirm a normal chat works. Install [Node.js](https://nodejs.org/en/download) 22 or newer. The assistant must support starting a **local stdio process** and that process must have a browser/login path and durable state. An interface asking only for an HTTPS URL cannot use this command directly. See the [support matrix](support-matrix.md) for named hosts.
+
 ## Configuration
 
 Command and arguments:
@@ -34,7 +38,7 @@ The server exposes one tool per capability, all prefixed `schoolsoft_`; see the 
 
 ## First use
 
-Ask the assistant to call `schoolsoft_login`. A browser tab opens SchoolSoft's login; complete BankID there. If the host cannot open a browser, the tool result contains the URL to open yourself. Hosts that time out long tool calls should call `schoolsoft_login` with `background: true`: it returns at once with the URL, and `schoolsoft_auth_status` reports `loginInProgress` until the login is done.
+Ask the assistant to call `schoolsoft_login`. A browser tab opens SchoolSoft's login; complete BankID there. If the host cannot open a browser, the tool result contains the URL to open yourself on the same machine as the callback listener. Opening it on another device does not move the local callback there. Hosts that time out long tool calls should call `schoolsoft_login` with `background: true`: it returns at once with the URL, and `schoolsoft_auth_status` reports `loginInProgress` until the login is done.
 
 Every error the server returns has two lines, the problem and "Next: what to do", plus a structured `error.kind` (`not_authenticated`, `not_configured`, `network`, `not_available`, `input`, `upstream`, `internal`) and `retryable` flag, so an agent can act without parsing prose.
 

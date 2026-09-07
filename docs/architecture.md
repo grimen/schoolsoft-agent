@@ -4,11 +4,11 @@ This document goes from the big picture down to the mechanics. If you only read 
 
 ## The shape of it
 
-One core, two surfaces, many hosts. The core knows SchoolSoft; the surfaces know how agents talk; the hosts are somebody else's software.
+One core, local MCP/CLI surfaces and a parent-hosted HTTP connector, many hosts. The core knows SchoolSoft; the surfaces know how agents talk; the hosts are somebody else's software.
 
 [![System overview](diagrams/dist/system-overview.svg)](diagrams/src/system-overview.mmd)
 
-One vendor-neutral core, two surfaces, many hosts. Everything SchoolSoft-specific sits behind the `SchoolProvider` seam in `src/providers/schoolsoft`; a second vendor is a new directory there. Three rules keep this honest, and a script enforces them (`make boundaries`):
+One vendor-neutral core, multiple surfaces, many hosts. Everything SchoolSoft-specific sits behind the `SchoolProvider` seam in `src/providers/schoolsoft`; a second vendor is a new directory there. Three rules keep this honest, and a script enforces them (`make boundaries`):
 
 1. `src/core` never imports from an adapter and never reads `process.env`. It receives a `Config` object.
 2. Adapters (`src/mcp`, `src/cli`, `src/shared`) import core only through `src/core/index.ts`.
@@ -29,6 +29,40 @@ SchoolSoft's guardian app uses OAuth 2 with PKCE. We use the same flow, with a l
 [![Login, step by step](diagrams/dist/login-flow.svg)](diagrams/src/login-flow.mmd)
 
 Two backends serve the data afterwards. The **Eva API** takes the Bearer token and serves profile, lunch, news and messages. The **webview REST** API takes the cookies, which are bound to one child (`childInFocus`), and serves schedule and assignments. Switching child means one more cookie exchange; the operations do that when `child_id` changes.
+
+## Parent-hosted connector
+
+`src/http/` implements a separate Streamable HTTP MCP adapter for a server operated
+by one guardian. It imports core through `core/index.ts`; it does not wrap the local
+MCP server or CLI. The initial allowlist contains `list_children`, `get_schedule`
+and `get_lunch_menu`. Tool definitions come from the operation registry; the runtime
+serializes each complete authorization, child-focus and read sequence.
+
+A parent signs into the owner page using their deployment secret and starts
+SchoolSoft login there. The provider accepts an injected browser-authorization
+callback and an HTTPS redirect URI. PKCE material stays inside the provider; the
+HTTP runtime validates one-use state and enforces a deadline. The browser completes
+BankID itself. The ordinary local flow retains its localhost callback. **Acceptance
+of the public callback by SchoolSoft remains a live-test requirement.**
+
+The runtime pins provider, school and guardian identity. A different guardian is
+rejected and the attempted session removed; logout preserves the identity pin.
+Each AI app gets OAuth authorization for selected read operations and children.
+Unknown or unapproved children are rejected before focusing or fetching, including
+an unapproved default child. Listing children returns only the approved subset.
+Owner login, CSRF protection, OAuth grants and encrypted persistent state belong to
+the HTTP adapter. Per-app revocation is separate from SchoolSoft logout.
+
+The deployment is one process per private state volume. The storage key comes from
+the parent's deployment environment; the project author operates no central service.
+Hosting administrators may access plaintext during use, and requested results enter
+the AI provider's conversation. See [parent setup and trust boundaries](hosts/parent-connector.md).
+
+The connector is a release candidate with offline security, lifecycle and protocol
+tests. HTTP modules are included in the 100% coverage gate. This does not establish
+real SchoolSoft callback compatibility, BankID on the same phone, or acceptance by
+actual Claude/ChatGPT accounts. Those checks remain explicit before calling the
+parent deployment supported.
 
 ## Provider seam: one vendor today, room for the next
 
@@ -95,7 +129,7 @@ src/providers/schoolsoft/  auth/ (BankID via SchoolSoft OAuth, token/cookie exch
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
 src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts
-src/http/         reserved for the remote transport (next spec)
+src/http/         parent-hosted HTTPS adapter: OAuth, owner pages, scoped runtime, encrypted storage and startup
 skills/schoolsoft SKILL.md, scripts/schoolsoft.sh, references/commands.md (generated)
 plugins/          claude/ (marketplace + two plugins), mcpb/, opencode/, openclaw/, hermes/, pi/
 docs/             this file, schoolsoft-api.md, hosts/, reference/ (generated)
@@ -127,7 +161,7 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | Packaging  | `test/packaging`   | every host manifest validates; skill follows the Agent Skills spec; per-host skill builds                               | none                  |
 | E2E        | `test/e2e` (gated) | the real thing: BankID once, then silent restore, forced refresh, every operation over stdio and CLI, child switching   | SchoolSoft            |
 
-`make check` runs everything but E2E with a 100% coverage gate (lines, branches, functions, statements) over the offline suites. What the gate deliberately leaves out, each named in `.c8rc.json` or an inline `c8 ignore` with its reason: barrel files, the HTTP transport skeleton, types-only modules, the in-page extractors (run only inside Chromium, covered by `make e2e-artifact`), the single optional `playwright` import (presence covered by `make e2e-artifact`, absence by the pack smoke), and the live-network defaults for token exchange and the real browser opener (covered by `make e2e`). Environment defaults such as the OS browser opener and the Chromium installer take an injectable spawn so the unit tests cover their branches. `make e2e` runs the live suite; findings accumulate in a gitignored report.
+`make check` runs everything but E2E with a 100% coverage gate (lines, branches, functions, statements) over the offline suites. What the gate deliberately leaves out, each named in `.c8rc.json` or an inline `c8 ignore` with its reason: the core export barrel, CLI/MCP process entrypoints (covered by `make e2e-artifact`), the HTTP process entrypoint (covered by `test/packaging/connector.test.ts` against the built binary), types-only modules, the in-page extractors (run only inside Chromium, covered by `make e2e-artifact`), the single optional `playwright` import (presence covered by `make e2e-artifact`, absence by the pack smoke), and the live-network defaults for token exchange and the real browser opener (covered by `make e2e`). Environment defaults such as the OS browser opener and the Chromium installer take an injectable spawn so the unit tests cover their branches. `make e2e` runs the live suite; findings accumulate in a gitignored report.
 
 ## What lives where at runtime
 

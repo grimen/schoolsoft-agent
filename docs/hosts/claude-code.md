@@ -2,6 +2,18 @@
 
 Claude in your terminal or IDE. Install as a plugin from this repository's marketplace: two commands inside Claude Code.
 
+**New to commands?** Read [how to open a terminal and where to type](computer-basics.md). Follow this guide on one computer; skip alternative installation methods until your first school question works.
+
+## Starting from scratch
+
+1. Follow the [Claude Code quickstart](https://code.claude.com/docs/en/quickstart) for your operating system, then start `claude` and complete account sign-in.
+2. Send a normal message. Claude Code account eligibility is separate from having a free Claude chat account.
+3. Install [Node.js](https://nodejs.org/en/download) 22 or newer for the SchoolSoft MCP command, then add the plugin below.
+
+Use a local terminal/IDE session. For the desktop **Code** tab, use its [local-session setup](https://code.claude.com/docs/en/desktop) and configure Code's MCP/plugins there; the desktop Chat extension is separate. Cloud Code sessions are not the local setup described here. See [the matrix](support-matrix.md).
+
+**Check before continuing:** the assistant answers a normal “Hej!” and any required commands are available. If not, finish the assistant's installation/sign-in first; adding SchoolSoft will not fix an account or model-access problem.
+
 ## What you need
 
 - [Claude Code](https://docs.claude.com/en/docs/claude-code/overview) installed and signed in.
@@ -20,13 +32,23 @@ Inside Claude Code, add the marketplace once, then pick **one** of the two plugi
 - `schoolsoft-mcp` is the recommended choice: an MCP server, one tool per capability.
 - `schoolsoft-skill` is the alternative: Claude runs the command-line tool through a skill. Same data. Do not install both; Claude would get overlapping instructions.
 
-The install asks for your school slug (from `https://sms.schoolsoft.se/<slug>/…`). If you do not know it, leave it empty and ask Claude afterwards: "Find my school on SchoolSoft, it is called Rösjöskolan", then run `/plugin install` again with the slug, or export `SCHOOLSOFT_SCHOOL=<slug>` in your shell.
+If installation asks for a school slug, use the part after `sms.schoolsoft.se/` in your normal SchoolSoft website address (for example `taby`). If school lookup is needed, run `npx -y schoolsoft-agent configure --query "<school name>"` in your terminal and use the resulting slug in the plugin settings. Reconnect the plugin after changing configuration.
 
 Claude's docs: [Plugins](https://docs.claude.com/en/docs/claude-code/plugins) · [Plugin marketplaces](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces) · [MCP](https://docs.claude.com/en/docs/claude-code/mcp) · [Skills](https://docs.claude.com/en/docs/claude-code/skills).
+
+## Check that SchoolSoft was added
+
+Start a new assistant conversation after installation. Ask **“Vilka SchoolSoft-verktyg eller färdigheter har du tillgång till?”** The assistant should identify the SchoolSoft integration. This checks installation only; you have not logged into SchoolSoft yet.
+
+If it cannot find the integration, revisit the installation step and restart the assistant. Check that you used the same computer and user account. Do not proceed by pasting school data or login credentials into the chat.
 
 ## First use
 
 Ask: **"Logga in på SchoolSoft."** A browser tab opens SchoolSoft's login page; complete BankID there. Claude continues when SchoolSoft redirects back. Tools appear as `schoolsoft_<operation>` (for example `schoolsoft_get_schedule`).
+
+**Check:** after login, ask **“Vad är det till lunch den här veckan?”** and compare the school and dates with SchoolSoft. If there are several children, choose one explicitly.
+
+**If this does not work:** “not configured” means repeat the school-selection step; “not authenticated” means repeat login. If the browser does not open, use the login recovery instructions in this guide on the same computer. For another error, see [Troubleshooting](../troubleshooting.md).
 
 ## Try asking
 

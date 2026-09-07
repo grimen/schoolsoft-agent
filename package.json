@@ -38,11 +38,13 @@
     "@elias4044/ssp-node": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "commander": "^15.0.0",
+    "express": "^5.2.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
     "@commitlint/config-conventional": "^21.2.2",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.4.1",
     "audit-ci": "^7.1.0",
     "badge-maker": "^6.0.0",
@@ -58,7 +60,8 @@
   "type": "module",
   "bin": {
     "schoolsoft-agent": "dist/cli/index.js",
-    "schoolsoft-agent-mcp": "dist/mcp/index.js"
+    "schoolsoft-agent-mcp": "dist/mcp/index.js",
+    "schoolsoft-agent-http": "dist/http/index.js"
   },
   "engines": {
     "node": ">=22"

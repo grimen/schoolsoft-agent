@@ -40,6 +40,8 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       callbackPort: config.callbackPort,
       fetchImpl: deps.fetchImpl as BankIdBrowserOptions["fetchImpl"],
       openBrowser: deps.openBrowser,
+      browserAuthorization: deps.browserAuthorization,
+      redirectUri: deps.redirectUri,
     }),
   ],
 

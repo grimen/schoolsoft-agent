@@ -13,6 +13,7 @@ import {
   DEFAULT_CLIENT_ID,
   type SchoolsoftUserType,
 } from "../../../core/constants.js";
+import type { BrowserAuthorization } from "../../../core/provider/types.js";
 import { buildAuthUrl } from "./oauth.js";
 
 export interface BrowserFlowResult {
@@ -44,9 +45,13 @@ export async function runBrowserLogin(options: {
   timeoutMs?: number;
   /** Injectable for tests; defaults to opening the OS default browser. */
   openBrowser?: (url: string) => void;
+  /** Host-owned remote callback; validates state and enforces a deadline. */
+  browserAuthorization?: BrowserAuthorization;
+  /** Validated by the host; remote HTTPS redirects require upstream support. */
+  redirectUri?: string;
 }): Promise<{ result: BrowserFlowResult; authUrl: string }> {
   const port = options.port ?? DEFAULT_CALLBACK_PORT;
-  const redirectUri = `http://127.0.0.1:${port}/callback`;
+  const redirectUri = options.redirectUri ?? `http://127.0.0.1:${port}/callback`;
 
   const flow = buildAuthUrl({
     school: options.school,
@@ -56,13 +61,15 @@ export async function runBrowserLogin(options: {
     orgid: options.orgid,
   });
 
-  const code = await awaitCallbackCode({
-    authUrl: flow.authUrl,
-    expectedState: flow.state,
-    port,
-    timeoutMs: options.timeoutMs,
-    openBrowser: options.openBrowser,
-  });
+  const code = options.browserAuthorization
+    ? await options.browserAuthorization({ url: flow.authUrl, state: flow.state })
+    : await awaitCallbackCode({
+        authUrl: flow.authUrl,
+        expectedState: flow.state,
+        port,
+        timeoutMs: options.timeoutMs,
+        openBrowser: options.openBrowser,
+      });
 
   return {
     result: { code, verifier: flow.verifier },
