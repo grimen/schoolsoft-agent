@@ -24,7 +24,7 @@ These routes include commands or settings to copy. If that is unfamiliar, read [
 
 The [parent-hosted connector](parent-connector.md) is an implemented release candidate for Claude/ChatGPT without a local agent. You need your own hosting account, and real SchoolSoft login plus AI client/mobile acceptance still need testing. Do not pay for hosting expecting a proven phone-only setup yet. Some assistants can instead control a computer you keep running; read [phone options](support-matrix.md#using-a-phone). You do not need a server for the recommended desktop setup.
 
-If you choose the connector, follow its guide from here: the computer instructions below cover the local routes.
+If you choose the connector, [compare hosting options](hosting-options.md) and follow its guide from here: the computer instructions below cover the local routes.
 
 Not sure whether your app is supported? The [detailed support matrix](support-matrix.md) explains desktop, web, mobile and advanced options. You can skip it if you have chosen a guide.
 

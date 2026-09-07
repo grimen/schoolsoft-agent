@@ -23,7 +23,9 @@ account that allows custom remote connectors, and your own hosting account. Chec
 that your AI app offers **Add custom connector/app** before paying for anything.
 Your workplace's account administrator may disable this feature.
 
-There are two routes:
+Start with [choose a hosting provider](hosting-options.md) for a plain-language comparison,
+including detailed [Hostinger VPS](hostinger.md) and [Cloudflare Tunnel](cloudflare.md) walkthroughs.
+The two foundational routes below are:
 
 | Route           | What you arrange                                     | Effort                                                         |
 | --------------- | ---------------------------------------------------- | -------------------------------------------------------------- |
