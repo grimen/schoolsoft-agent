@@ -63,7 +63,7 @@ Scopes are optional but, when present, must be one of
 `release`.
 
 The type decides the changelog section and the version bump
-([docs/releasing.md](docs/releasing.md)): `feat` → minor, `fix`/`perf` →
+([docs/development/releasing.md](docs/development/releasing.md)): `feat` → minor, `fix`/`perf` →
 patch, everything else → no release. A fix that only touches CI is `ci:`,
 not `fix(ci):`.
 
@@ -99,13 +99,13 @@ Escape hatches: `git commit --no-verify` skips `pre-commit` and
    drift.
 3. Diagrams: edit `docs/diagrams/src/*.mmd`, then `make diagrams` (the hook
    does it). Never inline Mermaid in Markdown; embed the SVG and link the
-   source, as `docs/architecture.md` does.
+   source, as `docs/development/architecture.md` does.
 4. Anything that touches SchoolSoft's API or auth: run `make e2e` locally and
    say so in the PR (counts only, never data).
 5. Open a PR with a Conventional Commits title; every check must be green.
 
 ## Releases
 
-See [docs/releasing.md](docs/releasing.md). Short version: merging the
+See [docs/development/releasing.md](docs/development/releasing.md). Short version: merging the
 release PR that release-please opens is the release. Every push to `main`
 also ships a prerelease under the `next` dist-tag.

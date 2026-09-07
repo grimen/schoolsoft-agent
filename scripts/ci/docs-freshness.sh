@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Docs are hand-maintained alongside code (docs/architecture.md). Warns
+# Docs are hand-maintained alongside code (docs/development/architecture.md). Warns
 # (never fails) when architecture-relevant files change without any docs/
 # update in the same push/PR. Hard rule (fails): a diagram source
 # (docs/diagrams/src/*.mmd) may not change without its re-rendered SVG -
@@ -35,7 +35,7 @@ if [ -n "$ARCH_CHANGES" ] && [ -z "$DOC_CHANGES" ]; then
   echo "::warning::Architecture-relevant files changed but docs were not updated:"
   echo "$ARCH_CHANGES"
   echo ""
-  echo "Consider updating docs/architecture.md, docs/schoolsoft-api.md or docs/hosts/ if these change:"
+  echo "Consider updating docs/development/architecture.md, docs/reference/schoolsoft-api.md or docs/integrations/ if these change:"
   echo "  - the operation set or config surface"
   echo "  - the SchoolSoft endpoints used"
   echo "  - how a host installs the integration"

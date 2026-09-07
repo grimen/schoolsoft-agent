@@ -10,7 +10,7 @@
  *  - Legacy /rest (app cookies): activity log.
  *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
  *
- * Verified live against Täby 2026-09-06; see docs/schoolsoft-api.md.
+ * Verified live against Täby 2026-09-06; see docs/reference/schoolsoft-api.md.
  */
 import type { ApiPortalPart } from "../../../core/portal/composite.js";
 import type { ActivityEntry, GuardianParent, SubjectRoom } from "../../../core/portal/types.js";

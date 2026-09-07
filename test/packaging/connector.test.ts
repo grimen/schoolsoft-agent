@@ -59,7 +59,7 @@ test("connector image uses reproducible installation, minimal runtime and a nonr
 });
 
 test("parent guide discloses live acceptance limits, data access and recovery", () => {
-  const guide = read("docs/hosts/parent-connector.md");
+  const guide = read("docs/deployment/connector.md");
   for (const required of [
     "Release candidate",
     "one guardian account",

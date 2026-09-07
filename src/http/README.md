@@ -2,7 +2,7 @@
 
 A Streamable HTTP MCP adapter for **one guardian per deployment**. Parents run it
 in their own hosting account. There is no author-operated backend or central store
-of families' credentials. Start with the [parent setup guide](../../docs/hosts/parent-connector.md).
+of families' credentials. Start with the [parent setup guide](../../docs/deployment/connector.md).
 
 This is a release candidate. Offline tests cover implementation behavior; real
 SchoolSoft HTTPS callback login and Claude/ChatGPT web/mobile acceptance still need

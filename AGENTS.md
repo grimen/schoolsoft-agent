@@ -3,8 +3,8 @@
 Canonical rules file, read by every coding agent (Claude Code loads it through
 `CLAUDE.md`; OpenCode, Codex, Hermes and Pi read `AGENTS.md` directly).
 
-Read `docs/architecture.md` first; it is the source of truth for layout,
-boundaries and the test pyramid. `docs/schoolsoft-api.md` holds everything
+Read `docs/development/architecture.md` first; it is the source of truth for layout,
+boundaries and the test pyramid. `docs/reference/schoolsoft-api.md` holds everything
 learned about SchoolSoft's API. This file is only what an agent must obey.
 
 ## Rules
@@ -60,7 +60,7 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   user-facing text and illustration clear about that, name them only
   descriptively, never use their logos or brand assets, never imply endorsement.
 - **Commits:** Conventional Commits, scopes from `commitlint.config.mjs`; the
-  type drives release-please's version bump (see `docs/releasing.md`). No
+  type drives release-please's version bump (see `docs/development/releasing.md`). No
   session links or trailers.
 - **Coverage is 100% and stays there.** New code ships with the tests that
   cover every branch. The only exclusions are the ones listed in
@@ -130,4 +130,4 @@ Gotcha: the rtk shell hook rewrites `npx tsx`; call `./node_modules/.bin/tsx`.
 ## Next specs
 
 Write operations (absence, messages) and the remote HTTP transport for
-ChatGPT are separate specs; see `docs/superpowers/specs/`.
+ChatGPT are separate specs; see `docs/planning/specs/`.

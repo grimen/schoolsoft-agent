@@ -183,7 +183,7 @@ function launches(): Launch[] {
   });
   // Hermes + OpenClaw: the documented snippet
   for (const host of ["hermes", "openclaw"]) {
-    const doc = readFileSync(join(root, "docs/hosts", `${host}.md`), "utf8");
+    const doc = readFileSync(join(root, "docs/integrations", `${host}.md`), "utf8");
     assert.ok(
       /npx/.test(doc) && /schoolsoft-agent-mcp/.test(doc),
       `${host} guide must document the npx launch of schoolsoft-agent-mcp`,
