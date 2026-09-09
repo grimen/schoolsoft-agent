@@ -183,7 +183,7 @@ function launches(): Launch[] {
   });
   // Hermes + OpenClaw: the documented snippet
   for (const host of ["hermes", "openclaw"]) {
-    const doc = readFileSync(join(root, "docs/hosts", `${host}.md`), "utf8");
+    const doc = readFileSync(join(root, "docs/integrations", `${host}.md`), "utf8");
     assert.ok(
       /npx/.test(doc) && /schoolsoft-agent-mcp/.test(doc),
       `${host} guide must document the npx launch of schoolsoft-agent-mcp`,
@@ -214,13 +214,13 @@ async function withMcp<T>(l: Launch, fn: (c: Client) => Promise<T>): Promise<T> 
 }
 
 test(
-  "MCP hosts: each manifest launches a server that lists 23 tools, answers offline, and reports no session",
+  "MCP hosts: each manifest launches a server that lists 24 tools, answers offline, and reports no session",
   { skip },
   async () => {
     for (const l of launches()) {
       await withMcp(l, async (client) => {
         const { tools } = await client.listTools();
-        assert.equal(tools.length, 23, `${l.host}: tools/list`);
+        assert.equal(tools.length, 24, `${l.host}: tools/list`);
         const found = await client.callTool({
           name: "schoolsoft_find_school",
           arguments: { query: "rösjö" },

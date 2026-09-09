@@ -14,6 +14,7 @@ export const ROUTING: Required<CapabilityRouting> = {
   getNextCalendarEvent: ["api"],
   getSession: ["api"],
   getScheduleWeek: ["api"],
+  getCalendar: ["api"],
   getAssignmentsWeek: ["api"],
   getAssignmentDetail: ["api"],
   getActivityLog: ["api"],

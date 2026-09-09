@@ -5,6 +5,7 @@
 import type { Operation } from "./types.js";
 import { findSchool } from "./find-school.js";
 import { listChildren } from "./list-children.js";
+import { getCalendar } from "./get-calendar.js";
 import { getSchedule } from "./get-schedule.js";
 import { getLunchMenu } from "./get-lunch-menu.js";
 import { getAssignments } from "./get-assignments.js";
@@ -31,6 +32,7 @@ export const operations: readonly Operation[] = [
   findSchool,
   listChildren,
   getSchedule,
+  getCalendar,
   getLunchMenu,
   getAssignments,
   getAssignmentDetail,

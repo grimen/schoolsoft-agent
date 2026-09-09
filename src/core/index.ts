@@ -51,6 +51,7 @@ export type {
   SchoolProvider,
   ProviderSession,
   AuthDeps,
+  BrowserAuthorization,
   ApiPortalContext,
   BrowserPortalContext,
   WebLoginSpec,

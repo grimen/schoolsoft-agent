@@ -18,7 +18,7 @@ import { PlaywrightSession, type PlaywrightLoader } from "./browser/playwright.j
 import { webLogin, type WebSession } from "./browser/web-login.js";
 import { defaultOpenInBrowser } from "./auth/open-browser.js";
 import { FilePendingLoginStore, type PendingLoginStore } from "./session/pending-login.js";
-import type { ApiPortalContext, SchoolProvider } from "./provider/types.js";
+import type { ApiPortalContext, BrowserAuthorization, SchoolProvider } from "./provider/types.js";
 import { getProvider } from "../providers/index.js";
 
 export { getProvider, providerIds } from "../providers/index.js";
@@ -33,6 +33,9 @@ export interface SessionDeps {
   /** Injected HTTP for the provider's auth calls (tests). */
   fetchImpl?: unknown;
   openBrowser?: (url: string) => void;
+  /** Host-managed authorization callback, paired with redirectUri. */
+  browserAuthorization?: BrowserAuthorization;
+  redirectUri?: string;
   /** Override the interactive web login (tests); default opens a headed Playwright window. */
   webLogin?: (school: string) => Promise<WebSession>;
   playwrightLoader?: PlaywrightLoader;
@@ -64,6 +67,8 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
     serialize: (s) => provider.serializeSession(s),
     strategies: provider.createAuthStrategies(config, {
       fetchImpl: deps.fetchImpl,
+      browserAuthorization: deps.browserAuthorization,
+      redirectUri: deps.redirectUri,
       // Record the URL for callers that did not wait (login --background), then open it.
       openBrowser: (url) => {
         manager?.noteLoginUrl(url);
@@ -88,6 +93,12 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
 
 /** Portal bound to the manager's live session: API provider always; browser provider when supplied. */
 export interface PortalDeps {
+  /** Revalidate host authorization before each API read, including multi-request operations. */
+  beforeRead?: () => void;
+  /** Stop cancelled or revoked host requests before session recovery starts. */
+  beforeRecovery?: () => void;
+  /** Revalidate host authorization after session recovery, before any read is retried. */
+  afterRecovery?: () => Promise<void>;
   /** Explicit browser provider; null disables the browser (tests, --no-browser). */
   browser?: BrowserPortalPart | null;
   browserUnavailableReason?: string;
@@ -115,9 +126,14 @@ export function createBrowserSession(
   });
 }
 
-function apiContext(manager: SessionManager, fetchImpl?: unknown): ApiPortalContext {
+function apiContext(
+  manager: SessionManager,
+  fetchImpl?: unknown,
+  beforeRead?: () => void,
+): ApiPortalContext {
   return {
     fetchImpl,
+    beforeRead,
     webCookieHeader: () => {
       const w = manager.getWebSession();
       return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
@@ -134,10 +150,13 @@ function apiContext(manager: SessionManager, fetchImpl?: unknown): ApiPortalCont
 }
 
 /** API provider bound to the manager's live session, app cookies and web-login cookies. */
-export function createApiPortal(manager: SessionManager, deps: Pick<PortalDeps, "fetchImpl"> = {}) {
+export function createApiPortal(
+  manager: SessionManager,
+  deps: Pick<PortalDeps, "fetchImpl" | "beforeRead"> = {},
+) {
   return getProvider(manager.providerId).createApiPortal(
     manager.getSession(),
-    apiContext(manager, deps.fetchImpl),
+    apiContext(manager, deps.fetchImpl, deps.beforeRead),
   );
 }
 
@@ -158,5 +177,11 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
     browser,
     browserUnavailableReason: deps.browserUnavailableReason,
   });
-  return withSessionRecovery(composite, { recover: () => manager.reauthenticate() });
+  return withSessionRecovery(composite, {
+    recover: async () => {
+      deps.beforeRecovery?.();
+      await manager.reauthenticate();
+      await deps.afterRecovery?.();
+    },
+  });
 }

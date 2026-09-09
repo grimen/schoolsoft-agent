@@ -4,6 +4,7 @@
  * Schedule, assignments and the subject rooms behind the React Ämne view.
  */
 import type { SubjectRoom } from "../../../../core/portal/types.js";
+import { calendarEntries, sortCalendar } from "./calendar.js";
 import type { SchoolsoftHttp } from "./transport.js";
 import { AgentError } from "../../../../core/errors/index.js";
 
@@ -27,6 +28,20 @@ export class WebviewApi {
 
   getSession(): Promise<unknown> {
     return this.cookie<unknown>("/rest-api/session");
+  }
+
+  async getCalendar(startDate: string, endDate: string): Promise<unknown[]> {
+    const query = new URLSearchParams({ start_date: startDate, end_date: endDate });
+    // Sequential: never leave an in-flight sibling request behind during recovery.
+    const lessons = calendarEntries(
+      await this.cookie<unknown>(`/rest-api/parent/calendar/lessons/agenda?${query}`),
+      "lessons",
+    );
+    const events = calendarEntries(
+      await this.cookie<unknown>(`/rest-api/parent/calendar/event/agenda?${query}`),
+      "events",
+    );
+    return sortCalendar([...lessons, ...events]);
   }
 
   getScheduleWeek(week: number): Promise<unknown[]> {

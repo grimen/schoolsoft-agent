@@ -10,7 +10,7 @@
  *  - Legacy /rest (app cookies): activity log.
  *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
  *
- * Verified live against Täby 2026-09-06; see docs/schoolsoft-api.md.
+ * Verified live against Täby 2026-09-06; see docs/reference/schoolsoft-api.md.
  */
 import type { ApiPortalPart } from "../../../core/portal/composite.js";
 import type { ActivityEntry, GuardianParent, SubjectRoom } from "../../../core/portal/types.js";
@@ -23,6 +23,7 @@ import { WebSessionApi, type WebChild } from "./api/web-session-api.js";
 export type { ApiFetch } from "./api/transport.js";
 
 export interface GuardianApiOptions {
+  beforeRead?: () => void;
   school: string;
   accessToken: () => string | null;
   cookieHeader: () => string | null;
@@ -44,7 +45,7 @@ export class ApiPortal implements ApiPortalPart {
   readonly webSession: WebSessionApi;
 
   constructor(o: GuardianApiOptions) {
-    const http = new SchoolsoftHttp(o.school, o.fetchImpl);
+    const http = new SchoolsoftHttp(o.school, o.fetchImpl, o.beforeRead);
     this.eva = new EvaApi(http, o.accessToken);
     this.webview = new WebviewApi(http, o.cookieHeader);
     this.legacy = new LegacyApi(http, o.cookieHeader);
@@ -78,6 +79,9 @@ export class ApiPortal implements ApiPortalPart {
   // Webview REST
   getSession(): Promise<unknown> {
     return this.webview.getSession();
+  }
+  getCalendar(startDate: string, endDate: string): Promise<unknown[]> {
+    return this.webview.getCalendar(startDate, endDate);
   }
   getScheduleWeek(week: number): Promise<unknown[]> {
     return this.webview.getScheduleWeek(week);

@@ -1,0 +1,29 @@
+# One parent owns this service, its secrets and its persistent disk.
+# Select a reviewed release in your own fork before deploying.
+services:
+  - type: web
+    name: schoolsoft-parent
+    runtime: docker
+    dockerfilePath: ./Dockerfile.connector
+    region: frankfurt
+    plan: 0.5c-512mb
+    numInstances: 1
+    autoDeployTrigger: off
+    healthCheckPath: /healthz
+    disk:
+      name: schoolsoft-private-state
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "3000"
+      - key: SCHOOLSOFT_STATE_DIR
+        value: /data
+      - key: SCHOOLSOFT_PUBLIC_URL
+        sync: false
+      - key: SCHOOLSOFT_SCHOOL
+        sync: false
+      - key: SCHOOLSOFT_ADMIN_PASSWORD
+        generateValue: true
+      - key: SCHOOLSOFT_STORAGE_KEY
+        generateValue: true

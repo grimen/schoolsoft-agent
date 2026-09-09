@@ -1,0 +1,41 @@
+services:
+  connector:
+    build:
+      context: .
+      dockerfile: Dockerfile.connector
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    # Bootstrap prepares /data and drops to uid/gid 1000; tini forwards stop signals.
+    cap_add: [CHOWN, SETUID, SETGID, KILL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PORT: "3000"
+      SCHOOLSOFT_PUBLIC_URL: https://${CONNECTOR_DOMAIN:?Set CONNECTOR_DOMAIN in .env}
+      SCHOOLSOFT_SCHOOL: ${SCHOOLSOFT_SCHOOL:?Set SCHOOLSOFT_SCHOOL in .env}
+      SCHOOLSOFT_ADMIN_PASSWORD: ${SCHOOLSOFT_ADMIN_PASSWORD:?Set SCHOOLSOFT_ADMIN_PASSWORD in .env}
+      SCHOOLSOFT_STORAGE_KEY: ${SCHOOLSOFT_STORAGE_KEY:?Set SCHOOLSOFT_STORAGE_KEY in .env}
+      SCHOOLSOFT_STATE_DIR: /data
+    volumes:
+      - schoolsoft-state:/data
+    tmpfs:
+      - /tmp:mode=1777,noexec,nosuid,size=16m
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      CONNECTOR_DOMAIN: ${CONNECTOR_DOMAIN:?Set CONNECTOR_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile.connector:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      connector:
+        condition: service_healthy
+volumes:
+  schoolsoft-state:
+  caddy-data:
+  caddy-config:
