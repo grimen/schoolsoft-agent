@@ -13,7 +13,12 @@ import {
   type SessionDeps,
 } from "../core/index.js";
 
-export const CONNECTOR_OPERATIONS = ["list_children", "get_schedule", "get_lunch_menu"] as const;
+export const CONNECTOR_OPERATIONS = [
+  "list_children",
+  "get_schedule",
+  "get_calendar",
+  "get_lunch_menu",
+] as const;
 export interface ConnectorRuntimeOptions {
   config: Config;
   store: SessionStore;
@@ -251,6 +256,7 @@ export class ConnectorRuntime {
       const portal = createPortal(this.manager, {
         fetchImpl: this.options.deps?.fetchImpl,
         browser: null,
+        beforeRead: validateFocus,
         beforeRecovery: check,
         afterRecovery: async () => {
           validateChild();

@@ -21,7 +21,7 @@ Set up [Code locally](code.md), including SchoolSoft login and a successful read
 
 ## Standalone web/mobile
 
-The project now includes a **parent-hosted HTTPS connector release candidate** and deployment recipes for children, schedule and lunch. A local `.mcpb` or CLI skill cannot be pasted into an HTTPS URL field; you add the address of your own deployed connector instead. See [Claude's remote connector setup](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+The project now includes a **parent-hosted HTTPS connector release candidate** and deployment recipes for children, schedule, calendar and lunch. A local `.mcpb` or CLI skill cannot be pasted into an HTTPS URL field; you add the address of your own deployed connector instead. See [Claude's remote connector setup](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
 
 Follow [your own connector: step-by-step setup](../../deployment/connector.md). **You host it in your own account**; the project author receives no family sessions. Offline tests exercise the implementation, but SchoolSoft public-callback login and actual Claude web/mobile acceptance still need real tests. Check your account's custom-connector option before paying for hosting, and verify desktop setup before trying mobile. A connector working in one Claude environment does not prove that it is available in every Cowork or Code environment.
 

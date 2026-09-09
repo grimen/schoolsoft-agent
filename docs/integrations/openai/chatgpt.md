@@ -16,7 +16,7 @@ If you have a supported computer, follow the [Codex guide](codex.md), beginning 
 
 ## Remote connector status
 
-The project now includes a **parent-hosted HTTPS connector release candidate**, with setup and deployment recipes. It offers children, schedule and lunch. You deploy your own copy and add its `/mcp` address to an eligible ChatGPT account; the project author supplies no shared SchoolSoft endpoint. A skill upload does not perform this setup.
+The project now includes a **parent-hosted HTTPS connector release candidate**, with setup and deployment recipes. It offers children, schedule, calendar and lunch. You deploy your own copy and add its `/mcp` address to an eligible ChatGPT account; the project author supplies no shared SchoolSoft endpoint. A skill upload does not perform this setup.
 
 Follow [your own connector: step-by-step setup](../../deployment/connector.md) for hosting, SchoolSoft login, permissions and the first question. The implementation has offline tests; live SchoolSoft public-callback acceptance and real ChatGPT web/mobile operation remain unverified. Check account eligibility before paying for hosting. Desktop setup should be tested first, then the phone app.
 

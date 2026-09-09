@@ -117,3 +117,30 @@ test("a NotConfiguredError from the context factory surfaces per call, server st
   assert.match(text(res), /schoolsoft_find_school/);
   await c.close();
 });
+
+test("calendar is discoverable and reads date ranges through local MCP", async () => {
+  await client.callTool({ name: "schoolsoft_login", arguments: {} });
+  const listed = await client.listTools();
+  const tool = listed.tools.find((candidate) => candidate.name === "schoolsoft_get_calendar")!;
+  assert.equal(tool.annotations?.readOnlyHint, true);
+  assert.ok(tool.inputSchema.properties?.start_date);
+  const result = await client.callTool({
+    name: "schoolsoft_get_calendar",
+    arguments: { start_date: "2026-09-01", end_date: "2026-09-30", child_id: 101 },
+  });
+  assert.notEqual(result.isError, true);
+  const data = result.structuredContent as {
+    child: { studentId: number };
+    entries: unknown[];
+    timezone: string;
+  };
+  assert.equal(data.child.studentId, 101);
+  assert.ok(data.entries.length > 0);
+  assert.equal(data.timezone, "Europe/Stockholm");
+  const invalid = await client.callTool({
+    name: "schoolsoft_get_calendar",
+    arguments: { end_date: "2026-09-30" },
+  });
+  assert.equal(invalid.isError, true);
+  assert.match(text(invalid), /YYYY-MM-DD/);
+});

@@ -270,3 +270,57 @@ something is learned live; never paste data, only shapes and behaviour.
 | `Vi kunde inte hitta användaren … inte aktiv på den här skolan` | The identity resolved as the wrong user type (student route or `eApp` client id), or the account is not active at that tenant. |
 | `Ingen aktiv inloggnings-session` (token endpoint, 404)         | The code is invalid or already used.                                                                                           |
 | 303 to `…?error=other` from the exchange                        | Missing or wrong `userId`/`orgId`/`childInFocus` headers, or a dead token.                                                     |
+
+## Full calendar agendas
+
+`get_calendar` reads both cookie-authenticated endpoints for the selected child:
+
+| Method and path | Response |
+| --- | --- |
+| `GET /<slug>/rest-api/parent/calendar/lessons/agenda?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Bare array of lessons, including scheduled lunch slots |
+| `GET /<slug>/rest-api/parent/calendar/event/agenda?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` | Bare array of school events |
+
+Protocol evidence: [upstream SchoolSoft adapter implementation](https://github.com/kolplattformen/skolplattformen/blob/0c2db8ff154c26d26d001a8f84e660dc0ecf9f94/libs/api-schoolsoft/lib/api.ts).
+Its recorded event agenda was empty. Our nonempty event fixtures are synthetic,
+not evidence of live compatibility for every school.
+
+Entries require `eventId`, `name`, `startDate`, `endDate` and `allDay`.
+Optional fields such as description, room, teachingGroup, teacher and category
+are retained. Each returned entry adds `source: "lessons" | "events"`; equal IDs
+across sources are not deduplicated. Date-only all-day entries and local
+timestamps are preserved. The response declares `timezone: "Europe/Stockholm"`;
+local timestamps must not be interpreted as UTC.
+
+The assistant-facing range is inclusive, accepts at most 366 days and defaults
+to Monday–Sunday in Stockholm. Both dates must be supplied together. Dates are
+sent unchanged to the agenda endpoints. End-date inclusivity and a nonempty
+school-event response remain live acceptance checks; no claim of verified
+completeness is made before those checks.
+
+The provider reads the sources sequentially and validates each response.
+Either failure fails the whole operation. Session recovery restarts the complete
+read, avoiding mixed results from before and after recovery. Connector
+authorization is checked before each request and before releasing the result.
+
+### Live calendar acceptance
+
+After logging in manually, choose a range with a visible school event and
+entries on its final day. Run:
+
+```sh
+schoolsoft-agent get-calendar --start-date 2026-09-07 --end-date 2026-09-13 --pretty
+```
+
+Replace the dates with that range. Compare lesson and school-event counts,
+times, all-day entries and the final day's entries with SchoolSoft's calendar.
+Also check a one-day range and an event spanning the boundary. Keep payloads
+private; record only whether each comparison passed.
+
+An optional automated probe uses an existing session and prints counts only:
+
+```sh
+SCHOOLSOFT_E2E=1 SCHOOLSOFT_CALENDAR_START=2026-09-07 SCHOOLSOFT_CALENDAR_END=2026-09-13 ./node_modules/.bin/tsx --test test/e2e/08-calendar.e2e.test.ts
+```
+
+This probe checks response shape, not visual agreement with SchoolSoft. It never
+starts or completes BankID. Run it only against your own guardian account.

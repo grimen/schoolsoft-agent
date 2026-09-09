@@ -6,7 +6,7 @@ of families' credentials. Start with the [parent setup guide](../../docs/deploym
 
 This is a release candidate. Offline tests cover implementation behavior; real
 SchoolSoft HTTPS callback login and Claude/ChatGPT web/mobile acceptance still need
-parent-led tests. The connector exposes children, schedule and lunch only.
+parent-led tests. The connector exposes children, schedule, calendar and lunch only.
 
 - `config.ts`, `start.ts`, `index.ts`: deployment validation and startup.
 - `server.ts`, `pages.ts`, `owner-session.ts`: HTTP routes, parent pages and owner sessions.

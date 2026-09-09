@@ -44,6 +44,8 @@ export interface AuthDeps {
 
 /** What a provider gets when building its API portal. */
 export interface ApiPortalContext {
+  /** Called before each API read; may throw when host consent is no longer valid. */
+  beforeRead?: () => void;
   /** Cookies from the web login, as a header, null without a web session. */
   webCookieHeader: () => string | null;
   /** Which child the caller wants the WEB session on; null = leave it. */

@@ -81,7 +81,18 @@ function fixture(options: { timeout?: number; pinned?: string; now?: () => numbe
         await delay(5);
         return {
           status: 200,
-          data: [request.headers?.Cookie ?? "lunch"],
+          data: url.includes("/agenda?")
+            ? [
+                {
+                  eventId: 1,
+                  name: "Synthetic",
+                  startDate: "2026-09-07T09:00",
+                  endDate: "2026-09-07T10:00",
+                  allDay: false,
+                  cookie: request.headers?.Cookie,
+                },
+              ]
+            : [request.headers?.Cookie ?? "lunch"],
           headers: {},
           setCookies: [],
         };
@@ -397,4 +408,116 @@ test("outstanding execute requests are bounded while owner status and cancellati
   await Promise.all(queued);
   await assert.rejects(f.runtime.execute("get_schedule", {}, [100]), /Not logged in/);
   await f.runtime.close();
+});
+
+test("calendar reads are serialized across children and each source uses the selected child's cookies", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  f.events.length = 0;
+  const results = (await Promise.all(
+    [101, 100].map((child_id) =>
+      f.runtime.execute(
+        "get_calendar",
+        { child_id, start_date: "2026-09-01", end_date: "2026-09-30" },
+        [100, 101],
+      ),
+    ),
+  )) as { child: { studentId: number }; entries: { cookie: string }[] }[];
+  for (const [index, child] of [101, 100].entries()) {
+    assert.equal(results[index].child.studentId, child);
+    assert.equal(results[index].entries.length, 2);
+    assert.ok(
+      results[index].entries.every((entry) => entry.cookie.includes(`JSESSIONID=${child};`)),
+    );
+  }
+  assert.deepEqual(f.events, [
+    "focus:101",
+    "read:JSESSIONID=101; hash=h; usertype=1",
+    "read:JSESSIONID=101; hash=h; usertype=1",
+    "focus:100",
+    "read:JSESSIONID=100; hash=h; usertype=1",
+    "read:JSESSIONID=100; hash=h; usertype=1",
+  ]);
+  await assert.rejects(
+    f.runtime.execute("get_calendar", { child_id: 101 }, [100]),
+    /not permitted/,
+  );
+  await f.runtime.close();
+});
+
+test("calendar revocation, abort and focus changes stop the second read and withhold completed results", async () => {
+  for (const interruptAfter of [1, 2]) {
+    for (const mode of ["revoke", "abort", "focus", "child"]) {
+      const f = fixture();
+      await login(f.runtime);
+      f.events.length = 0;
+      let active = true,
+        reads = 0;
+      const controller = new AbortController();
+      const allowed = [100];
+      f.onRead(() => {
+        if (++reads !== interruptAfter) return;
+        if (mode === "revoke") active = false;
+        if (mode === "abort") controller.abort();
+        if (mode === "focus") f.runtime["manager"].guardian().childInFocus = 101;
+        if (mode === "child") allowed.length = 0;
+      });
+      await assert.rejects(
+        f.runtime.execute("get_calendar", {}, allowed, {
+          check: () => {
+            if (!active) throw new Error("revoked");
+          },
+          signal: controller.signal,
+        }),
+        /revoked|cancelled|session changed|no longer permitted/,
+      );
+      assert.equal(f.events.filter((event) => event.startsWith("read:")).length, interruptAfter);
+      await f.runtime.close();
+    }
+  }
+});
+
+test("calendar recovery restarts both sources for the same permitted child", async (t) => {
+  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+  for (const failAt of [1, 2]) {
+    const f = fixture();
+    await login(f.runtime);
+    let reads = 0;
+    f.onRead(() => {
+      if (++reads === failAt) f.rejectNextRead();
+    });
+    const result = (await f.runtime.execute("get_calendar", { child_id: 101 }, [101])) as {
+      entries: { cookie: string }[];
+    };
+    assert.equal(result.entries.length, 2);
+    assert.ok(result.entries.every((entry) => entry.cookie.includes("JSESSIONID=101;")));
+    assert.equal(reads, failAt + 2);
+    await f.runtime.close();
+  }
+});
+
+test("calendar recovery refuses a fallback sibling or different guardian", async (t) => {
+  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+  for (const mode of ["child", "guardian", "revoked"]) {
+    const f = fixture();
+    await login(f.runtime);
+    let reads = 0,
+      active = true;
+    f.onRead(() => {
+      if (++reads !== 2) return;
+      if (mode === "guardian") f.changeUser();
+      if (mode === "revoked") active = false;
+      f.rejectNextRead(mode === "child" ? [101] : [100, 101]);
+    });
+    await assert.rejects(
+      f.runtime.execute("get_calendar", {}, [100], {
+        check: () => {
+          if (!active) throw new Error("revoked");
+        },
+      }),
+      /no longer permitted|different guardian|revoked/,
+    );
+    assert.equal(reads, 2);
+    await f.runtime.close();
+  }
 });

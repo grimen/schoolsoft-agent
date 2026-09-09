@@ -50,7 +50,7 @@ The desktop app can contain multiple experiences. Verify SchoolSoft appears in t
 1. **Phone with a computer running SchoolSoft:** install and log in locally first, then enable a vendor-supported remote-control or messaging path. Keep the computer/app awake and connected. Re-login may require its browser. Combined SchoolSoft/mobile paths remain conditional until validated.
 2. **Phone only, no computer running at home:** the [parent-hosted connector](../deployment/connector.md) runs on a server in your own hosting account. Deployment recipes and an owner setup page are implemented as a release candidate. Real SchoolSoft callback login, AI account eligibility and mobile availability must still be checked. Start setup in a desktop browser where possible; this is not yet a proven phone-only route. The project author does not host families' sessions.
 
-The remote connector currently offers **children, schedule and lunch**. Local guides cover the broader operation set. A successful local login does not validate the remote HTTPS callback.
+The remote connector currently offers **children, schedule, calendar and lunch**. Local guides cover the broader operation set. A successful local login does not validate the remote HTTPS callback.
 
 Remote control is different from uploading a local skill into a cloud chat. Support for the skill format or MCP alone does not prove that the existing browser login works.
 

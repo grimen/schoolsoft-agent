@@ -173,3 +173,11 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | `<stateDir>/session.enc` (0600) | tokens, cookies, children's names/ids/class | personal data |
 
 `schoolsoft-agent logout` removes the session; deleting the state directory removes everything.
+
+**Calendar reads.** The additive `get_calendar` operation validates a date range,
+then calls one API-only portal capability. SchoolSoft's provider combines the
+lessons and event agendas sequentially, validates their shapes and preserves
+their local dates and extra fields. It returns no partial success. The generic
+`beforeRead` host guard travels through API portal wiring to each HTTP GET, so
+connector consent and child focus are rechecked between requests and on retries.
+Existing `get_schedule` behavior is unchanged.

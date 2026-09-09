@@ -9,6 +9,7 @@ Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredCo
 | `schoolsoft_find_school` | Find school | read-only, idempotent, no login needed |
 | `schoolsoft_list_children` | List children | read-only, idempotent, needs login |
 | `schoolsoft_get_schedule` | Get schedule | read-only, idempotent, needs login |
+| `schoolsoft_get_calendar` | Get full calendar | read-only, idempotent, needs login |
 | `schoolsoft_get_lunch_menu` | Get lunch menu | read-only, idempotent, needs login |
 | `schoolsoft_get_assignments` | Get assignments | read-only, idempotent, needs login |
 | `schoolsoft_get_assignment_detail` | Get assignment details | read-only, idempotent, needs login |
@@ -108,6 +109,40 @@ Example call:
   "arguments": {
     "week": 37
   }
+}
+```
+
+## `schoolsoft_get_calendar`
+
+Get lessons, lunch entries and school events published in one child's calendar.
+
+Args:
+  - start_date and end_date (optional): inclusive YYYY-MM-DD range, at most 366 days.
+    Supply both or omit both for the current Monday–Sunday in Europe/Stockholm.
+  - child_id (optional): from list_children; defaults to the child in focus.
+
+Returns: { start_date, end_date, timezone, child, entries: [...] }.
+Entries retain calendar fields (name, startDate, endDate, allDay and optional
+room, teacher, description) and source: "lessons" or "events". Local timestamps
+are in Europe/Stockholm; do not interpret them as UTC. Both sources must succeed.
+School events depend on what the school publishes. Lunch entries are timetable
+slots; use get_lunch_menu for dishes. Use get_schedule for the existing weekly timetable.
+
+Use when: "What is happening at school next week?", "Show September's calendar",
+"vad händer i skolan nästa vecka", "visa lektioner och skolhändelser".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `start_date` | string | no | Inclusive start date, YYYY-MM-DD. Supply with end_date or omit both for this week. |
+| `end_date` | string | no | Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end. |
+| `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_get_calendar",
+  "arguments": {}
 }
 ```
 

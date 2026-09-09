@@ -67,6 +67,13 @@ export const serializeFake = (s: FakeSession): Record<string, unknown> => ({
 
 export const fakePortal = {
   getScheduleWeek: async (_week: number) => FAKE_LESSONS,
+  getCalendar: async (_start: string, _end: string) =>
+    FAKE_LESSONS.map((entry, index) => ({
+      ...entry,
+      eventId: index + 1,
+      allDay: false,
+      source: "lessons",
+    })),
   getLunchWeek: async (_org: number, week: number) => [
     { week, dayId: 5, dishes: [{ mealType: "Lunch", description: "Spagetti" }] },
   ],

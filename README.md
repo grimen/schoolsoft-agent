@@ -8,14 +8,14 @@
 
 <img src="docs/assets/readme-hero.svg" alt="Independent project; SchoolSoft and BankID are trademarks of their owners, who are not involved. A parent asks their AI agent about school. The agent reaches schoolsoft-agent through its MCP server or its CLI skill; both share one core that logs in with BankID in the parent's own browser and reads schedule, lunch, assignments, news and messages from SchoolSoft. SchoolSoft is a trademark of SchoolSoft AB, not involved in this project." width="960">
 
-[SchoolSoft](https://www.schoolsoft.se) for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, lunch menu, assignments, news and the message inbox. Login is [BankID](https://www.bankid.com) in your own browser; nothing is automated around it, and the session is stored encrypted on the computer or server you operate.
+[SchoolSoft](https://www.schoolsoft.se) for AI agents. Lets an agent (Claude, OpenCode, OpenClaw, Hermes, Pi, …) read a guardian's SchoolSoft data: schedule, full calendar, lunch menu, assignments, news and the message inbox. Login is [BankID](https://www.bankid.com) in your own browser; nothing is automated around it, and the session is stored encrypted on the computer or server you operate.
 
 Choose the connection your assistant supports:
 
 | Surface                                             | What it is                                                                          | Best for                                                                     |
 | --------------------------------------------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | **MCP server** `schoolsoft-agent-mcp`               | A stdio MCP server exposing one tool per operation                                  | Claude Code, Claude Desktop, OpenCode, OpenClaw, Hermes, any MCP host        |
-| **Parent-hosted connector** `schoolsoft-agent-http` | Remote MCP over HTTPS, limited to children, schedule and lunch                      | Claude/ChatGPT custom connectors; release candidate, live acceptance pending |
+| **Parent-hosted connector** `schoolsoft-agent-http` | Remote MCP over HTTPS, limited to children, schedule, calendar and lunch            | Claude/ChatGPT custom connectors; release candidate, live acceptance pending |
 | **CLI + skill** `schoolsoft-agent`                  | A JSON-emitting CLI wrapped by an [Agent Skills](https://agentskills.io) `SKILL.md` | Hosts without MCP (Pi), shell-first agents, scripting                        |
 
 The local MCP server and CLI expose the same operation registry. The remote connector exposes a restricted selection with separate login and child permissions. All share the same core. See [docs/development/architecture.md](docs/development/architecture.md).
@@ -41,6 +41,7 @@ Prerequisite: [Node.js](https://nodejs.org/en/download) 22 or newer.
 ```bash
 npx -y schoolsoft-agent configure --query "Rösjöskolan"   # finds your school
 npx -y schoolsoft-agent login                              # BankID in your browser
+npx -y schoolsoft-agent get-calendar --pretty              # lessons and school events this week
 npx -y schoolsoft-agent get-schedule --pretty              # this week's schedule
 ```
 
@@ -50,12 +51,13 @@ Every command is in the [command reference](docs/reference/commands.md); every c
 
 - "Vad har Ella på schemat på fredag?"
 - "Vad är det till lunch i veckan?"
+- "What is happening at school next week, including lessons and school events?"
 - "Har vi fått några meddelanden från skolan?"
 - "Vilka läxor finns den här veckan?"
 
 The agent picks the child (`list_children`), the week, and the right operation. Contact lists, bookings and shared files have no data feed at SchoolSoft; those are read through an optional hidden browser (`npx -y schoolsoft-agent browser install`, once). Grades, student documents, absence reports and assessment criteria additionally sit behind SchoolSoft's "log in again" gate and need `npx -y schoolsoft-agent login --web` once, a normal web login in a browser window. Both extras are explained step by step in [Get started](docs/getting-started/README.md#4-optional-extras-only-if-you-want-them). Full list of what an agent can ask for: [MCP tools](docs/reference/tools.md) · [CLI commands](docs/reference/commands.md).
 
-The parent-hosted connector currently supports **children, schedule and lunch only**. Messages, assignments and the extra browser features above belong to the local MCP/CLI routes.
+The parent-hosted connector currently supports **children, schedule, calendar and lunch only**. Messages, assignments and the extra browser features above belong to the local MCP/CLI routes.
 
 ## How login works
 

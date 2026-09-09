@@ -47,7 +47,26 @@ Encryption does not remove that trust. Claude or ChatGPT receives the school dat
 returned by the tools you use, and may retain it under your account's data settings.
 The connector therefore does not mean that only you can ever see the information.
 
-The initial tool selection is deliberately small: children, schedule and lunch.
+The available tools are children, schedule, calendar and lunch.
+
+Calendar access is a separate permission named `get_calendar`. After updating
+an existing connector, disconnect and reconnect it in your AI app, then approve
+calendar access for the children you choose. Existing connections keep their
+previous permissions until you do this.
+
+Try: **“What is happening at school next week, including lessons and school
+events?”** You can also ask **“Show both children's calendars for September.”**
+The assistant reads each permitted child's calendar separately. Dates default
+to this week in Sweden; you can request up to 366 days at a time.
+
+Calendar entries include lessons, scheduled lunch slots and events published by
+the school. For the food itself, ask for the lunch menu. An empty result means
+both calendar sources responded with no entries. An error means the full
+calendar could not be read; it does not mean there is nothing planned.
+
+The agenda protocol is implemented and tested offline. A nonempty school-event
+response and the last day's inclusion still need live verification; see the
+[calendar protocol notes](../reference/schoolsoft-api.md#full-calendar-agendas).
 There is no remote BankID automation, web-session import, absence reporting or
 message sending. A permission can be removed without disconnecting another AI app.
 This guide describes the technical boundaries; it is not a guarantee of legal

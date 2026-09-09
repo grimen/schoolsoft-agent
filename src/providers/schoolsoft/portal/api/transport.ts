@@ -25,12 +25,14 @@ export class SchoolsoftHttp {
   constructor(
     readonly school: string,
     fetchImpl?: ApiFetch,
+    private readonly beforeRead?: () => void,
   ) {
     this.fetchImpl = fetchImpl ?? (schoolsoftFetch as ApiFetch);
   }
 
   /** JSON GET; 401/403 and other non-200 statuses become errors naming the path. */
   async get<T>(path: string, headers: Record<string, string>): Promise<T> {
+    this.beforeRead?.();
     const r = await guardNetwork(() =>
       this.fetchImpl(
         ssUrl(this.school, path),

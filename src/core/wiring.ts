@@ -93,6 +93,8 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
 
 /** Portal bound to the manager's live session: API provider always; browser provider when supplied. */
 export interface PortalDeps {
+  /** Revalidate host authorization before each API read, including multi-request operations. */
+  beforeRead?: () => void;
   /** Stop cancelled or revoked host requests before session recovery starts. */
   beforeRecovery?: () => void;
   /** Revalidate host authorization after session recovery, before any read is retried. */
@@ -124,9 +126,14 @@ export function createBrowserSession(
   });
 }
 
-function apiContext(manager: SessionManager, fetchImpl?: unknown): ApiPortalContext {
+function apiContext(
+  manager: SessionManager,
+  fetchImpl?: unknown,
+  beforeRead?: () => void,
+): ApiPortalContext {
   return {
     fetchImpl,
+    beforeRead,
     webCookieHeader: () => {
       const w = manager.getWebSession();
       return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
@@ -143,10 +150,13 @@ function apiContext(manager: SessionManager, fetchImpl?: unknown): ApiPortalCont
 }
 
 /** API provider bound to the manager's live session, app cookies and web-login cookies. */
-export function createApiPortal(manager: SessionManager, deps: Pick<PortalDeps, "fetchImpl"> = {}) {
+export function createApiPortal(
+  manager: SessionManager,
+  deps: Pick<PortalDeps, "fetchImpl" | "beforeRead"> = {},
+) {
   return getProvider(manager.providerId).createApiPortal(
     manager.getSession(),
-    apiContext(manager, deps.fetchImpl),
+    apiContext(manager, deps.fetchImpl, deps.beforeRead),
   );
 }
 

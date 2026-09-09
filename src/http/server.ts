@@ -9,7 +9,7 @@ import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middlew
 import { operations } from "../core/index.js";
 import type { ConnectorConfig } from "./config.js";
 import type { ConnectorOAuthProvider } from "./oauth.js";
-import type { ConnectorRuntime } from "./runtime.js";
+import { CONNECTOR_OPERATIONS, type ConnectorRuntime } from "./runtime.js";
 import { OwnerSessions } from "./owner-session.js";
 import { escapeHtml as esc, page, form, hidden } from "./pages.js";
 export interface ServerOptions {
@@ -252,7 +252,7 @@ export function createConnectorApp({
       provider: oauth,
       issuerUrl: new URL(config.publicUrl),
       resourceServerUrl: new URL(config.publicUrl + "/mcp"),
-      scopesSupported: ["list_children", "get_schedule", "get_lunch_menu"],
+      scopesSupported: [...CONNECTOR_OPERATIONS],
     }),
   );
   app.all(

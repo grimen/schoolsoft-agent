@@ -12,7 +12,7 @@ const resource = origin + "/mcp";
 const callback = "https://claude.ai/api/mcp/auth_callback";
 const verifier = "v".repeat(64);
 const challenge = createHash("sha256").update(verifier).digest("base64url");
-const allowedScopes = ["list_children", "get_schedule", "get_lunch_menu"];
+const allowedScopes = ["list_children", "get_schedule", "get_calendar", "get_lunch_menu"];
 async function fixture(t: TestContext, vendorCallback = callback) {
   let state: OAuthState | undefined;
   const oauth = new ConnectorOAuthProvider({
@@ -142,10 +142,10 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     });
     return request("/authorize?" + query);
   }
-  async function connection() {
+  async function connection(scopes = allowedScopes) {
     const { response, client } = await register();
     assert.equal(response.status, 201);
-    const auth = await authorize(client.client_id);
+    const auth = await authorize(client.client_id, { scope: scopes.join(" ") });
     assert.equal(auth.status, 302);
     const consentUrl = auth.headers.get("location")!;
     const page = await request(consentUrl, { headers: { Cookie: cookie } });
@@ -158,7 +158,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
         ["csrf", csrf],
         ["request", id],
         ["children", "1"],
-        ...allowedScopes.map((s) => ["scopes", s]),
+        ...scopes.map((s) => ["scopes", s]),
       ]),
       { Cookie: cookie },
     );
@@ -453,4 +453,46 @@ test("disconnect everything revokes both apps' access and refresh tokens", async
     );
   }
   assert.equal((await f.request("/owner", { headers: { Cookie: f.cookie } })).status, 302);
+});
+
+test("calendar is separately consented; old grants and refresh tokens cannot gain it", async (t) => {
+  const f = await fixture(t);
+  const old = await f.connection(["list_children", "get_schedule"]);
+  const oldTokens = await (await f.exchange(old.client.client_id, old.code)).json();
+  const denied = await f.rpc(oldTokens.access_token, "tools/call", {
+    name: "schoolsoft_get_calendar",
+    arguments: {},
+  });
+  assert.ok(denied.data.error || denied.data.result?.isError);
+  assert.equal(f.executions.length, 0);
+  const upgrade = await f.form("/token", {
+    grant_type: "refresh_token",
+    client_id: old.client.client_id,
+    refresh_token: oldTokens.refresh_token,
+    resource,
+    scope: "list_children get_schedule get_calendar",
+  });
+  assert.equal(upgrade.status, 400);
+  const fresh = await f.connection(["get_calendar"]);
+  const tokens = await (await f.exchange(fresh.client.client_id, fresh.code)).json();
+  const listed = await f.rpc(tokens.access_token, "tools/list");
+  assert.deepEqual(
+    listed.data.result.tools.map((tool: { name: string }) => tool.name),
+    ["schoolsoft_get_calendar"],
+  );
+  const args = { start_date: "2026-09-01", end_date: "2026-09-30", child_id: 1 };
+  const read = await f.rpc(tokens.access_token, "tools/call", {
+    name: "schoolsoft_get_calendar",
+    arguments: args,
+  });
+  assert.equal(read.data.result.isError, undefined);
+  assert.deepEqual(f.executions, [{ name: "get_calendar", args, children: [1] }]);
+  f.setHook(() => {
+    f.oauth.revokeAll();
+  });
+  const revoked = await f.rpc(tokens.access_token, "tools/call", {
+    name: "schoolsoft_get_calendar",
+    arguments: args,
+  });
+  assert.ok(revoked.data.error || revoked.data.result?.isError);
 });

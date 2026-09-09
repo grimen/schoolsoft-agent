@@ -108,5 +108,5 @@ test("each operation declares exactly the portal capabilities its source uses; t
 test("registry lookups", () => {
   assert.equal(getOperation("get_schedule")?.title, "Get schedule");
   assert.equal(getOperation("nope"), undefined);
-  assert.equal(operations.length, 23);
+  assert.equal(operations.length, 24);
 });

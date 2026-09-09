@@ -51,7 +51,7 @@ Your login is saved on the computer running the integration. When it expires, th
 
 ## 4. Optional extras, only if you want them
 
-**Local installations only: skip this section until your first lunch or schedule question works.** The parent-hosted connector currently offers children, schedule and lunch; these extras do not add remote tools.
+**Local installations only: skip this section until your first lunch or schedule question works.** The parent-hosted connector currently offers children, schedule, calendar and lunch; these extras do not add remote tools.
 
 Some information needs extra setup. Contact lists, bookings and shared files need an additional browser component. Grades, documents and attendance information also need a separate SchoolSoft web login.
 
