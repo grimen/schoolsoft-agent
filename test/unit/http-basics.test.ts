@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectorConfig } from "../../src/http/config.js";
 import { EncryptedRepository } from "../../src/http/storage.js";
-import { OwnerSessions } from "../../src/http/owner-session.js";
+import { OwnerSessions, OWNER_PASSWORD_MAX_BYTES } from "../../src/http/owner-session.js";
 import { clientKey } from "../../src/http/client-key.js";
 import { escapeHtml, page, form, hidden } from "../../src/http/pages.js";
 const env = {
@@ -135,6 +135,24 @@ test("owner password comparison rejects wrong-length, same-length and non-string
   const unicode = new OwnerSessions("lösenord-åäö", () => 0);
   assert.equal(unicode.login("losenord-aao"), undefined);
   assert.ok(unicode.login("lösenord-åäö"));
+  // The fixed slot: zero padding is not part of the secret, and a candidate longer than
+  // the slot never matches, also when it starts with the secret or fills the slot exactly.
+  assert.equal(attempt(sessions, secret + "\0"), undefined);
+  assert.equal(attempt(sessions, secret + "x".repeat(OWNER_PASSWORD_MAX_BYTES)), undefined);
+  assert.equal(attempt(sessions, secret + "x".repeat(70_000)), undefined);
+  const longest = "k".repeat(OWNER_PASSWORD_MAX_BYTES);
+  const full = new OwnerSessions(longest, () => 0);
+  assert.ok(full.login(longest));
+  assert.equal(full.login(longest + "k"), undefined);
+  assert.equal(full.login(longest.slice(1)), undefined);
+  assert.throws(
+    () =>
+      connectorConfig({
+        ...env,
+        SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-0123456789".repeat(60),
+      }),
+    /at most 1022 bytes/,
+  );
 });
 test("HTML rendering escapes every interpolated field", () => {
   assert.equal(escapeHtml("&<>\"'"), "&amp;&lt;&gt;&quot;&#39;");
