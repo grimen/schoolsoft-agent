@@ -36,6 +36,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     stateDir: "/unused",
     port: 3000,
     school: "synthetic",
+    proxyHops: 1,
   };
   const app = createConnectorApp({
     config,
@@ -262,7 +263,6 @@ test("real HTTP OAuth discovery, DCR, consent, PKCE and scoped stateless MCP", a
   const exchanged = await f.exchange(client.client_id, code);
   assert.equal(exchanged.status, 200);
   const tokens = await exchanged.json();
-  assert.equal((await f.exchange(client.client_id, code)).status, 400);
   const initialized = await f.rpc(tokens.access_token, "initialize", {
     protocolVersion: "2025-11-25",
     capabilities: {},
@@ -497,4 +497,30 @@ test("calendar is separately consented; old grants and refresh tokens cannot gai
     arguments: args,
   });
   assert.ok(revoked.data.error || revoked.data.result?.isError);
+});
+
+test("replaying an authorization code over HTTP withdraws the access and refresh tokens it produced", async (t) => {
+  const f = await fixture(t);
+  const { client, code } = await f.connection();
+  const bystander = await f.connection();
+  const tokens = await (await f.exchange(client.client_id, code)).json();
+  const others = await (await f.exchange(bystander.client.client_id, bystander.code)).json();
+  assert.equal((await f.rpc(tokens.access_token, "tools/list")).response.status, 200);
+  // Even without the PKCE verifier, the second presentation is what counts.
+  const replay = await f.exchange(client.client_id, code, { code_verifier: "stolen".repeat(12) });
+  assert.equal(replay.status, 400);
+  assert.equal((await replay.json()).error, "invalid_grant");
+  assert.equal(
+    (await f.request("/mcp", { headers: { Authorization: `Bearer ${tokens.access_token}` } }))
+      .status,
+    401,
+  );
+  const refresh = await f.form("/token", {
+    grant_type: "refresh_token",
+    client_id: client.client_id,
+    refresh_token: tokens.refresh_token,
+    resource,
+  });
+  assert.equal(refresh.status, 400);
+  assert.equal((await f.rpc(others.access_token, "tools/list")).response.status, 200);
 });
