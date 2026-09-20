@@ -7,9 +7,12 @@ import { connectorConfig } from "../../src/http/config.js";
 import { ConnectorOAuthProvider } from "../../src/http/oauth.js";
 import { createConnectorApp } from "../../src/http/server.js";
 import { OwnerSessions } from "../../src/http/owner-session.js";
+import { InputError } from "../../src/core/index.js";
 const config = connectorConfig({
   SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
-  SCHOOLSOFT_ADMIN_PASSWORD: "p".repeat(32),
+  SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
+  // This suite plays one reverse proxy: X-Forwarded-For names the caller.
+  SCHOOLSOFT_PROXY_HOPS: "1",
   SCHOOLSOFT_STORAGE_KEY: "a".repeat(64),
   SCHOOLSOFT_SCHOOL: "example",
 });
@@ -18,7 +21,8 @@ test("owner console enforces host, password, session, origin and CSRF and comple
   let authenticated = false,
     pending = false,
     broken = false,
-    loggedOut = false;
+    loggedOut = false,
+    loginBusy = false;
   const oauth = new ConnectorOAuthProvider({
     resourceUrl: config.publicUrl + "/mcp",
     scopes: ["list_children"],
@@ -39,7 +43,10 @@ test("owner console enforces host, password, session, origin and CSRF and comple
           children: [{ id: 1, name: "<Child>" }],
         };
       },
-      beginLogin: async () => ({ url: "https://school.example/login?state=private&foo=1" }),
+      beginLogin: async () => {
+        if (loginBusy) throw new InputError("A login is already in progress.");
+        return { url: "https://school.example/login?state=private&foo=1" };
+      },
       callback: (state, code) => state === "valid" && code === "code",
       logout: async () => {
         loggedOut = true;
@@ -55,6 +62,7 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     path: string,
     body?: Record<string, string>,
     extra: Record<string, string> = {},
+    raw?: string,
   ): Promise<Response> =>
     new Promise((resolve, reject) => {
       const req = httpRequest(
@@ -83,7 +91,7 @@ test("owner console enforces host, password, session, origin and CSRF and comple
         },
       );
       req.on("error", reject);
-      req.end(body ? new URLSearchParams(body).toString() : undefined);
+      req.end(raw ?? (body ? new URLSearchParams(body).toString() : undefined));
     });
   try {
     assert.equal((await request("/healthz", undefined, { Host: "untrusted" })).status, 200);
@@ -119,6 +127,20 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     assert.match(response.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
     assert.equal((await request("/owner/schoolsoft/login", { csrf: "bad" })).status, 403);
     assert.equal(
+      (await request("/owner/schoolsoft/login", { csrf: "x".repeat(csrf.length) })).status,
+      403,
+    );
+    assert.equal(
+      (await request("/owner/schoolsoft/login", {}, {}, `csrf=${csrf}&csrf=${csrf}`)).status,
+      403,
+      "a repeated field is not a token",
+    );
+    assert.match(html, /appears to come from <code>127\.0\.0\.1<\/code>/);
+    assert.match(
+      await (await request("/owner", undefined, { "X-Forwarded-For": "198.51.100.9" })).text(),
+      /appears to come from <code>198\.51\.100\.9<\/code>/,
+    );
+    assert.equal(
       (await request("/owner/schoolsoft/login", { csrf }, { Origin: "https://evil.example" }))
         .status,
       403,
@@ -128,22 +150,6 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     loginError = "expired";
     assert.match(await (await request("/owner")).text(), /sign-in link expired/);
     loginError = undefined;
-    for (let i = 0; i < 5; i++)
-      assert.equal(
-        (await request("/owner/login", { password: "wrong" }, { "X-Forwarded-For": "192.0.2.10" }))
-          .status,
-        401,
-      );
-    assert.equal(
-      (
-        await request(
-          "/owner/login",
-          { password: config.adminPassword },
-          { "X-Forwarded-For": "192.0.2.11" },
-        )
-      ).status,
-      302,
-    );
     // Endpoint middleware bounds both password and upstream login attempts per caller.
     for (let i = 0; i < 20; i++)
       assert.equal(
@@ -158,6 +164,54 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     );
     assert.equal(limited.status, 429);
     assert.ok(limited.headers.has("retry-after"));
+    // The flood guard never keeps the owner out, even from the flooding address.
+    assert.equal(
+      (
+        await request(
+          "/owner/login",
+          { password: config.adminPassword },
+          { "X-Forwarded-For": "192.0.2.20" },
+        )
+      ).status,
+      302,
+    );
+    assert.equal(
+      (await request("/owner/login", { password: "wrong" }, { "X-Forwarded-For": "192.0.2.20" }))
+        .status,
+      429,
+    );
+    // Rotating through one IPv6 /64 spends one budget; the neighbouring /64 has its own.
+    for (let i = 0; i < 20; i++)
+      assert.equal(
+        (
+          await request(
+            "/owner/login",
+            { password: "wrong" },
+            { "X-Forwarded-For": `2001:db8:5:5::${(i + 1).toString(16)}` },
+          )
+        ).status,
+        401,
+      );
+    assert.equal(
+      (
+        await request(
+          "/owner/login",
+          { password: "wrong" },
+          { "X-Forwarded-For": "2001:db8:5:5:ffff::1" },
+        )
+      ).status,
+      429,
+    );
+    assert.equal(
+      (
+        await request(
+          "/owner/login",
+          { password: "wrong" },
+          { "X-Forwarded-For": "2001:db8:5:6::1" },
+        )
+      ).status,
+      401,
+    );
     for (let i = 0; i < 20; i++)
       assert.equal(
         (await request("/owner/schoolsoft/login", { csrf }, { "X-Forwarded-For": "192.0.2.21" }))
@@ -216,10 +270,25 @@ test("owner console enforces host, password, session, origin and CSRF and comple
       400,
     );
     assert.equal((await request("/owner/consent")).status, 400);
+    // Internal faults are 500 with a fixed body; caller mistakes stay 400.
     broken = true;
-    html = await (await request("/owner")).text();
+    response = await request("/owner");
+    html = await response.text();
+    assert.equal(response.status, 500);
+    assert.match(html, /The connector had a problem/);
     assert.ok(!html.includes("DO_NOT_EXPOSE"));
     broken = false;
+    const malformed = await request(
+      "/owner/login",
+      {},
+      { "Content-Type": "application/json" },
+      "{not json",
+    );
+    assert.equal(malformed.status, 400);
+    assert.doesNotMatch(await malformed.text(), /not json|SyntaxError/);
+    loginBusy = true;
+    assert.equal((await request("/owner/schoolsoft/login", { csrf })).status, 400);
+    loginBusy = false;
     assert.equal((await request("/unknown")).status, 404);
     assert.equal((await request("/owner/schoolsoft/logout", { csrf })).status, 302);
     assert.ok(loggedOut);
@@ -246,4 +315,73 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     server.closeAllConnections();
     await once(server, "close");
   }
+});
+
+test("without a declared proxy, forwarding headers are ignored and the operator is told once", async (t) => {
+  const direct = connectorConfig({
+    SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
+    SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
+    SCHOOLSOFT_STORAGE_KEY: "a".repeat(64),
+    SCHOOLSOFT_SCHOOL: "example",
+  });
+  assert.equal(direct.proxyHops, 0);
+  const stderr = t.mock.method(process.stderr, "write", () => true);
+  const notices: string[] = [];
+  for (const warn of [(message: string) => void notices.push(message), undefined]) {
+    const app = createConnectorApp({
+      config: direct,
+      warn,
+      oauth: new ConnectorOAuthProvider({
+        resourceUrl: direct.publicUrl + "/mcp",
+        scopes: ["list_children"],
+        repository: { read: () => undefined, write: () => {} },
+      }),
+      runtime: {
+        status: async () => ({ authenticated: false, loginInProgress: false, children: [] }),
+        beginLogin: async () => ({ url: "https://school.example/login" }),
+        callback: () => false,
+        logout: async () => {},
+        execute: async () => ({}),
+      },
+    });
+    const server = app.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    const guess = (forwarded?: string): Promise<number> =>
+      new Promise((resolve, reject) => {
+        const req = httpRequest(
+          `http://127.0.0.1:${(server.address() as AddressInfo).port}/owner/login`,
+          {
+            method: "POST",
+            headers: {
+              Host: "connector.example",
+              Origin: direct.publicUrl,
+              "Content-Type": "application/x-www-form-urlencoded",
+              ...(forwarded ? { "X-Forwarded-For": forwarded } : {}),
+            },
+          },
+          (res) => {
+            res.resume();
+            res.on("end", () => resolve(res.statusCode!));
+          },
+        );
+        req.on("error", reject);
+        req.end("password=wrong");
+      });
+    try {
+      assert.equal(await guess(), 401);
+      assert.equal(notices.length + stderr.mock.callCount(), warn ? 0 : 1);
+      // A spoofed, changing header buys no fresh budget: all of these share the socket address.
+      for (let i = 1; i < 20; i++) assert.equal(await guess(`198.51.100.${i}`), 401);
+      assert.equal(await guess("198.51.100.200"), 429);
+    } finally {
+      server.close();
+      server.closeAllConnections();
+      await once(server, "close");
+    }
+  }
+  assert.equal(notices.length, 1, "one notice, not one per request");
+  assert.match(notices[0], /SCHOOLSOFT_PROXY_HOPS is 0/);
+  assert.doesNotMatch(notices[0], /198\.51\.100/);
+  assert.equal(stderr.mock.callCount(), 1);
+  assert.match(String(stderr.mock.calls[0].arguments[0]), /SCHOOLSOFT_PROXY_HOPS is 0/);
 });

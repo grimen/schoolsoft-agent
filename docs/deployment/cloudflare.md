@@ -65,6 +65,11 @@ docker compose -f compose.cloudflare.yaml ps
 ```
 
 This recipe starts the connector and `cloudflared`; it publishes no host ports.
+It sets `SCHOOLSOFT_PROXY_HOPS` to `1`: Cloudflare adds the visitor's address as
+the last forwarding entry and the tunnel software is expected to pass it on
+unchanged. This has not been confirmed in a live deployment of this connector, so
+after signing in, use the owner page's **Address check** as described in
+[If you change the network setup](connector.md#if-you-change-the-network-setup).
 Only the tunnel service receives the tunnel token. The SchoolSoft secrets are
 passed only to the connector. State stays in its named Docker volume.
 

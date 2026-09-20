@@ -99,7 +99,12 @@ can have brief downtime during updates. [Render disk documentation](https://rend
    The storage key protects its saved state; do not replace it during an ordinary
    update. Render generates a random 256-bit value for each secret.
    [Render environment variable documentation](https://render.com/docs/blueprint-spec#generating-random-secrets)
-5. Wait for the service to become healthy. Open its HTTPS address. You should see
+5. The blueprint sets `SCHOOLSOFT_PROXY_HOPS` to `1`, because Render's own proxy
+   sits in front of your service. How many forwarding entries Render's network adds
+   has not been confirmed in a live deployment; after signing in, use the
+   **Address check** described under
+   [If you change the network setup](#if-you-change-the-network-setup).
+6. Wait for the service to become healthy. Open its HTTPS address. You should see
    the connector's owner sign-in page. Enter the admin password there. **Checkpoint:**
    this page is on your own service address, and it accepts the password saved in
    step 4. If the service fails to start, check the environment names and the disk
@@ -155,6 +160,9 @@ the server, and inbound ports 80 and 443 must reach it.
    with a password manager: the admin password needs at least 32 characters; the
    storage key needs 64 hexadecimal characters or a base64-encoded 32-byte value.
    `openssl rand -hex 32` can generate either value; run it separately for each.
+   Do not invent the admin password yourself: the connector never slows down or
+   refuses the correct password, so its randomness is what stops guessing, and a
+   repetitive value is refused at startup.
 
    ```dotenv
    CONNECTOR_DOMAIN=school.example.com
@@ -178,7 +186,9 @@ the server, and inbound ports 80 and 443 must reach it.
    see the owner sign-in page. Then follow **Connect your school and AI app** above.
 
 Only Caddy publishes ports to the internet; the connector's port 3000 stays inside
-the Docker network. A named volume stores state at `/data`, and the connector runs
+the Docker network. The Compose file sets `SCHOOLSOFT_PROXY_HOPS` to `1` because
+Caddy is the one proxy in front of the connector, and Caddy replaces any forwarding
+header a visitor sends with the address it actually saw. A named volume stores state at `/data`, and the connector runs
 as an unprivileged user. At startup, a small initialization step fixes ownership
 of the `/data` directory and then permanently drops administrator privileges
 before loading the connector. It never changes ownership recursively. Keep one connector process per state volume. Do not add
@@ -217,8 +227,12 @@ replicas or let another container share this volume.
   original key from your password manager. If it is gone, start with a new empty
   state volume and a new key, then reconnect SchoolSoft and each AI app.
 - **Restore an old disk backup:** keep the service unavailable while recovering.
-  An old backup can contain permissions that were later revoked. Start with empty
-  connector state and reconnect instead of making a stale permission store public.
+  The saved state is encrypted but carries no record of what happened after the
+  backup was made, so restoring it brings back every app permission that existed
+  then, including ones you revoked later. Prefer starting with empty connector
+  state and reconnecting. If you do restore a backup, open the owner page first and
+  use **Disconnect everything**, then sign in to SchoolSoft and connect each AI app
+  again.
 - **Stop using the connector:** revoke app permissions and log out of SchoolSoft
   on the owner page. Delete the service and disk in your hosting account when you
   no longer need them, and review the provider's backup retention settings. With
@@ -247,12 +261,37 @@ use **Disconnect this app** to remove that connection instead.
 
 ### If you change the network setup
 
-The supplied Render and Caddy setups place one HTTPS proxy in front of the
-connector. The connector trusts exactly one proxy hop for per-client request
-limits (`SCHOOLSOFT_PROXY_HOPS=1`). Keep its internal port private. If you change
-that arrangement, set this value to the actual trusted hop count (0, 1 or 2);
-never trust forwarding headers from an untrusted public path. This advanced
-setting is unnecessary for the supplied templates.
+The connector limits repeated requests per visitor address. Behind a proxy it only
+sees the proxy's address, unless it is told how many proxies in front of it may be
+believed when they report the visitor's address (the `X-Forwarded-For` header).
+That number is `SCHOOLSOFT_PROXY_HOPS`: 0, 1 or 2.
+
+The default is **0**: believe no forwarding header and use the address of whoever
+connected. This is the only safe value when nothing you control sits in front, since
+otherwise any visitor could claim a new address on every request and sidestep the
+limits. Every supplied recipe sets its own value:
+
+| Setup                                         | Value | Why                                                                                                     |
+| --------------------------------------------- | ----- | ------------------------------------------------------------------------------------------------------- |
+| `compose.connector.yaml` (Caddy), Hostinger   | 1     | Caddy is the only proxy and discards forwarding headers sent by visitors                                |
+| `compose.cloudflare.yaml` (Cloudflare Tunnel) | 1     | Cloudflare's edge appends the visitor's address last; `cloudflared` is expected to pass it on unchanged |
+| `render.yaml`                                 | 1     | Render's proxy is in front; the exact number of entries it adds is unconfirmed                          |
+| The image run directly, no proxy              | 0     | nothing in front can be believed                                                                        |
+
+The Cloudflare and Render values follow those providers' documentation and have not
+been confirmed in a live deployment of this connector. Check yours: the owner page
+shows an **Address check** line with the address your visit appears to come from.
+Compare it with your own public address (search the web for "what is my IP"). If
+it shows your address, the value is right. If it shows some other address, a proxy
+is being counted as the visitor: visitors then share one allowance, which is safe
+but coarse, and raising the value by one may fix it. Never raise it beyond the
+point where the check shows your own address, because every extra hop is one more
+header entry a visitor can forge. Keep the connector's internal port private.
+
+If the value is 0 and a request arrives with a forwarding header, the connector
+writes one notice to its log saying so. The notice contains no addresses. The
+correct administrator password is never rate limited, so a wrong value cannot lock
+you out; it only changes how wrong-password and sign-in floods are counted.
 
 ### Repeat the container checks
 

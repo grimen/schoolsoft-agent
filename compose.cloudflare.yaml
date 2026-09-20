@@ -5,6 +5,10 @@ services:
     extends:
       file: compose.connector.yaml
       service: connector
+    environment:
+      # Cloudflare's edge appends the visitor address last; cloudflared passes it on.
+      # Unconfirmed live: verify with the owner page's Address check.
+      SCHOOLSOFT_PROXY_HOPS: "1"
   tunnel:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped

@@ -424,7 +424,7 @@ test("connector start: keepalive and cache settings come from the deployment env
   await new Promise((r) => probe.close(r));
   const env = {
     SCHOOLSOFT_PUBLIC_URL: "https://parent.example",
-    SCHOOLSOFT_ADMIN_PASSWORD: "a".repeat(32),
+    SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
     SCHOOLSOFT_STORAGE_KEY: "ab".repeat(32),
     SCHOOLSOFT_SCHOOL: "taby",
     SCHOOLSOFT_STATE_DIR: dir,

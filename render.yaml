@@ -19,6 +19,10 @@ services:
         value: "3000"
       - key: SCHOOLSOFT_STATE_DIR
         value: /data
+      # Render's proxy is in front. Unconfirmed live: verify with the owner page's
+      # Address check (docs/deployment/connector.md, "If you change the network setup").
+      - key: SCHOOLSOFT_PROXY_HOPS
+        value: "1"
       - key: SCHOOLSOFT_PUBLIC_URL
         sync: false
       - key: SCHOOLSOFT_SCHOOL
