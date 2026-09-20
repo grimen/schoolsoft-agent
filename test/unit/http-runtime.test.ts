@@ -159,6 +159,10 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     ],
   });
   await assert.rejects(f.runtime.execute("get_messages", {}, [100]), /not available/);
+  await assert.rejects(
+    f.runtime.execute("report_absence", { child_id: 100, confirm: true }, [100]),
+    /not available/,
+  );
   await assert.rejects(f.runtime.execute("get_schedule", { week: 54 }, [100]), /arguments/);
   await assert.rejects(f.runtime.execute("get_schedule", { unknown: 1 }, [100]), /arguments/);
   await assert.rejects(f.runtime.execute("get_schedule", {}, []), /No permitted/);

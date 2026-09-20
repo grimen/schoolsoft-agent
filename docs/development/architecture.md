@@ -150,6 +150,7 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | `callbackPort` | `SCHOOLSOFT_CALLBACK_PORT` | `43117`                                  |
 | `configDir`    | `SCHOOLSOFT_CONFIG_DIR`    | platform config dir (`doctor` prints it) |
 | `stateDir`     | `SCHOOLSOFT_STATE_DIR`     | `<configDir>/state`                      |
+| `allowWrites`  | `SCHOOLSOFT_ALLOW_WRITES`  | off; `1` lets write operations run       |
 
 ## Testing
 
@@ -181,3 +182,14 @@ their local dates and extra fields. It returns no partial success. The generic
 `beforeRead` host guard travels through API portal wiring to each HTTP GET, so
 connector consent and child focus are rechecked between requests and on retries.
 Existing `get_schedule` behavior is unchanged.
+
+**The first write.** `report_absence` is off until `allowWrites` is set, returns a
+preview unless called with `confirm: true`, and is not offered by the parent-hosted
+connector. A write reaches the network at most once: `withSessionRecovery` renews a
+rejected session but does not repeat capabilities listed in `WRITE_CAPABILITIES`,
+the transport does not follow redirects for writes, and a transport failure or 5xx
+is reported as "outcome unknown" rather than retryable. The request body of
+`POST /rest-api/parent/absence-notice` is **unverified**; the guess lives in one
+mapper (`portal/api/absence-notice-body.ts`) until the live pass corrects it. The
+general write framework (idempotency keys, audit log, remote write scope) is a
+later spec; see `docs/planning/specs/2026-09-21-absence-report.md`.

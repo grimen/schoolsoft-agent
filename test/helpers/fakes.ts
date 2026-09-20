@@ -135,6 +135,7 @@ export const fakePortal = {
     sections: [{ headers: ["Förmåga", "E", "C", "A"], rows: [{ cells: ["Läsa", "…", "…", "…"] }] }],
   }),
   getGradePrognosis: async () => ({ reconciliationDates: [] }),
+  reportAbsence: async () => ({ status: 200, response: { synthetic: true } }),
 } as unknown as Portal;
 
 export class FakeAuth implements AuthStrategy<FakeSession> {
@@ -164,6 +165,7 @@ export const testConfig: Config = {
   stateDir: "/tmp/unused",
   configDir: "/tmp/unused",
   browser: { kind: "chromium", headless: true },
+  allowWrites: false,
 };
 
 export function makeContext(
