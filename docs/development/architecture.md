@@ -59,7 +59,11 @@ Hosting administrators may access plaintext during use, and requested results en
 the AI provider's conversation. See [parent setup and trust boundaries](../deployment/connector.md).
 
 The connector is a release candidate with offline security, lifecycle and protocol
-tests. HTTP modules are included in the 100% coverage gate. This does not establish
+tests. HTTP modules are included in the 100% coverage gate. One scripted scenario
+(`test/packaging/connector-smoke/flow.mjs`) walks the whole parent journey over HTTP
+with the portal replaced at the injected fetch seam: the functional suite runs it
+against the in-process composition, and `make connector-smoke` replays it inside the
+Docker image with `--network none`. This does not establish
 real SchoolSoft callback compatibility, BankID on the same phone, or acceptance by
 actual Claude/ChatGPT accounts. Those checks remain explicit before calling the
 parent deployment supported.

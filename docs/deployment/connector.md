@@ -126,7 +126,9 @@ Continue with **Connect your school and AI app** below.
    Do not paste your admin password into a chat or a connector URL.
 5. The app sends you to **your server's consent page**. Sign in if needed, check the
    app and requested permissions, select only the children and tools you want
-   that app to use, then approve. Connect Claude and ChatGPT
+   that app to use, then approve. Approve only a request you started yourself a
+   moment ago: the app name on that page is chosen by the app, so a consent link
+   that someone sends you should be cancelled. Connect Claude and ChatGPT
    separately if you use both. Return to the AI app and enable the connector in a
    conversation.
 6. Ask: **“What is for lunch at school this week?”** Then ask for one selected
@@ -239,11 +241,32 @@ setting is unnecessary for the supplied templates.
 
 ### Repeat the container checks
 
-Developers can run the automated deployment smoke test without a SchoolSoft
-account. It uses synthetic data and checks disk ownership, dropped privileges,
-encrypted persistence, restart and shutdown:
+Developers can run the automated deployment smoke tests without a SchoolSoft
+account:
 
 ```sh
-docker build -f Dockerfile.connector -t schoolsoft-connector:review .
-node test/packaging/connector-container.mjs
+make connector-smoke
 ```
+
+It builds `Dockerfile.connector`, starts the image twice with `--network none`,
+and removes the containers, volume and image afterwards. Without a running Docker
+daemon it prints a skip notice and exits successfully; set
+`CONNECTOR_SMOKE_REQUIRE_DOCKER=1` to make a missing daemon an error (CI does).
+
+1. `test/packaging/connector-container.mjs` starts the production entrypoint and
+   checks disk ownership, dropped privileges, encrypted persistence, restart and
+   shutdown.
+2. `test/packaging/connector-flow-container.mjs` replays a parent's whole journey
+   inside the image: OAuth discovery, client registration, S256-only PKCE, owner
+   login and consent for chosen children and tools, code exchange, MCP
+   `tools/list` and tool calls, refresh-token rotation and replay rejection, the
+   calendar scope limit, per-child denial, revoking an app from the dashboard and
+   the owner-login rate limit. The school portal is a synthetic stand-in
+   (`test/packaging/connector-smoke/fake-upstream.mjs`) mounted read-only beside a
+   test-only entry script. It is not part of the image, and the BankID link the
+   connector shows is parsed, never opened.
+
+The same scenario runs in-process in `make check`
+(`test/functional/http-connector-flow.test.ts`). Neither replaces the live
+acceptance test above: a synthetic portal proves that the connector's own rules
+hold together, not that SchoolSoft accepts the public callback.
