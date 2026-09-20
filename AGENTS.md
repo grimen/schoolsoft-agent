@@ -31,6 +31,15 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   GDPR-gated capabilities (`WEB_SESSION_CAPABILITIES`) need the web-login
   session from `login --web`; they must fail before navigating without it.
   The web session's only non-GET is the child-in-focus PUT (`syncWebChild`).
+- **Between logins, nothing surprising.** The read cache is memory only, keyed
+  by provider, school, guardian, child, capability and arguments, emptied by
+  every session event, and never holds a web-session capability; a newly
+  cacheable capability gets a TTL in `cache/policy.ts` and `fresh` on its
+  operation. Surfaces run operations through `runOperation`. Keepalive is
+  opt-in (`Config.keepalive`), renews and touches but never logs in, stops on
+  session loss, and is started only by long-lived hosts, never the CLI. The
+  session history holds timestamps and counters only. A transient failure
+  (`isTransient`) must never clear a saved session.
 - **Browser pages are declared, not scattered.** A page the browser reads
   lives in the provider's `portal/pages.ts` (path, gate, anchors) with its
   extractor in `portal/extractors.ts` and a fixture in `test/fixtures/jsp/`. After a SchoolSoft

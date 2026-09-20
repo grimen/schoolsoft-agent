@@ -83,7 +83,47 @@ A visible browser window opens SchoolSoft's login. Complete BankID as usual (it 
 
 ## "…the web login session has expired (inactivity)"
 
-SchoolSoft logs web sessions out after a period without activity. Run `login --web` again; your normal session is unaffected.
+SchoolSoft logs web sessions out after a period without activity. Run `login --web` again; your normal session is unaffected. When the tool knows how long the login had gone unused, the message says so ("expired after about 40 minutes without use").
+
+## I have to log in with BankID too often
+
+There are two logins, and they age differently. The normal login renews itself quietly and should last for weeks. The second one (`login --web`, for grades, documents and attendance) is an ordinary web login, and SchoolSoft ends it after a while without activity. Nobody outside SchoolSoft knows the exact limits, so the tool keeps a small diary of timestamps: when you logged in, when the login was renewed or used, and when SchoolSoft ended it. It contains no school data, no names and no passwords. Ask your assistant for the login status, or run:
+
+```bash
+npx -y schoolsoft-agent auth-status --pretty
+```
+
+Look at `sessionHistory`. `losses` lists each ended login with its age (`ageMinutes`) and how long it had gone unused (`idleMinutes`); `longestGapSurvivedMinutes` is the longest pause a login is known to have survived. `doctor` shows a one-line version. After a few weeks these numbers tell you what SchoolSoft really allows.
+
+Three things reduce logins without any setup: a renewed login is saved the instant SchoolSoft issues it; a lost internet connection or a SchoolSoft outage no longer throws the saved login away; and answers that rarely change (lunch menu, schedule, contact lists) are remembered for a short while, so fewer requests meet an expired login.
+
+### Keeping the login alive in the background (optional, off by default)
+
+If your assistant runs the MCP server (Claude Desktop, Claude Code, Codex and similar) or you host the connector, you can let the tool keep the login warm while that program is open. Set one of these where you set `SCHOOLSOFT_SCHOOL` (or as `"keepalive"` in `config.json`):
+
+| Setting                    | What happens in the background                                                            |
+| -------------------------- | ----------------------------------------------------------------------------------------- |
+| `SCHOOLSOFT_KEEPALIVE=off` | Nothing. This is the default.                                                             |
+| `SCHOOLSOFT_KEEPALIVE=app` | The normal login is renewed a few minutes before it would expire, about every 12 minutes. |
+| `SCHOOLSOFT_KEEPALIVE=all` | Also: every 10 minutes one small request tells SchoolSoft the web login is still in use.  |
+
+Optional extras: `SCHOOLSOFT_KEEPALIVE_WEB_MINUTES=15` changes the 10 minutes (5 to 120), and `SCHOOLSOFT_KEEPALIVE_QUIET_HOURS=22-6` sends nothing between 22:00 and 06:00 (your computer's clock). With quiet hours the web login will probably have ended by morning.
+
+What to know before turning it on:
+
+- It only works while the program is running and your computer is awake. It cannot beat a hard time limit on SchoolSoft's side, and whether it lengthens the web login at all is not yet measured; your `sessionHistory` will show it.
+- It never logs in for you and never touches BankID. If SchoolSoft ends a login, the background work for that login stops until you log in again yourself.
+- It reads one small piece of information the web page itself asks for on every page view. It never changes anything at SchoolSoft.
+- If SchoolSoft is unreachable or struggling it waits longer between attempts (up to an hour).
+- This project is independent. SchoolSoft AB has not approved or been asked about background requests. Turning this on means your computer contacts SchoolSoft when you are not asking for anything; leave it off if you are unsure. The command-line tool on its own never does this, because it only runs while a command runs.
+
+### The assistant shows an older version of something I just changed
+
+Some answers are remembered in the program's memory for a short time: the lunch menu, subject list and contact lists for up to 6 hours, shared files 1 hour, schedule and calendar 30 minutes, news, assignments and the activity log 10 minutes. Messages, bookings, grades, documents, absence and attendance are always read from SchoolSoft. Ask for "the latest" (the assistant passes `fresh: true`, on the command line `--fresh`), or set `SCHOOLSOFT_CACHE=off`. Nothing remembered this way is written to disk; it is gone when the program closes, when you log in or out, and when you switch child.
+
+## "The setting … has the value …, but it must be …"
+
+One of the settings above has a value the tool does not understand, for example `SCHOOLSOFT_KEEPALIVE=yes`. The message names the setting and the values it accepts.
 
 ## "No child with id …"
 
@@ -124,7 +164,7 @@ schoolsoft-agent configure --query "<school name>"
 npx -y schoolsoft-agent doctor
 ```
 
-Reports Node version, configuration, saved session, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
+Reports Node version, configuration, saved session, how long logins have lasted so far, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
 
 ## Still stuck?
 
