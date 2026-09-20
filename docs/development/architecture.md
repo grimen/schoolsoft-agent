@@ -51,7 +51,9 @@ Each AI app gets OAuth authorization for selected read operations and children.
 Unknown or unapproved children are rejected before focusing or fetching, including
 an unapproved default child. Listing children returns only the approved subset.
 Owner login, CSRF protection, OAuth grants and encrypted persistent state belong to
-the HTTP adapter. Per-app revocation is separate from SchoolSoft logout.
+the HTTP adapter. Per-caller limits key on the socket address unless the deployment declares its
+proxy hops (`SCHOOLSOFT_PROXY_HOPS`, default 0), with IPv6 callers grouped by /64; the
+correct owner password is never rate limited, so its randomness is the guess protection. Per-app revocation is separate from SchoolSoft logout.
 
 The deployment is one process per private state volume. The storage key comes from
 the parent's deployment environment; the project author operates no central service.
