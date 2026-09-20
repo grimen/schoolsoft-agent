@@ -150,7 +150,9 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     const consentUrl = auth.headers.get("location")!;
     const page = await request(consentUrl, { headers: { Cookie: cookie } });
     assert.equal(page.status, 200);
-    assert.match(await page.text(), /Synthetic One/);
+    const consentHtml = await page.text();
+    assert.match(consentHtml, /Synthetic One/);
+    assert.match(consentHtml, /started connecting this app yourself.*choose Cancel/);
     const id = new URL(consentUrl, origin).searchParams.get("request")!;
     const approval = await form(
       "/owner/approve",

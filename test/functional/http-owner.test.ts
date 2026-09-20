@@ -174,6 +174,25 @@ test("owner console enforces host, password, session, origin and CSRF and comple
         .status,
       200,
     );
+    // The unauthenticated portal callback has its own per-caller budget for state guesses.
+    const guesser = { "X-Forwarded-For": "192.0.2.30" };
+    for (let i = 0; i < 20; i++)
+      assert.equal(
+        (await request("/schoolsoft/callback?state=guess&code=code", undefined, guesser)).status,
+        400,
+      );
+    const guessLimited = await request(
+      "/schoolsoft/callback?state=valid&code=code",
+      undefined,
+      guesser,
+    );
+    assert.equal(guessLimited.status, 429);
+    assert.ok(guessLimited.headers.has("retry-after"));
+    assert.equal(
+      (await request("/owner/login", { password: "wrong" }, guesser)).status,
+      401,
+      "callback guesses do not spend the owner login budget",
+    );
     pending = true;
     assert.match(await (await request("/owner")).text(), /waiting for BankID/);
     pending = false;
