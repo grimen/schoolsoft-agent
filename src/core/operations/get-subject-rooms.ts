@@ -1,5 +1,5 @@
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, withChild } from "./_shared.js";
+import { ChildSchema, withChild, FreshSchema } from "./_shared.js";
 
 export const getSubjectRooms = defineOperation({
   name: "get_subject_rooms",
@@ -8,11 +8,12 @@ export const getSubjectRooms = defineOperation({
 
 Args:
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
 
 Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".`,
-  input: { child_id: ChildSchema },
+  input: { child_id: ChildSchema, fresh: FreshSchema },
   portal: ["getSubjectRooms"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {

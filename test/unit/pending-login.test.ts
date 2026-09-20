@@ -50,6 +50,9 @@ class SlowStrategy implements AuthStrategy<FakeSession> {
     return { name: "P", schoolName: "S", userType: "parent" };
   }
   async restore(): Promise<void> {}
+  async renew(): Promise<{ expiresAt: number | null }> {
+    return { expiresAt: null };
+  }
   async focusChild(): Promise<void> {}
 }
 
@@ -125,6 +128,7 @@ test("startLogin without a URL returns after the timeout; a failed marker before
     id: "silent",
     login: () => new Promise(() => {}),
     restore: async () => {},
+    renew: async () => ({ expiresAt: null }),
     focusChild: async () => {},
   };
   manager = new SessionManager<FakeSession>({
@@ -150,6 +154,7 @@ test("startLogin without a URL returns after the timeout; a failed marker before
       throw new Error("denied");
     },
     restore: async () => {},
+    renew: async () => ({ expiresAt: null }),
     focusChild: async () => {},
   };
   const m2 = new SessionManager<FakeSession>({
@@ -209,6 +214,7 @@ test("a non-Error failure after the marker vanished is still recorded, with a fr
       throw "cancelled by user";
     },
     restore: async () => {},
+    renew: async () => ({ expiresAt: null }),
     focusChild: async () => {},
   };
   const manager = new SessionManager<FakeSession>({

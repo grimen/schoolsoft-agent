@@ -203,6 +203,13 @@ row becomes `url`.
   it. Gated reads align the web child with the requested `child_id` first.
   That PUT is the only non-GET the web session sends; it changes session
   state, never school data.
+- **Keepalive touch.** The opt-in keepalive (`SCHOOLSOFT_KEEPALIVE=all`) touches
+  the web session with that same header GET and nothing else, because the
+  portal's own pages request it on every view. A 401/403, or a 200 whose body
+  is not the header JSON, is treated as a lost web session (the 401 was seen
+  once, see the log below; the rest is an assumption). Whether the GET resets
+  SchoolSoft's inactivity timer is **not measured**; the session history in
+  `auth_status` exists to find out.
 - **Two subject ids.** The REST subject rooms
   (`/rest-api/parent/ps/subjectroom/all`) carry `activityId`; the criteria
   page takes the JSP subject menu's `requestid`. They are different numbers

@@ -41,6 +41,13 @@ export const LimitSchema = z
   .optional()
   .describe("Max items, default 20");
 
+export const FreshSchema = z
+  .boolean()
+  .optional()
+  .describe(
+    "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+  );
+
 export interface ChildScope {
   guardian: GuardianContext;
   child: GuardianChild;

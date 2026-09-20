@@ -38,6 +38,8 @@ export interface BankIdBrowserOptions {
   openBrowser?: (url: string) => void;
   browserAuthorization?: BrowserAuthorization;
   redirectUri?: string;
+  /** Told about every rotated token pair at once, so it can be persisted before anything else fails. */
+  onRefresh?: () => void;
 }
 
 export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
@@ -117,7 +119,8 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
     }
   }
 
-  private async refresh(client: SchoolsoftClient): Promise<void> {
+  /** Refresh and adopt the rotated pair; resolves with the new expiry (unix seconds), null when unknown. */
+  private async refresh(client: SchoolsoftClient): Promise<number | null> {
     if (!client.refreshToken) {
       throw new AgentError({
         kind: "not_authenticated",
@@ -137,6 +140,34 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
       t.refreshToken ?? client.refreshToken,
       t.expiresAt ?? undefined,
     );
+    this.options.onRefresh?.();
+    return t.expiresAt;
+  }
+
+  /** Keepalive: adopt the saved tokens and refresh them unless they outlive the lead time. */
+  async renew(
+    session: SchoolsoftSession,
+    saved: PersistedSession,
+    options: { now: number; leadMs: number },
+  ): Promise<{ expiresAt: number | null }> {
+    const client = session.client;
+    const creds = saved.data as SchoolsoftCredentials;
+    if (!creds.accessToken) {
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "not_authenticated",
+        params: { reason: "saved session has no access token" },
+        hint: "login",
+      });
+    }
+    client.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
+    const savedExpiry =
+      creds.accessTokenExpiresAt == null ? null : creds.accessTokenExpiresAt * 1000;
+    if (savedExpiry !== null && savedExpiry - options.now > options.leadMs) {
+      return { expiresAt: savedExpiry }; // another process refreshed it already
+    }
+    const expiresAt = await this.refresh(client);
+    return { expiresAt: expiresAt === null ? null : expiresAt * 1000 };
   }
 
   async focusChild(session: SchoolsoftSession, studentId: number): Promise<void> {

@@ -29,6 +29,11 @@ export interface OperationAnnotations {
 export interface OperationContext<C extends Capability = Capability> {
   manager: SessionManager;
   portal: Pick<Portal, C>;
+  /**
+   * The same portal with the read cache bypassed (and refreshed). `runOperation`
+   * swaps it in for `fresh: true`; absent where nothing is cached.
+   */
+  freshPortal?: Pick<Portal, C>;
   /** The configured school portal provider (school lookup, page specs). */
   provider: SchoolProvider;
   config: Config;

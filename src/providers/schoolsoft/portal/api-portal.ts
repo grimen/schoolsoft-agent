@@ -114,6 +114,9 @@ export class ApiPortal implements ApiPortalPart {
   syncWebChild(): Promise<void> {
     return this.webSession.syncWebChild();
   }
+  touchWebSession(): Promise<void> {
+    return this.webSession.touch();
+  }
 }
 
 /** Backwards-compatible name. */

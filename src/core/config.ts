@@ -14,6 +14,22 @@ import {
   type SchoolsoftUserType,
 } from "./constants.js";
 import type { BrowserEngine } from "./browser/session.js";
+import type { QuietHours } from "./keepalive/scheduler.js";
+
+/** off: nothing in the background. app: refresh the API token. all: also touch the web session. */
+export const KEEPALIVE_MODES = ["off", "app", "all"] as const;
+export type KeepaliveMode = (typeof KEEPALIVE_MODES)[number];
+
+export interface KeepaliveConfig {
+  mode: KeepaliveMode;
+  /** Pause between web-session touches. */
+  webIntervalMs: number;
+  quietHours: QuietHours | null;
+}
+
+export const DEFAULT_KEEPALIVE_WEB_MINUTES = 10;
+export const MIN_KEEPALIVE_WEB_MINUTES = 5;
+export const MAX_KEEPALIVE_WEB_MINUTES = 120;
 
 export interface Config {
   /** School portal provider id (src/providers); "schoolsoft" unless configured. */
@@ -30,6 +46,10 @@ export interface Config {
   configDir: string;
   /** Headless browser engine for browser-only capabilities. */
   browser: BrowserEngine;
+  /** In-memory read cache (default on; never on disk). */
+  cache: boolean;
+  /** Background session keepalive for long-lived processes (default off). */
+  keepalive: KeepaliveConfig;
 }
 
 /** A partial, untyped-ish config from one source (file, env, flags). */
@@ -44,6 +64,21 @@ export interface ConfigSource {
   configDir?: string;
   browserEngine?: string;
   browserCdp?: string;
+  cache?: string | boolean;
+  keepalive?: string;
+  keepaliveWebMinutes?: number | string;
+  keepaliveQuietHours?: string;
+}
+
+export class ConfigValueError extends AgentError {
+  constructor(name: string, value: unknown, expected: string) {
+    super({
+      kind: "input",
+      key: "config_value_invalid",
+      params: { name, value: String(value), expected },
+      hint: "fix_input",
+    });
+  }
 }
 
 export class NotConfiguredError extends AgentError {
@@ -64,6 +99,10 @@ export const ENV = {
   configDir: "SCHOOLSOFT_CONFIG_DIR",
   browserEngine: "SCHOOLSOFT_BROWSER_ENGINE",
   browserCdp: "SCHOOLSOFT_BROWSER_CDP",
+  cache: "SCHOOLSOFT_CACHE",
+  keepalive: "SCHOOLSOFT_KEEPALIVE",
+  keepaliveWebMinutes: "SCHOOLSOFT_KEEPALIVE_WEB_MINUTES",
+  keepaliveQuietHours: "SCHOOLSOFT_KEEPALIVE_QUIET_HOURS",
 } as const;
 
 /** Map SCHOOLSOFT_* variables to a ConfigSource (empty strings ignored). */
@@ -80,6 +119,10 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
     configDir: pick(ENV.configDir),
     browserEngine: pick(ENV.browserEngine),
     browserCdp: pick(ENV.browserCdp),
+    cache: pick(ENV.cache),
+    keepalive: pick(ENV.keepalive),
+    keepaliveWebMinutes: pick(ENV.keepaliveWebMinutes),
+    keepaliveQuietHours: pick(ENV.keepaliveQuietHours),
   };
 }
 
@@ -105,6 +148,49 @@ function first<K extends keyof ConfigSource>(
     if (v !== undefined && v !== "") return v;
   }
   return undefined;
+}
+
+function resolveCache(raw: string | boolean | undefined): boolean {
+  if (raw === undefined || raw === true || raw === "on") return true;
+  if (raw === false || raw === "off") return false;
+  throw new ConfigValueError("cache", raw, "on | off");
+}
+
+/** "22-6": local hours, start inclusive, end exclusive, may wrap midnight. */
+export function parseQuietHours(raw: string | undefined): QuietHours | null {
+  if (raw === undefined) return null;
+  const m = /^(\d{1,2})-(\d{1,2})$/.exec(raw.trim());
+  const startHour = Number(m?.[1]);
+  const endHour = Number(m?.[2]);
+  if (!m || startHour > 23 || endHour > 23 || startHour === endHour) {
+    throw new ConfigValueError("keepaliveQuietHours", raw, "HH-HH (0-23), e.g. 22-6");
+  }
+  return { startHour, endHour };
+}
+
+function resolveKeepalive(sources: ConfigSource[]): KeepaliveConfig {
+  const mode = first(sources, "keepalive") ?? "off";
+  if (!(KEEPALIVE_MODES as readonly string[]).includes(mode)) {
+    throw new ConfigValueError("keepalive", mode, KEEPALIVE_MODES.join(" | "));
+  }
+  const rawMinutes = first(sources, "keepaliveWebMinutes");
+  const webMinutes = rawMinutes === undefined ? DEFAULT_KEEPALIVE_WEB_MINUTES : Number(rawMinutes);
+  if (
+    !Number.isInteger(webMinutes) ||
+    webMinutes < MIN_KEEPALIVE_WEB_MINUTES ||
+    webMinutes > MAX_KEEPALIVE_WEB_MINUTES
+  ) {
+    throw new ConfigValueError(
+      "keepaliveWebMinutes",
+      rawMinutes,
+      `${MIN_KEEPALIVE_WEB_MINUTES}-${MAX_KEEPALIVE_WEB_MINUTES}`,
+    );
+  }
+  return {
+    mode: mode as KeepaliveMode,
+    webIntervalMs: webMinutes * 60_000,
+    quietHours: parseQuietHours(first(sources, "keepaliveQuietHours")),
+  };
 }
 
 /**
@@ -157,5 +243,7 @@ export function resolveConfig(
     stateDir: first(sources, "stateDir") ?? join(configDir, "state"),
     configDir,
     browser,
+    cache: resolveCache(first(sources, "cache")),
+    keepalive: resolveKeepalive(sources),
   };
 }

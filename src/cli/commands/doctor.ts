@@ -6,8 +6,11 @@ import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  FileSessionHistoryStore,
   FileSessionStore,
   NotConfiguredError,
+  emptyHistory,
+  summarizeHistory,
   browserStatus,
   type Config,
 } from "../../core/index.js";
@@ -80,6 +83,27 @@ export async function runDoctor(
       detail: saved
         ? `saved ${new Date(saved.savedAt).toISOString()} via ${saved.authMethod}, children=${saved.guardian?.children.length ?? "?"}`
         : `no session in ${config.stateDir} — run: schoolsoft-agent login`,
+    });
+    const history = summarizeHistory(
+      new FileSessionHistoryStore(config.stateDir).read() ?? emptyHistory(),
+      deps.now?.() ?? Date.now(),
+    );
+    const last = history.losses.at(-1);
+    checks.push({
+      name: "session-history",
+      ok: true, // informational: observed lifetimes, never a failure
+      detail:
+        `keepalive=${config.keepalive.mode}; ` +
+        (history.app
+          ? `app login ${history.app.ageMinutes ?? "?"} min old, ${history.app.activityCount} refreshes, longest gap survived ${history.app.longestGapSurvivedMinutes} min; `
+          : "") +
+        (history.web
+          ? `web login ${history.web.ageMinutes} min old, idle ${history.web.idleMinutes} min, longest gap survived ${history.web.longestGapSurvivedMinutes} min; `
+          : "") +
+        (last
+          ? `${history.losses.length} observed losses, last: ${last.session} session at ${last.at} after ${last.ageMinutes ?? "?"} min (idle ${last.idleMinutes} min)`
+          : "no session loss observed yet") +
+        " (full record: schoolsoft-agent auth-status)",
     });
   }
 

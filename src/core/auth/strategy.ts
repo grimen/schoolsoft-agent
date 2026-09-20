@@ -36,6 +36,19 @@ export interface AuthStrategy<S = unknown> {
   restore(session: S, saved: PersistedSession): Promise<void>;
 
   /**
+   * Renew the saved credentials without any user interaction (keepalive):
+   * adopt `saved.data`, and unless it stays valid for longer than `leadMs`
+   * past `now`, obtain new credentials. Never opens a browser. Resolves with
+   * the expiry of the credential now held (ms since epoch), null when unknown.
+   * A rotation must be reported through `AuthDeps.onRefresh` like any other.
+   */
+  renew(
+    session: S,
+    saved: PersistedSession,
+    options: { now: number; leadMs: number },
+  ): Promise<{ expiresAt: number | null }>;
+
+  /**
    * Guardian context established by login()/restore(), persisted by
    * SessionManager and handed back on restore.
    */

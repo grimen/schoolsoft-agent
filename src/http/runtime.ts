@@ -5,10 +5,15 @@ import {
   AgentError,
   InputError,
   createSessionManager,
-  createPortal,
+  createPortals,
+  createKeepalive,
+  runOperation,
   resolveProvider,
   getOperation,
   type Config,
+  type KeepaliveDeps,
+  type Portal,
+  type SessionHistorySummary,
   type SessionStore,
   type SessionDeps,
 } from "../core/index.js";
@@ -27,6 +32,8 @@ export interface ConnectorRuntimeOptions {
   deps?: SessionDeps;
   now?: () => number;
   loginTimeoutMs?: number;
+  /** Timer, randomness and HTTP for the opt-in keepalive (tests). */
+  keepaliveDeps?: Pick<KeepaliveDeps, "timer" | "random" | "hourOf" | "fetchImpl" | "log">;
 }
 export type LoginFailure = "expired" | "cancelled" | "different_guardian" | "upstream";
 export interface ExecutionAuthorization {
@@ -58,15 +65,32 @@ export class ConnectorRuntime {
   private closed = false;
   private outstanding = 0;
   private lastLoginError?: LoginFailure;
+  private readonly keepalive;
 
   constructor(private readonly options: ConnectorRuntimeOptions) {
     this.now = options.now ?? Date.now;
     this.manager = createSessionManager(options.config, {
+      now: this.now,
       ...options.deps,
       store: options.store,
       redirectUri: options.redirectUri,
       browserAuthorization: ({ url, state }) => this.authorize(url, state),
     });
+    // Keepalive ticks wait their turn in the same queue as reads, and end with the connector.
+    this.keepalive = createKeepalive(options.config, this.manager, {
+      ...options.keepaliveDeps,
+      now: this.now,
+      wrap: (run) =>
+        this.serialized(async () => {
+          if (this.closed) throw new InputError("Connector is closed.");
+          return run();
+        }),
+    });
+  }
+
+  /** Start the opt-in keepalive (no-op unless the deployment enabled it). */
+  startKeepalive(): void {
+    this.keepalive?.start();
   }
 
   private publishUrl?: (value: { url: string }) => void;
@@ -160,6 +184,8 @@ export class ConnectorRuntime {
     loginInProgress: boolean;
     children: { id: number; name: string }[];
     loginError?: LoginFailure;
+    /** Observed SchoolSoft sign-in lifetimes: timestamps and counters only. */
+    sessionHistory?: SessionHistorySummary | null;
   }> {
     if (this.pending) return { authenticated: false, loginInProgress: true, children: [] };
     return this.serialized(async () => {
@@ -176,6 +202,7 @@ export class ConnectorRuntime {
         return {
           authenticated: true,
           loginInProgress: false,
+          sessionHistory: this.manager.sessionHistory(),
           children: this.manager
             .guardian()
             .children.map((c) => ({ id: c.studentId, name: c.firstName })),
@@ -184,6 +211,7 @@ export class ConnectorRuntime {
         return {
           authenticated: false,
           loginInProgress: false,
+          sessionHistory: this.manager.sessionHistory(),
           children: [],
           ...(this.lastLoginError ? { loginError: this.lastLoginError } : {}),
         };
@@ -253,7 +281,9 @@ export class ConnectorRuntime {
       };
       validateChild();
       await this.manager.focusChild(childId);
-      const portal = createPortal(this.manager, {
+      // A cache hit makes no HTTP request, so `beforeRead` is also the cache's guard:
+      // consent and child focus are rechecked before any cached value is served.
+      const portals = createPortals(this.manager, {
         fetchImpl: this.options.deps?.fetchImpl,
         browser: null,
         beforeRead: validateFocus,
@@ -264,22 +294,25 @@ export class ConnectorRuntime {
           validateFocus();
         },
       });
-      const result = await operation.run(
+      const guarded = (portal: Portal): Portal => ({
+        ...portal,
+        getScheduleWeek: async (week) => {
+          validateFocus();
+          return portal.getScheduleWeek(week);
+        },
+        getLunchWeek: async (orgId, week) => {
+          validateFocus();
+          return portal.getLunchWeek(orgId, week);
+        },
+      });
+      const result = await runOperation(
+        operation,
         {
           config: this.options.config,
           manager: this.manager,
           provider: resolveProvider(this.options.config),
-          portal: {
-            ...portal,
-            getScheduleWeek: async (week) => {
-              validateFocus();
-              return portal.getScheduleWeek(week);
-            },
-            getLunchWeek: async (orgId, week) => {
-              validateFocus();
-              return portal.getLunchWeek(orgId, week);
-            },
-          },
+          portal: guarded(portals.portal),
+          freshPortal: guarded(portals.freshPortal),
           log: () => {},
         },
         { ...parsed.data, child_id: childId },
@@ -300,6 +333,7 @@ export class ConnectorRuntime {
 
   close(): Promise<void> {
     this.closed = true;
+    this.keepalive?.stop();
     this.cancelLogin();
     return this.serialized(async () => {});
   }

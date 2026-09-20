@@ -10,7 +10,14 @@ import type { PersistedSession, SessionStore } from "./store.js";
 import { childOf, type GuardianContext } from "../portal/guardian.js";
 import type { WebSession } from "../browser/web-login.js";
 import type { ProviderSession } from "../provider/types.js";
-import { AgentError, InputError } from "../errors/index.js";
+import { AgentError, InputError, isTransient } from "../errors/index.js";
+import {
+  summarizeHistory,
+  type SessionEvent,
+  type SessionHistoryRecorder,
+  type SessionHistorySummary,
+  type SessionListener,
+} from "./history.js";
 import {
   PENDING_LOGIN_TTL_MS,
   type PendingLogin,
@@ -25,6 +32,9 @@ export class NotAuthenticatedError extends AgentError {
     super({ kind: "not_authenticated", key, params: { reason }, hint: "login" });
   }
 }
+
+/** Refresh this long before the access credential expires (keepalive). */
+export const RENEW_LEAD_MS = 3 * 60_000;
 
 export interface SessionManagerOptions<S extends ProviderSession> {
   school: string;
@@ -46,6 +56,10 @@ export interface SessionManagerOptions<S extends ProviderSession> {
   pid?: number;
   /** Is a process alive? Used to tell an abandoned login from a slow user. */
   isAlive?: (pid: number) => boolean;
+  /** Where session lifetimes are recorded; absent: nothing is recorded. */
+  history?: SessionHistoryRecorder;
+  /** Told about logins, refreshes, child switches, web-session use and losses (history, cache). */
+  onEvent?: SessionListener;
 }
 
 export class SessionManager<S extends ProviderSession = ProviderSession> {
@@ -66,6 +80,9 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
   private readonly pid: number;
   private readonly isAlive: (pid: number) => boolean;
   private inFlight: Promise<LoginInfo> | null = null;
+  private readonly listeners: SessionListener[] = [];
+  private readonly history?: SessionHistoryRecorder;
+  private lock: Promise<unknown> = Promise.resolve();
 
   constructor(options: SessionManagerOptions<S>) {
     if (options.strategies.length === 0) {
@@ -84,6 +101,60 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     this.pid = options.pid ?? 0;
     this.isAlive = options.isAlive ?? (() => true);
     this.web = this.store.load()?.web ?? null;
+    this.history = options.history;
+    if (options.onEvent) this.listeners.push(options.onEvent);
+  }
+
+  /** Add a listener for session events; returns the function that removes it. */
+  subscribe(listener: SessionListener): () => void {
+    this.listeners.push(listener);
+    return () => {
+      const i = this.listeners.indexOf(listener);
+      if (i >= 0) this.listeners.splice(i, 1);
+    };
+  }
+
+  private emit(event: SessionEvent): void {
+    this.history?.record(event);
+    // A copy: a listener may unsubscribe while being told.
+    for (const listener of this.listeners.slice()) listener(event);
+  }
+
+  /** One restore or renewal at a time: two callers must never spend the same refresh token. */
+  private exclusive<T>(run: () => Promise<T>): Promise<T> {
+    const result = this.lock.then(run);
+    this.lock = result.catch(() => {});
+    return result;
+  }
+
+  /**
+   * The provider rotated its credentials (AuthDeps.onRefresh): persist them
+   * at once, keeping the saved guardian and web session, because the steps
+   * that follow a refresh can still fail and the old refresh token is spent.
+   */
+  noteRefresh(): void {
+    const saved = this.store.load();
+    if (saved) {
+      this.store.save({ ...saved, data: this.serialize(this.getSession()), savedAt: this.now() });
+    }
+    this.emit({ type: "refresh" });
+  }
+
+  /** A capability that rides on the web session answered (a read, or the keepalive touch). */
+  noteWebUse(via: "read" | "keepalive"): void {
+    if (this.web) this.emit({ type: "web_use", since: this.web.savedAt, via });
+  }
+
+  /** The portal sent the web session to its login page. Returns how long it had been idle, when known. */
+  noteWebSessionLost(): number | null {
+    const idle = this.history?.idleMs("web") ?? null;
+    this.emit({ type: "session_lost", session: "web" });
+    return idle;
+  }
+
+  /** Observed session lifetimes (timestamps and counters only); null when nothing records them. */
+  sessionHistory(): SessionHistorySummary | null {
+    return this.history ? summarizeHistory(this.history.read(), this.now()) : null;
   }
 
   /** The provider's live session object (created lazily, never null). */
@@ -106,7 +177,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
       data: this.serialize(this.getSession()),
       guardian: strategy?.context,
       web: this.web ?? undefined,
-      savedAt: Date.now(),
+      savedAt: this.now(),
       authMethod,
     });
   }
@@ -184,6 +255,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     this.persist(strategy.id);
     this.established = true;
     this.pending?.clear();
+    this.emit({ type: "login" });
     return info;
   }
 
@@ -228,6 +300,11 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     if (this.established) {
       return this.getSession();
     }
+    return this.exclusive(() => this.restoreSaved());
+  }
+
+  private async restoreSaved(): Promise<S> {
+    if (this.established) return this.getSession(); // a caller ahead in the queue restored it
 
     const saved = this.store.load();
     if (!saved) {
@@ -252,15 +329,16 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
       await strategy.restore(this.getSession(), saved);
       this.persist(strategy.id); // tokens may have been refreshed
     } catch (e) {
-      this.store.clear();
       this.reset();
+      if (isTransient(e)) throw e; // the saved session may be fine; keep it
+      this.loseAppSession();
       throw new NotAuthenticatedError(`restore failed: ${e instanceof Error ? e.message : e}`);
     }
 
     const alive = await this.getSession().verify();
     if (!alive) {
-      this.store.clear();
       this.reset();
+      this.loseAppSession();
       throw new NotAuthenticatedError("session expired");
     }
 
@@ -277,6 +355,46 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     this.established = false;
     this.activeStrategy = null;
     return this.ensureSession();
+  }
+
+  private loseAppSession(): void {
+    this.store.clear();
+    this.emit({ type: "session_lost", session: "app" });
+  }
+
+  /**
+   * Keepalive: renew the saved credentials before they expire, with no user
+   * interaction and never a login. Works from the store, so tokens rotated
+   * by another process are adopted rather than fought over. A transient
+   * failure leaves everything as it was; a rejection means the session is
+   * gone, which is recorded and reported as NotAuthenticatedError.
+   */
+  renew(leadMs = RENEW_LEAD_MS): Promise<{ expiresAt: number | null }> {
+    return this.exclusive(async () => {
+      const saved = this.store.load();
+      if (
+        !saved ||
+        saved.school !== this.school ||
+        (saved.provider !== undefined && saved.provider !== this.providerId)
+      ) {
+        throw new NotAuthenticatedError("no saved session");
+      }
+      const strategy = this.strategies.get(saved.authMethod) ?? this.defaultStrategy;
+      try {
+        return await strategy.renew(this.getSession(), saved, { now: this.now(), leadMs });
+      } catch (e) {
+        if (isTransient(e)) throw e;
+        // Another process (a CLI command next to the MCP server) may have rotated the
+        // credentials while we tried: its tokens are the live ones. Keep them, try later.
+        const current = this.store.load();
+        if (current && JSON.stringify(current.data) !== JSON.stringify(saved.data)) {
+          return { expiresAt: null };
+        }
+        this.reset();
+        this.loseAppSession();
+        throw new NotAuthenticatedError(`renewal failed: ${e instanceof Error ? e.message : e}`);
+      }
+    });
   }
 
   status(): { saved: PersistedSession | null; established: boolean } {
@@ -300,6 +418,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     if (strategy.context?.childInFocus !== studentId) {
       await strategy.focusChild(session, studentId);
       this.persist(strategy.id);
+      this.emit({ type: "child_switch" });
     }
     return this.guardian();
   }
@@ -319,6 +438,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     this.web = web;
     const saved = this.store.load();
     if (saved) this.store.save({ ...saved, web });
+    this.emit({ type: "web_login", since: web.savedAt });
     return { status: "web_logged_in", landedOn: web.landedOn, cookies: web.cookies.length };
   }
 
@@ -333,5 +453,6 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
     this.store.clear();
     this.web = null;
     this.reset();
+    this.emit({ type: "logout" });
   }
 }

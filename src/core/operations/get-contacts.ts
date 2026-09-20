@@ -1,5 +1,5 @@
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, withChild } from "./_shared.js";
+import { ChildSchema, withChild, FreshSchema } from "./_shared.js";
 
 export const getContacts = defineOperation({
   name: "get_contacts",
@@ -13,11 +13,12 @@ families: show only what the user asked for.
 
 Args:
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
 
 Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".`,
-  input: { child_id: ChildSchema },
+  input: { child_id: ChildSchema, fresh: FreshSchema },
   portal: ["getContacts"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {

@@ -1,5 +1,5 @@
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, WeekSchema, YearSchema, isoWeek, withChild } from "./_shared.js";
+import { ChildSchema, WeekSchema, YearSchema, isoWeek, withChild, FreshSchema } from "./_shared.js";
 
 export const getAssignments = defineOperation({
   name: "get_assignments",
@@ -10,12 +10,13 @@ Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - year (number, optional): Defaults to current year.
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { week, year, child, assignments: [{ id, title, subTitle, sortDate, submissionStatus, ... }] }.
 
 Use when: "vilka läxor/prov finns den här veckan", "vad ska lämnas in".
 For full details of one assignment, use get_assignment_detail.`,
-  input: { week: WeekSchema, year: YearSchema, child_id: ChildSchema },
+  input: { week: WeekSchema, year: YearSchema, child_id: ChildSchema, fresh: FreshSchema },
   portal: ["getAssignmentsWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, year, child_id }) {

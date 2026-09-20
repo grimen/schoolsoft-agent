@@ -6,10 +6,20 @@ import { ConnectorRuntime, type ConnectorRuntimeOptions } from "../../src/http/r
 import {
   MemorySessionStore,
   MemoryPendingLoginStore,
+  MemorySessionHistoryStore,
   resolveConfig,
 } from "../../src/core/index.js";
+import { FakeTimer } from "../helpers/fake-timer.js";
 
-function fixture(options: { timeout?: number; pinned?: string; now?: () => number } = {}) {
+function fixture(
+  options: {
+    timeout?: number;
+    pinned?: string;
+    now?: () => number;
+    keepalive?: string;
+    timer?: FakeTimer;
+  } = {},
+) {
   const store = new MemorySessionStore();
   let identity = options.pinned;
   let userId = 21;
@@ -18,8 +28,13 @@ function fixture(options: { timeout?: number; pinned?: string; now?: () => numbe
   let rejectRead = false;
   let onRead: (() => void) | undefined;
   const events: string[] = [];
+  const history = new MemorySessionHistoryStore();
   const runtimeOptions: ConnectorRuntimeOptions = {
-    config: resolveConfig([{ school: "taby" }], { home: "/unused", platform: "linux" }),
+    config: resolveConfig([{ school: "taby", keepalive: options.keepalive }], {
+      home: "/unused",
+      platform: "linux",
+    }),
+    keepaliveDeps: options.timer ? { timer: options.timer, random: () => 0 } : undefined,
     redirectUri: "https://parent.example/school/callback",
     store,
     identityStore: {
@@ -32,6 +47,7 @@ function fixture(options: { timeout?: number; pinned?: string; now?: () => numbe
     now: options.now,
     deps: {
       pending: new MemoryPendingLoginStore(),
+      history,
       fetchImpl: async (
         url: string,
         _school: string,
@@ -105,6 +121,7 @@ function fixture(options: { timeout?: number; pinned?: string; now?: () => numbe
     runtimeOptions,
     store,
     events,
+    history,
     identity: () => identity,
     rejectNextRead: (remaining = [100, 101]) => {
       children = remaining;
@@ -134,6 +151,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
   assert.deepEqual(await f.runtime.status(), {
     authenticated: false,
     loginInProgress: false,
+    sessionHistory: { recordedSince: null, app: null, web: null, losses: [] },
     children: [],
   });
   const { url } = await f.runtime.beginLogin();
@@ -150,14 +168,21 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     childInFocus: null,
   });
   assert.equal(f.identity(), "schoolsoft:taby:21");
-  assert.deepEqual(await f.runtime.status(), {
-    authenticated: true,
-    loginInProgress: false,
-    children: [
-      { id: 100, name: "Child 100" },
-      { id: 101, name: "Child 101" },
-    ],
-  });
+  const connected = await f.runtime.status();
+  assert.equal(connected.sessionHistory?.app?.activityCount, 0, "the login is on record");
+  assert.deepEqual(connected.sessionHistory?.losses, []);
+  assert.deepEqual(
+    { ...connected, sessionHistory: undefined },
+    {
+      authenticated: true,
+      loginInProgress: false,
+      sessionHistory: undefined,
+      children: [
+        { id: 100, name: "Child 100" },
+        { id: 101, name: "Child 101" },
+      ],
+    },
+  );
   await assert.rejects(f.runtime.execute("get_messages", {}, [100]), /not available/);
   await assert.rejects(f.runtime.execute("get_schedule", { week: 54 }, [100]), /arguments/);
   await assert.rejects(f.runtime.execute("get_schedule", { unknown: 1 }, [100]), /arguments/);
@@ -314,7 +339,11 @@ test("recovery revalidates the guardian and succeeds only for the original child
   });
   f.changeUser();
   f.rejectNextRead();
-  await assert.rejects(f.runtime.execute("get_schedule", { week: 2 }, [101]), /different guardian/);
+  // fresh: the week is cached by now, and only an upstream read can meet the changed guardian.
+  await assert.rejects(
+    f.runtime.execute("get_schedule", { week: 2, fresh: true }, [101]),
+    /different guardian/,
+  );
   assert.equal(f.store.load(), null);
   await f.runtime.close();
 });
@@ -343,7 +372,7 @@ test("queued revoked and aborted operations never read; interrupted results are 
   const late = new AbortController();
   f.onRead(() => late.abort());
   await assert.rejects(
-    f.runtime.execute("get_schedule", {}, [100], { signal: late.signal }),
+    f.runtime.execute("get_schedule", { fresh: true }, [100], { signal: late.signal }),
     /cancelled/,
   );
   await f.runtime.close();
@@ -392,7 +421,10 @@ test("post-read child authorization and focus are checked before releasing resul
   f.onRead(() => {
     f.runtime["manager"].guardian().childInFocus = 101;
   });
-  await assert.rejects(f.runtime.execute("get_schedule", {}, [100]), /session changed/);
+  await assert.rejects(
+    f.runtime.execute("get_schedule", { fresh: true }, [100]),
+    /session changed/,
+  );
   await f.runtime.close();
 });
 
@@ -520,4 +552,182 @@ test("calendar recovery refuses a fallback sibling or different guardian", async
     assert.equal(reads, 2);
     await f.runtime.close();
   }
+});
+
+// ------------------------------------------------------------------ read cache
+
+const reads = (f: ReturnType<typeof fixture>) => f.events.filter((e) => e.startsWith("read:"));
+
+test("cache: repeated reads are served from memory per child, fresh goes upstream, and a child never gets a sibling's copy", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  const both = [100, 101];
+  const first = await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, both);
+  assert.deepEqual(
+    await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, both),
+    first,
+  );
+  assert.equal(reads(f).length, 1, "the second answer came from memory");
+  const sibling = (await f.runtime.execute("get_schedule", { child_id: 101, week: 2 }, both)) as {
+    lessons: string[];
+  };
+  assert.deepEqual(sibling.lessons, ["JSESSIONID=101; hash=h; usertype=1"]);
+  const back = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, both)) as {
+    lessons: string[];
+  };
+  assert.deepEqual(back.lessons, ["JSESSIONID=100; hash=h; usertype=1"]);
+  assert.equal(
+    reads(f).length,
+    3,
+    "a child switch empties the cache: both were read for themselves",
+  );
+  await f.runtime.execute("get_schedule", { child_id: 100, week: 2, fresh: true }, both);
+  assert.equal(reads(f).length, 4);
+  // Lunch is the same school for both children; it is still keyed, and read, per child.
+  await f.runtime.execute("get_lunch_menu", { child_id: 100, week: 2 }, both);
+  await f.runtime.execute("get_lunch_menu", { child_id: 100, week: 2 }, both);
+  await f.runtime.execute("get_lunch_menu", { child_id: 101, week: 2 }, [101]);
+  assert.equal(reads(f).filter((e) => e === "read:lunch").length, 2);
+  await f.runtime.close();
+});
+
+test("cache: a revoked or cancelled app receives nothing from a warm cache, at whichever checkpoint the revocation lands", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  const args = { child_id: 100, week: 2 };
+  const warm = await f.runtime.execute("get_schedule", args, [100]);
+  const before = reads(f).length;
+  // How many times is authorization consulted on a pure cache hit?
+  let calls = 0;
+  assert.deepEqual(
+    await f.runtime.execute("get_schedule", args, [100], { check: () => void calls++ }),
+    warm,
+  );
+  assert.ok(calls >= 4, `queue, child validation, cache guard and release: saw ${calls}`);
+  for (let revokeAt = 1; revokeAt <= calls; revokeAt++) {
+    let n = 0;
+    await assert.rejects(
+      f.runtime.execute("get_schedule", args, [100], {
+        check: () => {
+          if (++n >= revokeAt) throw new Error("revoked");
+        },
+      }),
+      /revoked/,
+      `revoked at checkpoint ${revokeAt}`,
+    );
+  }
+  const aborted = new AbortController();
+  aborted.abort();
+  await assert.rejects(
+    f.runtime.execute("get_schedule", args, [100], { signal: aborted.signal }),
+    /cancelled/,
+  );
+  assert.equal(reads(f).length, before, "and none of it reached SchoolSoft either");
+  await f.runtime.close();
+});
+
+test("cache: an app without permission for a child cannot obtain that child's cached data, by id, by default focus or through lunch", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  const appA = [100, 101];
+  const appB = [100];
+  await f.runtime.execute("get_schedule", { child_id: 101, week: 2 }, appA);
+  await f.runtime.execute(
+    "get_calendar",
+    { child_id: 101, start_date: "2026-09-07", end_date: "2026-09-08" },
+    appA,
+  );
+  await f.runtime.execute("get_lunch_menu", { child_id: 101, week: 2 }, appA);
+  const before = reads(f).length;
+  // Child 101 is in focus and its answers are warm. App B may only see child 100.
+  for (const [name, a] of [
+    ["get_schedule", { child_id: 101, week: 2 }],
+    ["get_schedule", { week: 2 }],
+    ["get_calendar", { child_id: 101, start_date: "2026-09-07", end_date: "2026-09-08" }],
+    ["get_lunch_menu", { week: 2 }],
+  ] as const) {
+    await assert.rejects(f.runtime.execute(name, a, appB), /not permitted/, name);
+  }
+  assert.equal(reads(f).length, before);
+  const own = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, appB)) as {
+    child: { studentId: number };
+    lessons: string[];
+  };
+  assert.equal(own.child.studentId, 100);
+  assert.deepEqual(
+    own.lessons,
+    ["JSESSIONID=100; hash=h; usertype=1"],
+    "its own child, read for itself",
+  );
+  // Permission withdrawn for a child whose data is warm: refused, from memory too.
+  const narrowed = [100];
+  await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, narrowed);
+  narrowed.length = 0;
+  await assert.rejects(
+    f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, narrowed),
+    /No permitted/,
+  );
+  await f.runtime.close();
+});
+
+test("cache: logout empties it, and so does a focus change that slipped past serialization", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  await f.runtime.execute("get_schedule", { week: 2 }, [100]);
+  // A provider changing its context mid-hit is caught by the guard before the cached value is served.
+  f.runtime["manager"].guardian().childInFocus = 101;
+  const hits = reads(f).length;
+  const viaFocus = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, [100])) as {
+    lessons: string[];
+  };
+  assert.deepEqual(viaFocus.lessons, ["JSESSIONID=100; hash=h; usertype=1"]);
+  assert.equal(reads(f).length, hits + 1, "refocused, cache cleared, read again");
+  await f.runtime.logout();
+  await login(f.runtime);
+  await f.runtime.execute("get_schedule", { week: 2 }, [100]);
+  assert.equal(reads(f).length, hits + 2);
+  await f.runtime.close();
+});
+
+// ------------------------------------------------------------------- keepalive
+
+test("keepalive: off unless the deployment enables it; ticks queue behind reads, never log in, and end with the connector", async () => {
+  const offTimer = new FakeTimer();
+  const off = fixture({ timer: offTimer });
+  off.runtime.startKeepalive();
+  assert.equal(offTimer.pending.size, 0);
+  await off.runtime.close();
+
+  const timer = new FakeTimer();
+  const f = fixture({ keepalive: "app", timer, now: timer.now });
+  await login(f.runtime);
+  f.runtime.startKeepalive();
+  assert.equal(timer.pending.size, 1);
+  const order: string[] = [];
+  f.onRead(() => void order.push("read"));
+  const slowRead = f.runtime.execute("get_schedule", { week: 9 }, [100]);
+  const tick = timer.fire(); // fires while the read holds the queue
+  await slowRead;
+  await tick;
+  await f.runtime.status(); // the queue is serial: once this answers, the tick has run
+  assert.equal(
+    f.history.read()!.app!.activityCount,
+    1,
+    "one refresh on record, made after the read",
+  );
+  assert.equal(f.store.load()!.data.refreshToken, "refresh");
+  assert.deepEqual(order, ["read"]);
+  assert.equal(timer.pending.size, 1, "and the next check is scheduled");
+  await f.runtime.close();
+  assert.equal(timer.pending.size, 0, "close stops the timers");
+
+  const late = fixture({ keepalive: "app", timer: new FakeTimer() });
+  await login(late.runtime);
+  late.runtime.startKeepalive();
+  const pendingTimer = late.runtimeOptions.keepaliveDeps!.timer as FakeTimer;
+  const [entry] = [...pendingTimer.pending.values()];
+  await late.runtime.close();
+  entry.run(); // a timer that had already fired when the connector closed
+  await delay(5);
+  assert.equal(pendingTimer.pending.size, 0, "it is refused and never re-arms");
 });

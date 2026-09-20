@@ -7,6 +7,7 @@
 import { Command, CommanderError } from "commander";
 import {
   operations,
+  runOperation,
   describeError,
   detectLang,
   type ConfigSource,
@@ -42,6 +43,8 @@ export interface CliDeps {
    * used by `login --background` so the callback server outlives this process.
    */
   detach?: (argv: string[]) => number;
+  /** Clock for `doctor`'s session-history ages; injectable for tests. */
+  now?: () => number;
 }
 
 export class CliExit extends Error {
@@ -99,7 +102,7 @@ export function buildProgram(deps: CliDeps): Command {
         emit(await backgroundLogin(ctx, deps, program.opts(), args as Record<string, unknown>));
         return;
       }
-      const result = await op.run(ctx, args as never);
+      const result = await runOperation(op, ctx, args as never);
       emit(result);
     });
   }

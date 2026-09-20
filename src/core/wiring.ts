@@ -6,12 +6,12 @@
  * and an injection point for tests.
  */
 import type { Config } from "./config.js";
-import { SessionManager } from "./session/session-manager.js";
+import { RENEW_LEAD_MS, SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
 import type { SessionStore } from "./session/store.js";
 import { createCompositePortal, type BrowserPortalPart } from "./portal/composite.js";
 import { withSessionRecovery } from "./portal/recovering.js";
-import type { Portal } from "./portal/types.js";
+import { SessionLostError, type Portal } from "./portal/types.js";
 import { childOf, orgIdOf } from "./portal/guardian.js";
 import type { BrowserEngine } from "./browser/session.js";
 import { PlaywrightSession, type PlaywrightLoader } from "./browser/playwright.js";
@@ -19,6 +19,20 @@ import { webLogin, type WebSession } from "./browser/web-login.js";
 import { defaultOpenInBrowser } from "./auth/open-browser.js";
 import { FilePendingLoginStore, type PendingLoginStore } from "./session/pending-login.js";
 import type { ApiPortalContext, BrowserAuthorization, SchoolProvider } from "./provider/types.js";
+import {
+  FileSessionHistoryStore,
+  SessionHistoryRecorder,
+  type SessionHistoryStore,
+} from "./session/history.js";
+import { MemoryReadCache, type ReadCache } from "./cache/read-cache.js";
+import { DEFAULT_CACHE_TTL_MS } from "./cache/policy.js";
+import { withReadCache, type CacheScope } from "./portal/cached.js";
+import { withWebSessionObserver } from "./portal/observed.js";
+import {
+  KeepaliveScheduler,
+  type KeepaliveTask,
+  type KeepaliveTimer,
+} from "./keepalive/scheduler.js";
 import { getProvider } from "../providers/index.js";
 
 export { getProvider, providerIds } from "../providers/index.js";
@@ -42,19 +56,42 @@ export interface SessionDeps {
   /** Where a login in progress is recorded; default a file in the state dir. */
   pending?: PendingLoginStore;
   pid?: number;
+  /** Clock for the session manager, the history and the read cache. */
+  now?: () => number;
+  /** Where session lifetimes are recorded; default a file in the state dir. */
+  history?: SessionHistoryStore;
+  /** Read cache; default in-memory when config.cache is on. null disables it. */
+  cache?: ReadCache | null;
 }
+
+/** The read cache of each manager built here; createPortals finds it again (one cache per session, not per portal). */
+const CACHES = new WeakMap<SessionManager, ReadCache>();
 
 /** Production wiring of a SessionManager for a resolved Config. */
 export function createSessionManager(config: Config, deps: SessionDeps = {}): SessionManager {
   const provider = resolveProvider(config);
   let manager: SessionManager | null = null;
   const open = deps.openBrowser ?? defaultOpenInBrowser;
+  const now = deps.now ?? Date.now;
+  const cache =
+    deps.cache === undefined ? (config.cache ? new MemoryReadCache(now) : null) : deps.cache;
   manager = new SessionManager({
     school: config.school,
     provider: provider.id,
     store: deps.store ?? new FileSessionStore(config.stateDir),
     pending: deps.pending ?? new FilePendingLoginStore(config.stateDir),
     pid: deps.pid,
+    now,
+    history: new SessionHistoryRecorder(
+      deps.history ?? new FileSessionHistoryStore(config.stateDir),
+      now,
+    ),
+    onEvent: (event) => {
+      // Anything that changes who is reading, or for which child, empties the cache.
+      if (event.type !== "refresh" && event.type !== "web_use" && event.type !== "web_login") {
+        cache?.clear();
+      }
+    },
     isAlive: (pid) => {
       try {
         process.kill(pid, 0);
@@ -69,6 +106,7 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
       fetchImpl: deps.fetchImpl,
       browserAuthorization: deps.browserAuthorization,
       redirectUri: deps.redirectUri,
+      onRefresh: () => manager?.noteRefresh(),
       // Record the URL for callers that did not wait (login --background), then open it.
       openBrowser: (url) => {
         manager?.noteLoginUrl(url);
@@ -88,6 +126,7 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
             console.error(`Web login: complete BankID/SAML in the browser window (${url})`),
         })),
   });
+  if (cache) CACHES.set(manager, cache);
   return manager;
 }
 
@@ -107,6 +146,12 @@ export interface PortalDeps {
   playwrightLoader?: PlaywrightLoader;
   /** Injected HTTP for the API provider (tests). */
   fetchImpl?: unknown;
+}
+
+/** The cached portal, and the same portal with the cache bypassed and refreshed (`fresh: true`). */
+export interface Portals {
+  portal: Portal;
+  freshPortal: Portal;
 }
 
 /** The browser session bound to the manager's live cookies (app) and its web-login cookies (gated pages). */
@@ -161,6 +206,20 @@ export function createApiPortal(
 }
 
 export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Portal {
+  return createPortals(manager, deps).portal;
+}
+
+function cacheScope(manager: SessionManager): CacheScope | null {
+  try {
+    const g = manager.guardian();
+    const { school } = manager.getSession();
+    return { provider: manager.providerId, school, userId: g.userId, childId: g.childInFocus };
+  } catch {
+    return null; // no session yet: nothing is cached, nothing is served
+  }
+}
+
+export function createPortals(manager: SessionManager, deps: PortalDeps = {}): Portals {
   const provider = getProvider(manager.providerId);
   const api = createApiPortal(manager, deps);
   const browser =
@@ -177,11 +236,112 @@ export function createPortal(manager: SessionManager, deps: PortalDeps = {}): Po
     browser,
     browserUnavailableReason: deps.browserUnavailableReason,
   });
-  return withSessionRecovery(composite, {
+  const observed = withWebSessionObserver(composite, {
+    capabilities: provider.webSessionCapabilities,
+    onUse: () => manager.noteWebUse("read"),
+    onLost: () => manager.noteWebSessionLost(),
+  });
+  const recovering = withSessionRecovery(observed, {
     recover: async () => {
       deps.beforeRecovery?.();
       await manager.reauthenticate();
       await deps.afterRecovery?.();
     },
   });
+  const cache = CACHES.get(manager);
+  if (!cache) return { portal: recovering, freshPortal: recovering };
+  const cached = (mode: "read" | "refresh") =>
+    withReadCache(recovering, {
+      cache,
+      ttls: DEFAULT_CACHE_TTL_MS,
+      never: provider.webSessionCapabilities,
+      scope: () => cacheScope(manager),
+      guard: deps.beforeRead,
+      mode,
+    });
+  return { portal: cached("read"), freshPortal: cached("refresh") };
+}
+
+export interface KeepaliveDeps {
+  timer?: KeepaliveTimer;
+  now?: () => number;
+  random?: () => number;
+  hourOf?: (ms: number) => number;
+  /** Injected HTTP for the web-session touch (tests). */
+  fetchImpl?: unknown;
+  /** Runs every tick; a host with its own request queue passes it here (HTTP connector). */
+  wrap?: <T>(run: () => Promise<T>) => Promise<T>;
+  log?: (message: string) => void;
+}
+
+/** Timers that never keep the process alive on their own. */
+const unrefTimer: KeepaliveTimer = {
+  set: (run, ms) => setTimeout(run, ms).unref(),
+  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
+export const FIRST_KEEPALIVE_DELAY_MS = 60_000;
+export const APP_KEEPALIVE_INTERVAL_MS = 10 * 60_000;
+
+/**
+ * The opt-in keepalive for a long-lived process; null when the config leaves
+ * it off. The caller starts and stops it. It renews and touches, and never
+ * logs in: a task that meets a dead session stops until the user's next
+ * login (app) or web login (web) starts it again.
+ */
+export function createKeepalive(
+  config: Pick<Config, "keepalive">,
+  manager: SessionManager,
+  deps: KeepaliveDeps = {},
+): KeepaliveScheduler | null {
+  const { mode, webIntervalMs, quietHours } = config.keepalive;
+  if (mode === "off") return null;
+  const now = deps.now ?? Date.now;
+  const wrap = deps.wrap ?? (<T>(run: () => Promise<T>) => run());
+  const tasks: KeepaliveTask[] = [
+    {
+      name: "app",
+      intervalMs: APP_KEEPALIVE_INTERVAL_MS,
+      firstDelayMs: FIRST_KEEPALIVE_DELAY_MS,
+      run: () =>
+        wrap(async () => {
+          const { expiresAt } = await manager.renew(RENEW_LEAD_MS);
+          return expiresAt === null ? null : expiresAt - now() - RENEW_LEAD_MS;
+        }),
+    },
+  ];
+  if (mode === "all") {
+    const api = createApiPortal(manager, { fetchImpl: deps.fetchImpl });
+    tasks.push({
+      name: "web",
+      intervalMs: webIntervalMs,
+      firstDelayMs: FIRST_KEEPALIVE_DELAY_MS,
+      run: () =>
+        wrap(async () => {
+          try {
+            await api.touchWebSession();
+          } catch (e) {
+            if (e instanceof SessionLostError && e.web) manager.noteWebSessionLost();
+            throw e;
+          }
+          manager.noteWebUse("keepalive");
+          return null;
+        }),
+    });
+  }
+  const scheduler = new KeepaliveScheduler({
+    tasks,
+    timer: deps.timer ?? unrefTimer,
+    now,
+    random: deps.random ?? Math.random,
+    quietHours,
+    hourOf: deps.hourOf,
+    log: deps.log,
+  });
+  manager.subscribe((event) => {
+    if (event.type === "login") scheduler.resume("app");
+    if (event.type === "web_login") scheduler.resume("web");
+    if (event.type === "logout") scheduler.stop();
+  });
+  return scheduler;
 }

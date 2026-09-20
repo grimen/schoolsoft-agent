@@ -18,6 +18,10 @@ Never prompts the user.
 
 Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?, children?, reason? }.
   Also loginInProgress: null or { state: "running" | "failed", startedAt, url?, error? } for a login started with background: true.
+  Also keepalive ("off" | "app" | "all") and sessionHistory: { recordedSince, app, web, losses } where app and web are
+  null or { since, ageMinutes, lastActivity, idleMinutes, activityCount, longestGapSurvivedMinutes } and losses lists
+  the last observed session losses as { session: "app" | "web", at, ageMinutes, idleMinutes, ... }. Timestamps and
+  counters only; it shows how long SchoolSoft really keeps a login alive.
 
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.`,
@@ -31,6 +35,8 @@ errors from other operations.`,
       return {
         authenticated: true as const,
         loginInProgress: progress(ctx.manager.pendingLogin()),
+        keepalive: ctx.config.keepalive.mode,
+        sessionHistory: ctx.manager.sessionHistory(),
         school: ctx.config.school,
         authMethod: saved?.authMethod,
         savedAt: saved ? new Date(saved.savedAt).toISOString() : undefined,
@@ -53,6 +59,8 @@ errors from other operations.`,
           school: ctx.config.school,
           reason: e.message,
           loginInProgress: progress(ctx.manager.pendingLogin()),
+          keepalive: ctx.config.keepalive.mode,
+          sessionHistory: ctx.manager.sessionHistory(),
         };
       }
       throw e;

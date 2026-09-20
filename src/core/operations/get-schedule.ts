@@ -1,5 +1,5 @@
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, WeekSchema, isoWeek, withChild } from "./_shared.js";
+import { ChildSchema, WeekSchema, isoWeek, withChild, FreshSchema } from "./_shared.js";
 
 export const getSchedule = defineOperation({
   name: "get_schedule",
@@ -12,11 +12,12 @@ and teacher.
 Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { week, child, lessons: [...] }
 
 Use when: "vad har barnet på schemat", "när slutar skolan på fredag".`,
-  input: { week: WeekSchema, child_id: ChildSchema },
+  input: { week: WeekSchema, child_id: ChildSchema, fresh: FreshSchema },
   portal: ["getScheduleWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, child_id }) {

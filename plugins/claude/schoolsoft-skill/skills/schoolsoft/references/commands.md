@@ -83,6 +83,7 @@ and teacher.
 Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { week, child, lessons: [...] }
 
@@ -92,6 +93,7 @@ Use when: "vad har barnet på schemat", "när slutar skolan på fredag".
 |---|---|---|
 | `--week <number>` | no | ISO week number 1–53. Defaults to the current week. |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-schedule --week 37
@@ -105,6 +107,7 @@ Args:
   - start_date and end_date (optional): inclusive YYYY-MM-DD range, at most 366 days.
     Supply both or omit both for the current Monday–Sunday in Europe/Stockholm.
   - child_id (optional): from list_children; defaults to the child in focus.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { start_date, end_date, timezone, child, entries: [...] }.
 Entries retain calendar fields (name, startDate, endDate, allDay and optional
@@ -121,6 +124,7 @@ Use when: "What is happening at school next week?", "Show September's calendar",
 | `--start-date <value>` | no | Inclusive start date, YYYY-MM-DD. Supply with end_date or omit both for this week. |
 | `--end-date <value>` | no | Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end. |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-calendar
@@ -133,6 +137,7 @@ Get the school lunch menu for a given ISO week (the child's school).
 Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { week, child, menu: [{ week, dayId (Mon=1…Fri=5), dishes: [{ mealType, description }] }] }.
 
@@ -142,6 +147,7 @@ Use when: "vad är det till lunch", "vad serveras på onsdag".
 |---|---|---|
 | `--week <number>` | no | ISO week number 1–53. Defaults to the current week. |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-lunch-menu
@@ -155,6 +161,7 @@ Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - year (number, optional): Defaults to current year.
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { week, year, child, assignments: [{ id, title, subTitle, sortDate, submissionStatus, ... }] }.
 
@@ -166,6 +173,7 @@ For full details of one assignment, use get_assignment_detail.
 | `--week <number>` | no | ISO week number 1–53. Defaults to the current week. |
 | `--year <number>` | no | Calendar year. Defaults to the current year. |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-assignments
@@ -177,6 +185,7 @@ Get full details for one assignment, including its sections.
 
 Args:
   - id (number): Assignment id from get_assignments.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { assignment: { view, sections } }.
 
@@ -186,6 +195,7 @@ assessment, after get_assignments listed it.
 | Flag | Required | Description |
 |---|---|---|
 | `--id <number>` | yes | Assignment id from get_assignments |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-assignment-detail --id 1
@@ -198,6 +208,7 @@ Get news/announcements from the child's school.
 Args:
   - child_id (number, optional): from list_children.
   - limit (number, optional): max items, default 20.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, news: [{ id, title, description, category, creDate, toDate, read, hasAttachment, author }] }.
 
@@ -207,6 +218,7 @@ Use when: "något nytt från skolan", "senaste nyheterna".
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--limit <number>` | no | Max items, default 20 |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-news
@@ -265,6 +277,7 @@ what the class has been doing, newest first.
 Args:
   - child_id (number, optional): from list_children.
   - limit (number, optional): max posts, default 20.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, entries: [{ id, date, title, author, text, recipients, comments }] }.
 
@@ -274,6 +287,7 @@ Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från 
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--limit <number>` | no | Max items, default 20 |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-activity-log
@@ -290,6 +304,7 @@ families: show only what the user asked for.
 
 Args:
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
 
@@ -298,6 +313,7 @@ Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-contacts
@@ -309,6 +325,7 @@ List the child's subject rooms (Ämne) with groups and teachers.
 
 Args:
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
 
@@ -317,6 +334,7 @@ Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-subject-rooms
@@ -354,6 +372,7 @@ Returns links only; it does not download files.
 
 Args:
   - child_id (number, optional): from list_children.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, files: [{ name, url, type: "file" | "link", category? }] }.
 
@@ -362,6 +381,7 @@ Use when: "finns det något dokument från skolan om …", "länken till fritids
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+| `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
 
 ```bash
 schoolsoft-agent get-files
@@ -562,6 +582,10 @@ Never prompts the user.
 
 Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?, children?, reason? }.
   Also loginInProgress: null or { state: "running" | "failed", startedAt, url?, error? } for a login started with background: true.
+  Also keepalive ("off" | "app" | "all") and sessionHistory: { recordedSince, app, web, losses } where app and web are
+  null or { since, ageMinutes, lastActivity, idleMinutes, activityCount, longestGapSurvivedMinutes } and losses lists
+  the last observed session losses as { session: "app" | "web", at, ageMinutes, idleMinutes, ... }. Timestamps and
+  counters only; it shows how long SchoolSoft really keeps a login alive.
 
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.

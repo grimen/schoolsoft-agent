@@ -9,7 +9,7 @@ import {
   type Config,
   type ConfigSource,
   type OperationContext,
-  createPortal,
+  createPortals,
   createSessionManager,
   resolveProvider,
   defaultConfigDir,
@@ -83,7 +83,7 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
     const manager = createSessionManager(config, { pid: process.pid });
     const built: OperationContext = {
       manager,
-      portal: createPortal(manager, { engine: config.browser }),
+      ...createPortals(manager, { engine: config.browser }),
       provider: resolveProvider(config),
       config,
       log: inputs.log ?? ((m) => console.error(m)),
