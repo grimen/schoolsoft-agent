@@ -41,6 +41,8 @@ try {
     "-e",
     "SCHOOLSOFT_SCHOOL=synthetic-fixture",
     "-e",
+    "SCHOOLSOFT_PROXY_HOPS=1",
+    "-e",
     "SCHOOLSOFT_ADMIN_PASSWORD=synthetic-admin-password-for-container-test",
     "-e",
     "SCHOOLSOFT_STORAGE_KEY=" + "ab".repeat(32),
@@ -75,7 +77,7 @@ try {
     );
   }
   console.log(output);
-  assert.match(output, /Connector flow passed: 10 stages\./);
+  assert.match(output, /Connector flow passed: 11 stages\./);
   docker("stop", "--timeout", "5", name);
   assert.equal(
     docker("inspect", "--format", "{{.State.ExitCode}}", name),

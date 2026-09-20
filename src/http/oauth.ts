@@ -21,6 +21,7 @@ import type {
   OAuthTokenRevocationRequest,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
+import { clientKey } from "./client-key.js";
 
 export interface ConnectorGrant {
   resourceUrl: string;
@@ -41,6 +42,8 @@ export interface PendingConsent {
   state?: string;
   challenge: string;
   expiresAt: number;
+  /** Normalised caller address (client-key.ts); only used to share the pending cap fairly. */
+  requester: string;
 }
 interface Code {
   clientId: string;
@@ -48,6 +51,8 @@ interface Code {
   redirectUri: string;
   challenge: string;
   expiresAt: number;
+  /** Set once exchanged. The entry stays until expiry so a second use is recognised. */
+  used?: true;
 }
 interface Token {
   clientId: string;
@@ -73,9 +78,15 @@ interface Options {
   repository: OAuthRepository;
   now?: () => number;
   randomToken?: () => string;
+  /** Capacity overrides for tests; production uses LIMITS. */
+  limits?: Partial<typeof LIMITS>;
 }
+/** Bounds on state that anonymous callers can create. */
+const LIMITS = { clients: 256, pending: 128, pendingPerRequester: 8 };
 const hash = (value: string) => createHash("sha256").update(value).digest("hex");
 const DAY = 86_400_000;
+/** Registration time in seconds; registrations without one count as oldest. */
+const issuedAt = (client: OAuthClientInformationFull) => client.client_id_issued_at ?? 0;
 
 /** Callback destinations are exact known vendor paths; never fetch client-supplied URLs. */
 export function approvedRedirect(value: string): boolean {
@@ -107,8 +118,10 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
   private state: OAuthState;
   private readonly now: () => number;
   private readonly random: () => string;
+  private readonly limits: typeof LIMITS;
   constructor(private readonly options: Options) {
     this.now = options.now ?? Date.now;
+    this.limits = { ...LIMITS, ...options.limits };
     this.random = options.randomToken ?? (() => randomBytes(32).toString("base64url"));
     this.state = options.repository.read() ?? {
       clients: {},
@@ -126,15 +139,20 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
           throw new InvalidClientMetadataError("Unsupported callback URL");
         this.prune();
         for (const [id, existing] of Object.entries(this.state.clients)) {
-          if (
-            (existing.client_id_issued_at ?? 0) * 1000 + DAY <= this.now() &&
-            !Object.values(this.state.grants).some((grant) => grant.clientId === id) &&
-            !Object.values(this.state.pending).some((pending) => pending.clientId === id)
-          )
+          if (issuedAt(existing) * 1000 + DAY <= this.now() && !this.clientInUse(id))
             delete this.state.clients[id];
         }
-        if (Object.keys(this.state.clients).length >= 256)
-          throw new TemporarilyUnavailableError("Client registration limit reached");
+        // Anonymous callers can register, so a full table makes room instead of refusing:
+        // the oldest registration that holds neither a grant nor a pending consent goes.
+        // Clients in use are never evicted; only when every slot is in use is the caller
+        // turned away.
+        if (Object.keys(this.state.clients).length >= this.limits.clients) {
+          const idle = Object.values(this.state.clients)
+            .filter((candidate) => !this.clientInUse(candidate.client_id))
+            .sort((a, b) => issuedAt(a) - issuedAt(b))[0];
+          if (!idle) throw new TemporarilyUnavailableError("Client registration limit reached");
+          delete this.state.clients[idle.client_id];
+        }
         const registered = {
           ...client,
           client_id: this.random(),
@@ -145,6 +163,31 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
         return structuredClone(registered);
       },
     };
+  }
+  private clientInUse(id: string): boolean {
+    return (
+      Object.values(this.state.grants).some((grant) => grant.clientId === id) ||
+      Object.values(this.state.pending).some((pending) => pending.clientId === id)
+    );
+  }
+  /**
+   * Consent requests are created before anyone has authenticated, so the table makes
+   * room rather than refusing. Whoever holds the most requests loses their oldest one:
+   * a flood displaces itself, and a parent's single request survives unless the flood
+   * comes from more distinct networks than the table has slots.
+   */
+  private admitPending(requester: string): void {
+    const all = Object.values(this.state.pending);
+    const own = all.filter((pending) => pending.requester === requester);
+    let evict: PendingConsent | undefined;
+    if (own.length >= this.limits.pendingPerRequester) evict = own[0];
+    else if (all.length >= this.limits.pending) {
+      const held = new Map<string, PendingConsent[]>();
+      for (const pending of all)
+        held.set(pending.requester, [...(held.get(pending.requester) ?? []), pending]);
+      evict = [...held.values()].sort((a, b) => b.length - a.length)[0][0];
+    }
+    if (evict) delete this.state.pending[evict.id];
   }
   private save(): void {
     this.options.repository.write(structuredClone(this.state));
@@ -184,18 +227,20 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
     )
       throw new InvalidRequestError("Invalid authorization request");
     this.prune();
-    if (Object.keys(this.state.pending).length >= 128)
-      throw new TemporarilyUnavailableError("Authorization limit reached");
+    const scopes = this.scopes(params.scopes ?? this.options.scopes);
+    const requester = clientKey(res.req?.ip);
+    this.admitPending(requester);
     const id = this.random();
     this.state.pending[id] = {
       id,
       clientId: client.client_id,
       clientName: client.client_name ?? "AI connector",
-      scopes: this.scopes(params.scopes ?? this.options.scopes),
+      scopes,
       redirectUri: params.redirectUri,
       state: params.state,
       challenge: params.codeChallenge,
       expiresAt: this.now() + 10 * 60_000,
+      requester,
     };
     this.save();
     res.redirect(`/owner/consent?request=${encodeURIComponent(id)}`);
@@ -253,6 +298,12 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
     const stored = this.state.codes[hash(code)];
     if (!stored || stored.clientId !== client.client_id || stored.expiresAt <= this.now())
       throw new InvalidGrantError("Invalid authorization code");
+    if (stored.used) {
+      // Second presentation by the same client: the code leaked or was intercepted.
+      // Withdraw everything issued from it (OAuth 2.0 Security BCP, RFC 9700 4.5).
+      this.revokeGrant(stored.grantId);
+      throw new InvalidGrantError("Authorization code reused; reconnect this client");
+    }
     this.verifyGrant(stored.grantId);
     return stored;
   }
@@ -312,7 +363,7 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
       scopes,
       expiresAt: this.now() + 5 * 60_000,
     };
-    if (codeHash !== undefined) delete next.codes[codeHash];
+    if (codeHash !== undefined) next.codes[codeHash].used = true;
     // Publish the next state only after persistence succeeds; failed issuance is retryable.
     this.options.repository.write(structuredClone(next));
     this.state = next;

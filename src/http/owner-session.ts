@@ -9,7 +9,6 @@ export class OwnerSessions {
   // Per-process random key for the comparison MAC below; never persisted.
   private readonly compareKey = randomBytes(32);
   private readonly passwordMac: Buffer;
-  private attempts = new Map<string, number[]>();
   constructor(
     password: string,
     private now: () => number = Date.now,
@@ -24,14 +23,17 @@ export class OwnerSessions {
   private mac(value: string): Buffer {
     return createHmac("sha256", this.compareKey).update(value).digest();
   }
-  login(password: unknown, client = "local"): { token: string; session: OwnerSession } | undefined {
+  /** Constant-time check of a candidate; anything but a string never matches. */
+  matches(password: unknown): boolean {
+    return typeof password === "string" && timingSafeEqual(this.mac(password), this.passwordMac);
+  }
+  // A correct password is never refused: any per-address refusal would let whoever
+  // shares the owner's address keep the owner out. Guessing is made impractical by the
+  // enforced 32+ character deployment secret, and wrong-password floods are bounded by
+  // the route's rate limiter in server.ts, which requests carrying the secret bypass.
+  login(password: unknown): { token: string; session: OwnerSession } | undefined {
+    if (!this.matches(password)) return undefined;
     const now = this.now();
-    const attempts = (this.attempts.get(client) ?? []).filter((t) => t > now - 60_000);
-    if (attempts.length >= 5) return undefined;
-    if (this.attempts.size >= 1024) this.attempts.delete(this.attempts.keys().next().value!);
-    this.attempts.set(client, [...attempts, now]);
-    if (typeof password !== "string") return undefined;
-    if (!timingSafeEqual(this.mac(password), this.passwordMac)) return undefined;
     for (const [token, session] of this.sessions)
       if (session.expires <= now) this.sessions.delete(token);
     if (this.sessions.size >= 16) this.sessions.clear();

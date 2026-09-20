@@ -259,11 +259,10 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
     assert.equal(json(wrongVerifier).error, "invalid_grant");
     const exchanged = await exchange(verifier);
     assert.equal(exchanged.status, 200);
-    assert.equal((await exchange(verifier)).status, 400, "authorization codes are one-use");
     const tokens = json(exchanged);
     assert.equal(tokens.token_type, "Bearer");
     assert.equal(tokens.scope, scopes.join(" "));
-    return { clientId, tokens };
+    return { clientId, tokens, replayCode: () => exchange(verifier) };
   }
 
   const limitedScopes = ["list_children", "get_schedule", "get_lunch_menu"];
@@ -357,6 +356,16 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   assert.ok(!(await owner("/owner")).text.includes("Smoke full app"));
   step("dashboard revocation cuts off access and refresh immediately");
 
+  // --- Authorization code replay ------------------------------------------------
+  const codeReplay = await connect("Smoke replay app", limitedScopes, [ALLOWED.studentId]);
+  assert.equal((await rpc(codeReplay.tokens.access_token, "tools/list")).status, 200);
+  const secondUse = await codeReplay.replayCode();
+  assert.equal(secondUse.status, 400);
+  assert.equal(json(secondUse).error, "invalid_grant");
+  assert.equal((await rpc(codeReplay.tokens.access_token, "tools/list")).status, 401);
+  assert.equal((await refresh(codeReplay.clientId, codeReplay.tokens.refresh_token)).status, 400);
+  step("a codeReplay authorization code withdraws the tokens issued from it");
+
   // --- Owner login throttling (own forwarded address; the owner stays usable) --
   const attacker = { "X-Forwarded-For": "198.51.100.77" };
   let limitedAt = 0;
@@ -368,8 +377,11 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
     } else assert.equal(response.status, 401);
   }
   assert.equal(limitedAt, 21, "the 21st attempt within a minute is rate limited");
+  const ownerFromThere = await form("/owner/login", { password: adminPassword }, attacker);
+  assert.equal(ownerFromThere.status, 302, "the flood guard never refuses the correct password");
+  assert.equal((await form("/owner/login", { password: "guess-again" }, attacker)).status, 429);
   assert.equal((await owner("/owner")).status, 200);
-  step("owner login rate limit answers 429 with Retry-After");
+  step("owner login rate limit answers 429 with Retry-After, yet admits the owner");
 
   // --- Sign-out --------------------------------------------------------------
   const signout = await ownerForm("/owner/signout", { csrf });

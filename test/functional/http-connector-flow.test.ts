@@ -29,6 +29,8 @@ test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and t
     SCHOOLSOFT_STORAGE_KEY: "cd".repeat(32),
     SCHOOLSOFT_SCHOOL: "synthetic-fixture",
     SCHOOLSOFT_STATE_DIR: stateDir,
+    // The flow plays one reverse proxy so it can act as several callers.
+    SCHOOLSOFT_PROXY_HOPS: "1",
   });
   const upstream = fakeUpstream();
   // Anything that bypassed the injected seam would surface here instead of on the network.
@@ -44,7 +46,7 @@ test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and t
       origin: config.publicUrl,
       adminPassword: config.adminPassword,
     });
-    assert.equal(steps.length, 10);
+    assert.equal(steps.length, 11);
     // The limited grant never reached the calendar endpoints; only the full grant did, once.
     const agenda = upstream.calls.filter((call) => call.includes("/agenda"));
     assert.deepEqual(agenda, [

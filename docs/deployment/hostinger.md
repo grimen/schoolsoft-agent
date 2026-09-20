@@ -112,6 +112,10 @@ docker compose -f compose.connector.yaml ps
 Open `https://school.your-domain.com` using your actual name. You should see the
 owner sign-in page without a certificate warning. If it fails, check DNS and
 ports 80/443 before changing passwords. Caddy creates and renews the certificate.
+The Compose file already tells the connector that one proxy (Caddy) is in front
+(`SCHOOLSOFT_PROXY_HOPS=1`); leave it unless you put another proxy or CDN in front
+of the server, in which case read
+[If you change the network setup](connector.md#if-you-change-the-network-setup).
 
 Finish [connecting SchoolSoft and your AI app](connector.md#connect-your-school-and-ai-app).
 Closing the Web Console does not stop these background services.
