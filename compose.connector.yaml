@@ -16,6 +16,9 @@ services:
       SCHOOLSOFT_ADMIN_PASSWORD: ${SCHOOLSOFT_ADMIN_PASSWORD:?Set SCHOOLSOFT_ADMIN_PASSWORD in .env}
       SCHOOLSOFT_STORAGE_KEY: ${SCHOOLSOFT_STORAGE_KEY:?Set SCHOOLSOFT_STORAGE_KEY in .env}
       SCHOOLSOFT_STATE_DIR: /data
+      # Caddy below is the one proxy in front; it overwrites visitor-sent forwarding headers.
+      # The connector's own default is 0 (trust none). See docs/deployment/connector.md.
+      SCHOOLSOFT_PROXY_HOPS: "1"
     volumes:
       - schoolsoft-state:/data
     tmpfs:

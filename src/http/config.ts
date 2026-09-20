@@ -2,7 +2,8 @@
 import { InputError } from "../core/index.js";
 export interface ConnectorConfig {
   publicUrl: string;
-  proxyHops?: number;
+  /** Reverse proxies in front whose forwarding header is trusted; 0 trusts none. */
+  proxyHops: number;
   adminPassword: string;
   storageKey: Buffer;
   stateDir: string;
@@ -28,6 +29,10 @@ export function connectorConfig(env: Record<string, string | undefined>): Connec
   const adminPassword = env.SCHOOLSOFT_ADMIN_PASSWORD ?? "";
   if (adminPassword.length < 32)
     throw new InputError("SCHOOLSOFT_ADMIN_PASSWORD needs at least 32 characters");
+  // The secret's unpredictability is the only guess protection (a correct password is
+  // never throttled), so refuse the obviously typed-in kind. Generated values pass.
+  if (new Set(adminPassword).size < 8)
+    throw new InputError("SCHOOLSOFT_ADMIN_PASSWORD must be randomly generated");
   const raw = env.SCHOOLSOFT_STORAGE_KEY ?? "";
   const storageKey = /^[a-fA-F0-9]{64}$/.test(raw)
     ? Buffer.from(raw, "hex")
@@ -43,7 +48,8 @@ export function connectorConfig(env: Record<string, string | undefined>): Connec
   const port = Number(env.PORT ?? 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new InputError("PORT must be a port number");
-  const proxyHops = Number(env.SCHOOLSOFT_PROXY_HOPS ?? 1);
+  // Safe default: trust no forwarding header. Each deployment recipe sets its own value.
+  const proxyHops = Number(env.SCHOOLSOFT_PROXY_HOPS ?? 0);
   if (!Number.isInteger(proxyHops) || proxyHops < 0 || proxyHops > 2)
     throw new InputError("SCHOOLSOFT_PROXY_HOPS must be 0, 1 or 2");
   return {
