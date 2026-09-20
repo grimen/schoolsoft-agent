@@ -28,6 +28,7 @@ export const ROUTING: Required<CapabilityRouting> = {
   getAttendanceReport: ["browser"],
   getAssessmentCriteria: ["browser"],
   getGradePrognosis: ["api"],
+  reportAbsence: ["api"],
 };
 
 /** Capabilities behind SchoolSoft's GDPR gate: need the web-login session, whichever backend serves them. */

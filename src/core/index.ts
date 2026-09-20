@@ -118,6 +118,7 @@ export { childOf, orgIdOf } from "./portal/guardian.js";
 export type { GuardianContext } from "./portal/guardian.js";
 export {
   CAPABILITIES,
+  WRITE_CAPABILITIES,
   BROWSER_INSTALL_HINT,
   BrowserRequiredError,
   CapabilityNotSupportedError,
@@ -141,6 +142,8 @@ export type {
   PortalFile,
   TablePage,
   TableSection,
+  AbsenceNotice,
+  AbsenceReceipt,
 } from "./portal/types.js";
 export { createCompositePortal, providerOf } from "./portal/composite.js";
 export type { ApiPortalPart, BrowserPortalPart } from "./portal/composite.js";

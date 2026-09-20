@@ -303,3 +303,13 @@ test("the cache never touches the disk: no filesystem, process or network module
     }
   }
 });
+
+test("a write is never cached: the same report reaches the portal every time, and has no TTL", async () => {
+  const s = setup();
+  const notice = { studentId: 100, startDate: "2026-09-21", endDate: "2026-09-21", fullDay: true };
+  const first = await s.portal.reportAbsence(notice);
+  const second = await s.portal.reportAbsence(notice);
+  assert.notDeepEqual(first, second);
+  assert.equal(s.upstream.calls.filter((c) => c.startsWith("reportAbsence(")).length, 2);
+  assert.equal(DEFAULT_CACHE_TTL_MS.reportAbsence, undefined);
+});

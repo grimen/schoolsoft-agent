@@ -6,17 +6,25 @@ import {
   type SessionHistory,
   type PersistedSession,
 } from "../core/index.js";
-import { connectorConfig } from "./config.js";
+import { connectorConfig, type ConnectorConfig } from "./config.js";
 import { EncryptedRepository } from "./storage.js";
 import { ConnectorOAuthProvider, type OAuthState } from "./oauth.js";
 import { ConnectorRuntime, CONNECTOR_OPERATIONS } from "./runtime.js";
 import { createConnectorApp } from "./server.js";
-export function startConnector(
-  env: Record<string, string | undefined>,
+type ConnectorKeepaliveDeps = Pick<
+  KeepaliveDeps,
+  "timer" | "random" | "hourOf" | "fetchImpl" | "log"
+>;
+/**
+ * The object graph without a listener, so callers choose where (and whether) to listen.
+ * Nothing is started here: `startConnector` starts the keepalive.
+ */
+export function composeConnector(
+  config: ConnectorConfig,
   deps?: SessionDeps,
-  keepaliveDeps?: Pick<KeepaliveDeps, "timer" | "random" | "hourOf" | "fetchImpl" | "log">,
+  env: Record<string, string | undefined> = {},
+  keepaliveDeps?: ConnectorKeepaliveDeps,
 ) {
-  const config = connectorConfig(env);
   const session = new EncryptedRepository<PersistedSession>(
     config.stateDir,
     "session",
@@ -61,8 +69,16 @@ export function startConnector(
     keepaliveDeps,
     redirectUri: config.publicUrl + "/schoolsoft/callback",
   });
+  return { app: createConnectorApp({ config, oauth, runtime }), runtime };
+}
+export function startConnector(
+  env: Record<string, string | undefined>,
+  deps?: SessionDeps,
+  keepaliveDeps?: ConnectorKeepaliveDeps,
+) {
+  const config = connectorConfig(env);
+  const { app, runtime } = composeConnector(config, deps, env, keepaliveDeps);
   runtime.startKeepalive();
-  const app = createConnectorApp({ config, oauth, runtime });
   const server = app.listen(config.port, "0.0.0.0");
   return { server, runtime };
 }

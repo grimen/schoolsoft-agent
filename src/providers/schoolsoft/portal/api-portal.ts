@@ -9,11 +9,19 @@
  *    assignments, subject rooms.
  *  - Legacy /rest (app cookies): activity log.
  *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
+ *  - Absence (app cookies): the one write, absence-notice; body unverified.
  *
  * Verified live against Täby 2026-09-06; see docs/reference/schoolsoft-api.md.
  */
 import type { ApiPortalPart } from "../../../core/portal/composite.js";
-import type { ActivityEntry, GuardianParent, SubjectRoom } from "../../../core/portal/types.js";
+import type {
+  AbsenceNotice,
+  AbsenceReceipt,
+  ActivityEntry,
+  GuardianParent,
+  SubjectRoom,
+} from "../../../core/portal/types.js";
+import { AbsenceApi } from "./api/absence-api.js";
 import { SchoolsoftHttp, type ApiFetch } from "./api/transport.js";
 import { EvaApi } from "./api/eva-api.js";
 import { WebviewApi } from "./api/webview-api.js";
@@ -43,12 +51,14 @@ export class ApiPortal implements ApiPortalPart {
   readonly webview: WebviewApi;
   readonly legacy: LegacyApi;
   readonly webSession: WebSessionApi;
+  readonly absence: AbsenceApi;
 
   constructor(o: GuardianApiOptions) {
     const http = new SchoolsoftHttp(o.school, o.fetchImpl, o.beforeRead);
     this.eva = new EvaApi(http, o.accessToken);
     this.webview = new WebviewApi(http, o.cookieHeader);
     this.legacy = new LegacyApi(http, o.cookieHeader);
+    this.absence = new AbsenceApi(http, o.cookieHeader);
     this.webSession = new WebSessionApi(
       http,
       () => o.webCookieHeader?.() ?? null,
@@ -116,6 +126,11 @@ export class ApiPortal implements ApiPortalPart {
   }
   touchWebSession(): Promise<void> {
     return this.webSession.touch();
+  }
+
+  // Writes
+  reportAbsence(notice: AbsenceNotice): Promise<AbsenceReceipt> {
+    return this.absence.reportAbsence(notice);
   }
 }
 

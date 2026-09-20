@@ -23,6 +23,42 @@ export const MESSAGES = {
       "SchoolSoft returned an unexpected calendar response. The full calendar could not be read.",
     sv: () => "SchoolSoft returnerade ett oväntat kalendersvar. Hela kalendern kunde inte läsas.",
   },
+  writes_disabled: {
+    en: (p) =>
+      `${p.what} changes data at SchoolSoft, and write operations are switched off in this configuration.`,
+    sv: (p) =>
+      `${p.what} ändrar uppgifter i SchoolSoft, och skrivande åtgärder är avstängda i den här konfigurationen.`,
+  },
+  absence_window: {
+    en: (p) =>
+      `Use valid YYYY-MM-DD dates from today (Europe/Stockholm) onwards, end_date not before start_date, at most ${p.max} days. For part of a day give both from_time and to_time as HH:MM, to_time later, on a single date.`,
+    sv: (p) =>
+      `Ange giltiga datum i formatet YYYY-MM-DD från och med idag (Europe/Stockholm), end_date inte före start_date, högst ${p.max} dagar. För del av dag anges både from_time och to_time som HH:MM, to_time senare, för ett enda datum.`,
+  },
+  absence_child_required: {
+    en: (p) => `Say which child is absent; nothing is assumed for a report. Children: ${p.known}.`,
+    sv: (p) => `Ange vilket barn som är frånvarande; inget antas för en anmälan. Barn: ${p.known}.`,
+  },
+  child_name_not_found: {
+    en: (p) => `"${p.name}" does not identify exactly one child. Children: ${p.known}.`,
+    sv: (p) => `"${p.name}" pekar inte ut exakt ett barn. Barn: ${p.known}.`,
+  },
+  write_not_repeated: {
+    en: () =>
+      `SchoolSoft rejected the session while the request was being sent. The session has been renewed, but the request was not sent again, so nothing is reported twice.`,
+    sv: () =>
+      `SchoolSoft avvisade sessionen medan begäran skickades. Sessionen har förnyats, men begäran skickades inte igen, så inget anmäls två gånger.`,
+  },
+  write_outcome_unknown: {
+    en: (p) =>
+      `The request to SchoolSoft failed (${p.detail}) after it may have been sent; it is not known whether ${p.what} was registered. It was not sent again.`,
+    sv: (p) =>
+      `Begäran till SchoolSoft misslyckades (${p.detail}) efter att den kan ha skickats; det är okänt om ${p.what} registrerades. Den skickades inte igen.`,
+  },
+  absence_rejected: {
+    en: (p) => `SchoolSoft refused the absence report (HTTP ${p.status}).`,
+    sv: (p) => `SchoolSoft avvisade frånvaroanmälan (HTTP ${p.status}).`,
+  },
   not_configured: {
     en: (p) => `Not configured: no school is set${p.reason ? ` (${p.reason})` : ""}.`,
     sv: (p) => `Inte konfigurerad: ingen skola är vald${p.reason ? ` (${p.reason})` : ""}.`,
@@ -272,6 +308,36 @@ export const HINTS = {
     sv: {
       cli: `Stäng programmet som använder porten eller sätt SCHOOLSOFT_CALLBACK_PORT till en ledig`,
       mcp: `Be användaren stänga programmet som använder porten eller sätta SCHOOLSOFT_CALLBACK_PORT.`,
+    },
+  },
+  enable_writes: {
+    en: {
+      cli: `To allow it, set SCHOOLSOFT_ALLOW_WRITES=1 (or "allowWrites": true in config.json) and run the command again`,
+      mcp: `Only the user can allow it: ask them to set SCHOOLSOFT_ALLOW_WRITES=1 in the server's environment and restart it.`,
+    },
+    sv: {
+      cli: `För att tillåta det, sätt SCHOOLSOFT_ALLOW_WRITES=1 (eller "allowWrites": true i config.json) och kör kommandot igen`,
+      mcp: `Bara användaren kan tillåta det: be dem sätta SCHOOLSOFT_ALLOW_WRITES=1 i serverns miljö och starta om den.`,
+    },
+  },
+  confirm_again: {
+    en: {
+      cli: `Check in SchoolSoft that nothing was registered, then run the command again with --confirm`,
+      mcp: `Ask the user to check in SchoolSoft that nothing was registered; call again with confirm: true only if they ask.`,
+    },
+    sv: {
+      cli: `Kontrollera i SchoolSoft att inget registrerades och kör sedan kommandot igen med --confirm`,
+      mcp: `Be användaren kontrollera i SchoolSoft att inget registrerades; anropa igen med confirm: true bara om de ber om det.`,
+    },
+  },
+  check_portal: {
+    en: {
+      cli: `Look in SchoolSoft before trying again; repeating it blindly may report the absence twice`,
+      mcp: `Tell the user to look in SchoolSoft first. Do not call again on your own; a repeat may report the absence twice.`,
+    },
+    sv: {
+      cli: `Titta i SchoolSoft innan du försöker igen; en blind upprepning kan anmäla frånvaron två gånger`,
+      mcp: `Be användaren titta i SchoolSoft först. Anropa inte igen på eget initiativ; en upprepning kan anmäla frånvaron två gånger.`,
     },
   },
   fix_input: {

@@ -4,6 +4,8 @@
  * new one and one child's data from another's.
  */
 import type {
+  AbsenceNotice,
+  AbsenceReceipt,
   ActivityEntry,
   Booking,
   ContactGroup,
@@ -106,5 +108,9 @@ export class CountingPortal implements Portal {
   }
   async getGradePrognosis(): Promise<{ reconciliationDates: unknown }> {
     return { reconciliationDates: await this.read("getGradePrognosis", []) };
+  }
+  /** A write: counted like a read so a test can see it is never cached or repeated. */
+  async reportAbsence(notice: AbsenceNotice): Promise<AbsenceReceipt> {
+    return { status: 200, response: await this.read("reportAbsence", [notice.startDate]) };
   }
 }

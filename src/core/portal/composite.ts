@@ -31,6 +31,7 @@ export type ApiPortalPart = Pick<
     | "getActivityLog"
     | "getSubjectRooms"
     | "getGradePrognosis"
+    | "reportAbsence"
   >
 >;
 export type BrowserPortalPart = Pick<

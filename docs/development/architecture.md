@@ -59,7 +59,11 @@ Hosting administrators may access plaintext during use, and requested results en
 the AI provider's conversation. See [parent setup and trust boundaries](../deployment/connector.md).
 
 The connector is a release candidate with offline security, lifecycle and protocol
-tests. HTTP modules are included in the 100% coverage gate. This does not establish
+tests. HTTP modules are included in the 100% coverage gate. One scripted scenario
+(`test/packaging/connector-smoke/flow.mjs`) walks the whole parent journey over HTTP
+with the portal replaced at the injected fetch seam: the functional suite runs it
+against the in-process composition, and `make connector-smoke` replays it inside the
+Docker image with `--network none`. This does not establish
 real SchoolSoft callback compatibility, BankID on the same phone, or acceptance by
 actual Claude/ChatGPT accounts. Those checks remain explicit before calling the
 parent deployment supported.
@@ -166,6 +170,7 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | `keepalive`           | `SCHOOLSOFT_KEEPALIVE`             | `off`; `app` renews the token, `all` also touches the web session |
 | `keepaliveWebMinutes` | `SCHOOLSOFT_KEEPALIVE_WEB_MINUTES` | `10` (5 to 120)                                                   |
 | `keepaliveQuietHours` | `SCHOOLSOFT_KEEPALIVE_QUIET_HOURS` | none; `22-6` sends nothing between those local hours              |
+| `allowWrites`         | `SCHOOLSOFT_ALLOW_WRITES`          | off; `1` lets write operations run                                |
 
 ## Testing
 
@@ -198,3 +203,14 @@ their local dates and extra fields. It returns no partial success. The generic
 `beforeRead` host guard travels through API portal wiring to each HTTP GET, so
 connector consent and child focus are rechecked between requests and on retries.
 Existing `get_schedule` behavior is unchanged.
+
+**The first write.** `report_absence` is off until `allowWrites` is set, returns a
+preview unless called with `confirm: true`, and is not offered by the parent-hosted
+connector. A write reaches the network at most once: `withSessionRecovery` renews a
+rejected session but does not repeat capabilities listed in `WRITE_CAPABILITIES`,
+the transport does not follow redirects for writes, and a transport failure or 5xx
+is reported as "outcome unknown" rather than retryable. The request body of
+`POST /rest-api/parent/absence-notice` is **unverified**; the guess lives in one
+mapper (`portal/api/absence-notice-body.ts`) until the live pass corrects it. The
+general write framework (idempotency keys, audit log, remote write scope) is a
+later spec; see `docs/planning/specs/2026-09-21-absence-report.md`.

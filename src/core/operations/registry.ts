@@ -24,6 +24,7 @@ import { getUnreportedAbsence } from "./get-unreported-absence.js";
 import { getAttendanceReport } from "./get-attendance-report.js";
 import { getAssessmentCriteria } from "./get-assessment-criteria.js";
 import { getGradePrognosis } from "./get-grade-prognosis.js";
+import { reportAbsence } from "./report-absence.js";
 import { login } from "./login.js";
 import { authStatus } from "./auth-status.js";
 import { logout } from "./logout.js";
@@ -50,6 +51,7 @@ export const operations: readonly Operation[] = [
   getAttendanceReport,
   getAssessmentCriteria,
   getGradePrognosis,
+  reportAbsence,
   login,
   authStatus,
   logout,

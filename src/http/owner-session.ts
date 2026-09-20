@@ -1,18 +1,28 @@
 /** Short lived owner sessions. Restarting the service signs the owner console out. */
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 export interface OwnerSession {
   csrf: string;
   expires: number;
 }
 export class OwnerSessions {
   private sessions = new Map<string, OwnerSession>();
-  private readonly passwordBytes: Buffer;
+  // Per-process random key for the comparison MAC below; never persisted.
+  private readonly compareKey = randomBytes(32);
+  private readonly passwordMac: Buffer;
   private attempts = new Map<string, number[]>();
   constructor(
     password: string,
     private now: () => number = Date.now,
   ) {
-    this.passwordBytes = Buffer.from(password);
+    this.passwordMac = this.mac(password);
+  }
+  // Keyed MAC used only to give both sides of the comparison the same fixed length, so
+  // neither the length nor the content of the deployment secret is observable through
+  // timing. This is not password storage: nothing is persisted, the key is random per
+  // process, and the secret is a high-entropy deployment value (32+ characters), so a
+  // slow password hash would add login latency without protecting anything at rest.
+  private mac(value: string): Buffer {
+    return createHmac("sha256", this.compareKey).update(value).digest();
   }
   login(password: unknown, client = "local"): { token: string; session: OwnerSession } | undefined {
     const now = this.now();
@@ -20,14 +30,8 @@ export class OwnerSessions {
     if (attempts.length >= 5) return undefined;
     if (this.attempts.size >= 1024) this.attempts.delete(this.attempts.keys().next().value!);
     this.attempts.set(client, [...attempts, now]);
-    // This is a high-entropy deployment secret, not a stored user-password hash.
     if (typeof password !== "string") return undefined;
-    const candidate = Buffer.from(password);
-    if (
-      candidate.length !== this.passwordBytes.length ||
-      !timingSafeEqual(candidate, this.passwordBytes)
-    )
-      return undefined;
+    if (!timingSafeEqual(this.mac(password), this.passwordMac)) return undefined;
     for (const [token, session] of this.sessions)
       if (session.expires <= now) this.sessions.delete(token);
     if (this.sessions.size >= 16) this.sessions.clear();

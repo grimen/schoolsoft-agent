@@ -70,6 +70,7 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     keepalive: undefined,
     keepaliveWebMinutes: undefined,
     keepaliveQuietHours: undefined,
+    allowWrites: undefined,
   });
 });
 

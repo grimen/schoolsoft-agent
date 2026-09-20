@@ -114,6 +114,33 @@ test("owner sessions bound attempts, expire, discard malformed cookies and reset
   assert.equal(sessions.get("__Host-owner=" + last.token), undefined);
   assert.ok(new OwnerSessions("a").login("a"));
 });
+test("owner password comparison rejects wrong-length, same-length and non-string candidates", () => {
+  const secret = "synthetic-owner-secret-0123456789abcdef";
+  let client = 0;
+  // A fresh caller per attempt keeps the throttle out of this test's way.
+  const attempt = (sessions: OwnerSessions, candidate: unknown) =>
+    sessions.login(candidate, "caller-" + client++);
+  const sessions = new OwnerSessions(secret, () => 0);
+  for (const wrongLength of ["", "s", secret.slice(0, -1), secret + "x", secret.repeat(2)])
+    assert.equal(attempt(sessions, wrongLength), undefined, JSON.stringify(wrongLength));
+  const sameLength = secret.slice(0, -1) + "X";
+  assert.equal(sameLength.length, secret.length);
+  assert.equal(attempt(sessions, sameLength), undefined);
+  assert.equal(attempt(sessions, "X" + secret.slice(1)), undefined);
+  for (const nonString of [undefined, null, 12, true, [secret], { password: secret }])
+    assert.equal(attempt(sessions, nonString), undefined, JSON.stringify(nonString));
+  assert.ok(attempt(sessions, secret));
+  // Multi-byte secrets compare by bytes; a different string of equal UTF-16 length fails.
+  const unicode = new OwnerSessions("lösenord-åäö", () => 0);
+  assert.equal(unicode.login("losenord-aao", "a"), undefined);
+  assert.ok(unicode.login("lösenord-åäö", "b"));
+  // Rejected candidates of any shape still consume the caller's attempts.
+  const throttled = new OwnerSessions(secret, () => 0);
+  for (const candidate of ["", 12, sameLength, secret + "x", undefined])
+    assert.equal(throttled.login(candidate, "one-caller"), undefined);
+  assert.equal(throttled.login(secret, "one-caller"), undefined);
+  assert.ok(throttled.login(secret, "another-caller"));
+});
 test("HTML rendering escapes every interpolated field", () => {
   assert.equal(escapeHtml("&<>\"'"), "&amp;&lt;&gt;&quot;&#39;");
   assert.match(page("<script>", "<p>trusted</p>"), /&lt;script&gt;/);

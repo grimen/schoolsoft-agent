@@ -42,6 +42,7 @@ test("every message key renders in both languages with its parameters; every hin
     name: "n",
     value: "v",
     expected: "x",
+    max: "14",
   };
   for (const key of Object.keys(MESSAGES) as MessageKey[]) {
     for (const lang of ["en", "sv"] as const) {

@@ -46,6 +46,8 @@ export interface Config {
   configDir: string;
   /** Headless browser engine for browser-only capabilities. */
   browser: BrowserEngine;
+  /** Operations that change data at the school portal may run. Off unless the user turns it on. */
+  allowWrites: boolean;
   /** In-memory read cache (default on; never on disk). */
   cache: boolean;
   /** Background session keepalive for long-lived processes (default off). */
@@ -64,6 +66,7 @@ export interface ConfigSource {
   configDir?: string;
   browserEngine?: string;
   browserCdp?: string;
+  allowWrites?: boolean | string;
   cache?: string | boolean;
   keepalive?: string;
   keepaliveWebMinutes?: number | string;
@@ -99,6 +102,7 @@ export const ENV = {
   configDir: "SCHOOLSOFT_CONFIG_DIR",
   browserEngine: "SCHOOLSOFT_BROWSER_ENGINE",
   browserCdp: "SCHOOLSOFT_BROWSER_CDP",
+  allowWrites: "SCHOOLSOFT_ALLOW_WRITES",
   cache: "SCHOOLSOFT_CACHE",
   keepalive: "SCHOOLSOFT_KEEPALIVE",
   keepaliveWebMinutes: "SCHOOLSOFT_KEEPALIVE_WEB_MINUTES",
@@ -119,11 +123,21 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
     configDir: pick(ENV.configDir),
     browserEngine: pick(ENV.browserEngine),
     browserCdp: pick(ENV.browserCdp),
+    allowWrites: pick(ENV.allowWrites),
     cache: pick(ENV.cache),
     keepalive: pick(ENV.keepalive),
     keepaliveWebMinutes: pick(ENV.keepaliveWebMinutes),
     keepaliveQuietHours: pick(ENV.keepaliveQuietHours),
   };
+}
+
+/** Only an explicit yes turns writes on; anything unrecognised is an error, never a silent "on". */
+function parseSwitch(raw: boolean | string | undefined, name: string): boolean {
+  if (raw === undefined || typeof raw === "boolean") return raw ?? false;
+  const v = raw.trim().toLowerCase();
+  if (["1", "true", "yes", "on"].includes(v)) return true;
+  if (["0", "false", "no", "off"].includes(v)) return false;
+  throw new InputError(`${name} "${raw}" is not a switch; use 1 or 0`);
 }
 
 /** Platform config directory for this app. */
@@ -243,6 +257,7 @@ export function resolveConfig(
     stateDir: first(sources, "stateDir") ?? join(configDir, "state"),
     configDir,
     browser,
+    allowWrites: parseSwitch(first(sources, "allowWrites"), "allowWrites"),
     cache: resolveCache(first(sources, "cache")),
     keepalive: resolveKeepalive(sources),
   };

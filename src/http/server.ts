@@ -156,7 +156,16 @@ export function createConnectorApp({
       ),
     );
   });
-  app.get("/schoolsoft/callback", (req, res) => {
+  // Unauthenticated by design (the portal redirects the parent's browser here), so bound
+  // state guessing per caller. Separate from ownerAuthLimit: returning from BankID must
+  // not spend the owner's login budget, and the reverse.
+  const callbackLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 20,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+  });
+  app.get("/schoolsoft/callback", callbackLimit, (req, res) => {
     if (
       typeof req.query.state !== "string" ||
       typeof req.query.code !== "string" ||
@@ -201,7 +210,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Choose what this app may read",
-        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Select at least one child. The selected data will be sent to your AI provider when you use these tools.</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
+        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. The selected data will be sent to your AI provider when you use these tools.</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
       ),
     );
   });
