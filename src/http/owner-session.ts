@@ -1,31 +1,35 @@
 /** Short lived owner sessions. Restarting the service signs the owner console out. */
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 export interface OwnerSession {
   csrf: string;
   expires: number;
 }
+/** Longest admin password in UTF-8 bytes; config.ts refuses longer ones before this is built. */
+export const OWNER_PASSWORD_MAX_BYTES = 1022;
+// Both sides of the comparison are laid out in one fixed-size slot, a two-byte length
+// followed by the bytes and zero padding, so neither the length nor the content of the
+// deployment secret is observable through timing. No hash is involved: nothing is stored,
+// and the secret is a high-entropy deployment value, not a user's password. A candidate
+// that is too long keeps its true (unreachable) length, so it can never match.
+function slot(value: string): Buffer {
+  const bytes = Buffer.from(value);
+  const out = Buffer.alloc(2 + OWNER_PASSWORD_MAX_BYTES);
+  out.writeUInt16BE(Math.min(bytes.length, 0xffff));
+  bytes.copy(out, 2, 0, OWNER_PASSWORD_MAX_BYTES);
+  return out;
+}
 export class OwnerSessions {
   private sessions = new Map<string, OwnerSession>();
-  // Per-process random key for the comparison MAC below; never persisted.
-  private readonly compareKey = randomBytes(32);
-  private readonly passwordMac: Buffer;
+  private readonly passwordSlot: Buffer;
   constructor(
     password: string,
     private now: () => number = Date.now,
   ) {
-    this.passwordMac = this.mac(password);
-  }
-  // Keyed MAC used only to give both sides of the comparison the same fixed length, so
-  // neither the length nor the content of the deployment secret is observable through
-  // timing. This is not password storage: nothing is persisted, the key is random per
-  // process, and the secret is a high-entropy deployment value (32+ characters), so a
-  // slow password hash would add login latency without protecting anything at rest.
-  private mac(value: string): Buffer {
-    return createHmac("sha256", this.compareKey).update(value).digest();
+    this.passwordSlot = slot(password);
   }
   /** Constant-time check of a candidate; anything but a string never matches. */
   matches(password: unknown): boolean {
-    return typeof password === "string" && timingSafeEqual(this.mac(password), this.passwordMac);
+    return typeof password === "string" && timingSafeEqual(slot(password), this.passwordSlot);
   }
   // A correct password is never refused: any per-address refusal would let whoever
   // shares the owner's address keep the owner out. Guessing is made impractical by the

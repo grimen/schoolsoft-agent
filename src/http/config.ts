@@ -1,5 +1,6 @@
 /** Validate public deployment settings before opening a listener. */
 import { InputError } from "../core/index.js";
+import { OWNER_PASSWORD_MAX_BYTES } from "./owner-session.js";
 export interface ConnectorConfig {
   publicUrl: string;
   /** Reverse proxies in front whose forwarding header is trusted; 0 trusts none. */
@@ -29,6 +30,10 @@ export function connectorConfig(env: Record<string, string | undefined>): Connec
   const adminPassword = env.SCHOOLSOFT_ADMIN_PASSWORD ?? "";
   if (adminPassword.length < 32)
     throw new InputError("SCHOOLSOFT_ADMIN_PASSWORD needs at least 32 characters");
+  if (Buffer.byteLength(adminPassword) > OWNER_PASSWORD_MAX_BYTES)
+    throw new InputError(
+      `SCHOOLSOFT_ADMIN_PASSWORD can be at most ${OWNER_PASSWORD_MAX_BYTES} bytes`,
+    );
   // The secret's unpredictability is the only guess protection (a correct password is
   // never throttled), so refuse the obviously typed-in kind. Generated values pass.
   if (new Set(adminPassword).size < 8)
