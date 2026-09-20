@@ -3,8 +3,9 @@ name: Tests / E2E
 # Reusable only: ci.yml calls this after Unit. Shipped-artifact E2E: the
 # built MCP server over stdio, the built CLI, the staged Claude Desktop
 # bundle, and every host manifest / skill wrapper launched in a sandbox
-# (test/e2e-hosts). No SchoolSoft, no API keys. The live suite (`make e2e`)
-# needs BankID and stays local.
+# (test/e2e-hosts), plus the parent-hosted connector's Docker image run with
+# --network none against a fake portal (`make connector-smoke`). No SchoolSoft,
+# no API keys. The live suite (`make e2e`) needs BankID and stays local.
 #
 # The Claude Code CLI job is opt-in via the repo variable E2E_CLAUDE_CLI=true:
 # it installs the CLI and runs `claude plugin validate` + `plugin details`
@@ -46,6 +47,20 @@ jobs:
           path: dist/schoolsoft-agent.mcpb
           retention-days: 7
           if-no-files-found: error
+
+  connector:
+    name: Connector image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: Build the connector image, then the network-isolated container smokes (fake portal, no SchoolSoft)
+        env:
+          CONNECTOR_SMOKE_REQUIRE_DOCKER: "1"
+        run: make connector-smoke
 
   claude-cli:
     name: Claude Code CLI
