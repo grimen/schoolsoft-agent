@@ -11,6 +11,9 @@ for status in queued in_progress; do
     --jq ".workflow_runs[] | select(.id != $SELF) | \"\(.id) \(.name)\"" \
   | while read -r id name; do
       echo "cancelling $id ($name)"
-      gh api -X POST "repos/$REPO/actions/runs/$id/cancel" >/dev/null
+      # A run can finish between the listing and this call; GitHub then answers
+      # 409, and there is nothing left to cancel.
+      gh api -X POST "repos/$REPO/actions/runs/$id/cancel" >/dev/null ||
+        echo "  $id had already finished"
     done
 done
