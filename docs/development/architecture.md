@@ -159,6 +159,8 @@ test/             unit/, boundary/, functional/, packaging/, e2e/, helpers/
 
 Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defaults.
 
+`config.json` also holds `"version"`, the file's format version, written by `configure`; it is not a setting (see [What lives where at runtime](#what-lives-where-at-runtime)).
+
 | Key                   | Env                                | Default                                                           |
 | --------------------- | ---------------------------------- | ----------------------------------------------------------------- |
 | `school`              | `SCHOOLSOFT_SCHOOL`                | required; `configure` finds it by name                            |
@@ -199,6 +201,8 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 | `<stateDir>/session-history.json` (0600) | timestamps and counters of logins, refreshes and session losses | low           |
 
 `schoolsoft-agent logout` removes the session (the history of timestamps stays, since a lifetime is only known once a session is gone); deleting the state directory removes everything.
+
+**Versioned files.** `config.json`, `session.enc`, `session-history.json` and the connector's `session.enc`, `history.enc`, `oauth.enc` and `identity.enc` each carry a whole-number `version` in their JSON (for the encrypted files, inside the encrypted payload, where the authentication tag covers it). A file without one is v0, the format written before versions existed; it loads through the migrations and is stored with the current version on its next write. A file with a version newer than the build knows is refused with `NewerFormatError` (kind `not_available`, exit 5, "update schoolsoft-agent") and is never overwritten or deleted; the local session store also checks before `save` and `clear`, because a CLI and an MCP server of different builds can share one state directory. A malformed version is treated like any other corrupt copy of that file. The helper is `src/core/versioned.ts` (pure); each format is declared next to its type (`CONFIG_FORMAT`, `SESSION_FORMAT`, `HISTORY_FORMAT`, `OAUTH_STATE_FORMAT`, `IDENTITY_FORMAT`), and a format change is one migration function added to that list. `login-pending.json` (a marker that lives minutes), `schools.json` (a re-fetchable cache) and `key.bin` (raw key bytes) are not versioned. `doctor` prints the version of each file it inspects. See `docs/planning/specs/2026-09-26-versioned-state.md`.
 
 **Calendar reads.** The additive `get_calendar` operation validates a date range,
 then calls one API-only portal capability. SchoolSoft's provider combines the

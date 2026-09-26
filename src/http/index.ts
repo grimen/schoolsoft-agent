@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Process wiring exercised by the packaged connector smoke test. */
+import { NewerFormatError } from "../core/index.js";
 import { startConnector } from "./start.js";
 try {
   const { server, runtime } = startConnector(process.env);
@@ -13,9 +14,11 @@ try {
     process.stderr.write("Connector could not start. Check your port and hosting settings.\n");
     process.exitCode = 1;
   });
-} catch {
+} catch (e) {
   process.stderr.write(
-    "Connector could not start. Check the required settings in the parent connector guide.\n",
+    e instanceof NewerFormatError
+      ? `Connector could not start: ${e.message} Update the connector image to the latest version.\n`
+      : "Connector could not start. Check the required settings in the parent connector guide.\n",
   );
   process.exitCode = 1;
 }

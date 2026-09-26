@@ -6,9 +6,9 @@ import { join } from "node:path";
 import { once } from "node:events";
 import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
-import { startConnector } from "../../src/http/start.js";
+import { IDENTITY_FORMAT, startConnector } from "../../src/http/start.js";
 import { EncryptedRepository } from "../../src/http/storage.js";
-import type { PersistedSession } from "../../src/core/index.js";
+import { SESSION_FORMAT, type PersistedSession } from "../../src/core/index.js";
 test("production composition writes encrypted login and clears credentials without losing owner identity", async () => {
   const dir = mkdtempSync(join(tmpdir(), "connector-start-"));
   const probe = createServer().listen(0, "127.0.0.1");
@@ -78,11 +78,12 @@ test("production composition writes encrypted login and clears credentials witho
     await runtime.logout();
     assert.equal((await runtime.status()).authenticated, false);
     assert.equal(
-      new EncryptedRepository<string>(
+      new EncryptedRepository<{ identity: string }>(
         dir,
         "identity",
         Buffer.from(env.SCHOOLSOFT_STORAGE_KEY, "hex"),
-      ).read(),
+        IDENTITY_FORMAT,
+      ).read()?.identity,
       "schoolsoft:synthetic:1",
     );
     // Persist a stale/foreign-school envelope to exercise restoration through the disk adapter.
@@ -90,6 +91,7 @@ test("production composition writes encrypted login and clears credentials witho
       dir,
       "session",
       Buffer.from(env.SCHOOLSOFT_STORAGE_KEY, "hex"),
+      SESSION_FORMAT,
     ).write({ school: "other", data: {}, savedAt: 0, authMethod: "bankid-browser" });
     assert.equal((await runtime.status()).authenticated, false);
   } finally {

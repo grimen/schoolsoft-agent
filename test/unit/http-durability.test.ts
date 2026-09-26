@@ -5,6 +5,8 @@ import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EncryptedRepository } from "../../src/http/storage.js";
+import { unchanged } from "../../src/core/index.js";
+const FORMAT = { migrations: [unchanged] };
 test("security state flushes file before rename and directory before acknowledging writes/deletion", (t) => {
   const dir = fs.mkdtempSync(join(tmpdir(), "connector-durability-"));
   const events: string[] = [];
@@ -31,7 +33,7 @@ test("security state flushes file before rename and directory before acknowledgi
   });
   syncBuiltinESMExports();
   try {
-    const repo = new EncryptedRepository(dir, "state", Buffer.alloc(32));
+    const repo = new EncryptedRepository(dir, "state", Buffer.alloc(32), FORMAT);
     repo.write({ revoked: true });
     assert.equal(events[0], "write");
     assert.ok(events.includes("directory-sync"));

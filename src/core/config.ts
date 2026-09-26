@@ -15,6 +15,7 @@ import {
 } from "./constants.js";
 import type { BrowserEngine } from "./browser/session.js";
 import type { QuietHours } from "./keepalive/scheduler.js";
+import { unchanged, type VersionedFormat } from "./versioned.js";
 
 /** off: nothing in the background. app: refresh the API token. all: also touch the web session. */
 export const KEEPALIVE_MODES = ["off", "app", "all"] as const;
@@ -72,6 +73,9 @@ export interface ConfigSource {
   keepaliveWebMinutes?: number | string;
   keepaliveQuietHours?: string;
 }
+
+/** config.json's format; the adapter that reads the file applies it. */
+export const CONFIG_FORMAT: VersionedFormat = { migrations: [unchanged] };
 
 export class ConfigValueError extends AgentError {
   constructor(name: string, value: unknown, expected: string) {

@@ -6,15 +6,22 @@ import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
+  AgentError,
+  CONFIG_FORMAT,
   FileSessionHistoryStore,
   FileSessionStore,
+  HISTORY_FORMAT,
   NotConfiguredError,
+  SESSION_FORMAT,
+  describeVersion,
   emptyHistory,
   summarizeHistory,
   browserStatus,
   type Config,
+  type SessionHistory,
+  type PersistedSession,
 } from "../../core/index.js";
-import { loadConfig } from "../../shared/bootstrap.js";
+import { configFileVersion, loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit, globalOverrides } from "../program.js";
 import { EXIT } from "../exit-codes.js";
@@ -26,6 +33,55 @@ export interface DoctorCheck {
 }
 
 export const LEGACY_STATE_DIR = ".schoolsoft-mcp";
+
+/** The saved session and its format version; a session from a newer build fails the check. */
+function sessionCheck(config: Config): DoctorCheck {
+  const store = new FileSessionStore(config.stateDir);
+  let saved: PersistedSession | null;
+  try {
+    saved = store.load();
+  } catch (e) {
+    return { name: "session", ok: false, detail: (e as Error).message };
+  }
+  return {
+    name: "session",
+    ok: Boolean(saved),
+    detail: saved
+      ? `saved ${new Date(saved.savedAt).toISOString()} via ${saved.authMethod}, children=${saved.guardian?.children.length ?? "?"}; ${describeVersion(SESSION_FORMAT, store.storedVersion())}`
+      : `no session in ${config.stateDir} — run: schoolsoft-agent login`,
+  };
+}
+
+/** Observed lifetimes (informational, never a failure) unless the file is from a newer build. */
+function historyCheck(config: Config, now: number): DoctorCheck {
+  const store = new FileSessionHistoryStore(config.stateDir);
+  let stored: SessionHistory | null;
+  try {
+    stored = store.read();
+  } catch (e) {
+    return { name: "session-history", ok: false, detail: (e as Error).message };
+  }
+  const history = summarizeHistory(stored ?? emptyHistory(), now);
+  const version = store.storedVersion();
+  const last = history.losses.at(-1);
+  return {
+    name: "session-history",
+    ok: true,
+    detail:
+      `keepalive=${config.keepalive.mode}; ` +
+      (version === null ? "" : `${describeVersion(HISTORY_FORMAT, version)}; `) +
+      (history.app
+        ? `app login ${history.app.ageMinutes ?? "?"} min old, ${history.app.activityCount} refreshes, longest gap survived ${history.app.longestGapSurvivedMinutes} min; `
+        : "") +
+      (history.web
+        ? `web login ${history.web.ageMinutes} min old, idle ${history.web.idleMinutes} min, longest gap survived ${history.web.longestGapSurvivedMinutes} min; `
+        : "") +
+      (last
+        ? `${history.losses.length} observed losses, last: ${last.session} session at ${last.at} after ${last.ageMinutes ?? "?"} min (idle ${last.idleMinutes} min)`
+        : "no session loss observed yet") +
+      " (full record: schoolsoft-agent auth-status)",
+  };
+}
 
 export async function runDoctor(
   deps: CliDeps,
@@ -45,10 +101,13 @@ export async function runDoctor(
       platform: deps.platform,
       overrides: globalOverrides(overrides),
     });
+    const version = configFileVersion(config.configDir);
     checks.push({
       name: "config",
       ok: true,
-      detail: `school=${config.school} configDir=${config.configDir}`,
+      detail:
+        `school=${config.school} configDir=${config.configDir}; config.json ` +
+        (version === null ? "absent" : describeVersion(CONFIG_FORMAT, version)),
     });
   } catch (e) {
     checks.push({
@@ -57,7 +116,9 @@ export async function runDoctor(
       detail:
         e instanceof NotConfiguredError
           ? "not configured — run: schoolsoft-agent configure"
-          : String(e),
+          : e instanceof AgentError
+            ? e.message
+            : String(e),
     });
   }
 
@@ -76,35 +137,8 @@ export async function runDoctor(
         detail: `legacy session in ${legacy}; run doctor --fix to move it`,
       });
     }
-    const saved = new FileSessionStore(config.stateDir).load();
-    checks.push({
-      name: "session",
-      ok: Boolean(saved),
-      detail: saved
-        ? `saved ${new Date(saved.savedAt).toISOString()} via ${saved.authMethod}, children=${saved.guardian?.children.length ?? "?"}`
-        : `no session in ${config.stateDir} — run: schoolsoft-agent login`,
-    });
-    const history = summarizeHistory(
-      new FileSessionHistoryStore(config.stateDir).read() ?? emptyHistory(),
-      deps.now?.() ?? Date.now(),
-    );
-    const last = history.losses.at(-1);
-    checks.push({
-      name: "session-history",
-      ok: true, // informational: observed lifetimes, never a failure
-      detail:
-        `keepalive=${config.keepalive.mode}; ` +
-        (history.app
-          ? `app login ${history.app.ageMinutes ?? "?"} min old, ${history.app.activityCount} refreshes, longest gap survived ${history.app.longestGapSurvivedMinutes} min; `
-          : "") +
-        (history.web
-          ? `web login ${history.web.ageMinutes} min old, idle ${history.web.idleMinutes} min, longest gap survived ${history.web.longestGapSurvivedMinutes} min; `
-          : "") +
-        (last
-          ? `${history.losses.length} observed losses, last: ${last.session} session at ${last.at} after ${last.ageMinutes ?? "?"} min (idle ${last.idleMinutes} min)`
-          : "no session loss observed yet") +
-        " (full record: schoolsoft-agent auth-status)",
-    });
+    checks.push(sessionCheck(config));
+    checks.push(historyCheck(config, deps.now?.() ?? Date.now()));
   }
 
   // Default goes through globalThis.fetch so tests can stub it without network.
