@@ -20,7 +20,7 @@
  *     `schoolsoft-agent/client`, and no root src/ path (docs/planning/specs/2026-09-26-app-workspace.md)
  */
 import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
-import { join, relative, dirname, resolve } from "node:path";
+import { join, relative, dirname, resolve, posix } from "node:path";
 
 export interface Violation {
   file: string;
@@ -167,21 +167,28 @@ function checkClient(rel: string, text: string, src: string, file: string): Viol
   return out;
 }
 
-const APP_SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*)["']([^"']+)["']/g;
+const APP_SPECIFIER =
+  /(?:\bfrom\s*|\brequire\s*\(\s*)["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']|(?:^|\n)\s*import\s*["']([^"']+)["']/g;
 
-/** The app's one allowed import from the root package is the typed client. */
+/**
+ * The app's one allowed import from the root package is the typed client. A relative
+ * specifier is judged by where it actually resolves (path.posix against a virtual
+ * `/packages/app` root), not by counting `..` segments: only leaving `/packages/app`
+ * reaches the root package's own `src/` (or anything else outside the workspace).
+ */
 export function checkAppImports(rel: string, text: string): Violation[] {
   const out: Violation[] = [];
+  const dir = posix.dirname(rel);
   for (const m of text.matchAll(APP_SPECIFIER)) {
-    const spec = m[1]!;
+    const spec = m[1] ?? m[2] ?? m[3];
+    if (!spec) continue;
     const rootPackage =
       spec === "schoolsoft-agent" ||
       (spec.startsWith("schoolsoft-agent/") && spec !== "schoolsoft-agent/client");
-    const rootSource =
-      /(^|\/)src\//.test(spec) &&
+    const leavesWorkspace =
       spec.startsWith(".") &&
-      spec.split("/").filter((p) => p === "..").length >= 2;
-    if (rootPackage || rootSource) {
+      !posix.resolve("/packages/app", dir, spec).startsWith("/packages/app/");
+    if (rootPackage || leavesWorkspace) {
       out.push({
         file: `packages/app/${rel}`,
         line: text.slice(0, m.index).split("\n").length,
