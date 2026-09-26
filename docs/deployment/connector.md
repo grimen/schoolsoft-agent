@@ -317,8 +317,8 @@ mock-provider tests exercise the implementation without exposing school data; th
 do not stand in for these checks.
 
 Maintainers run these checks as part of one live pass that starts with `make capture`
-(redacted fixtures, reviewed before commit); the order is in
-[Contributing](../../CONTRIBUTING.md#live-pass).
+(redacted fixtures, reviewed before commit); the order and the checklist are in the
+[live session runbook](../development/live-session.md).
 
 ### Sign out of the dashboard
 
