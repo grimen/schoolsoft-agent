@@ -8,6 +8,7 @@
 - [Live session runbook](live-session.md): the one guardian login that answers every open live question (E2).
 - [SchoolSoft API reference](../reference/schoolsoft-api.md): upstream behavior and findings.
 - [Diagrams](../diagrams/README.md): source and rendering instructions.
+- [Host capability probe](host-probe.md): how Claude and ChatGPT handle write-style tools, without SchoolSoft.
 - [Planning archive](../planning/README.md): dated specs and implementation plans.
 
 [All documentation](../README.md)

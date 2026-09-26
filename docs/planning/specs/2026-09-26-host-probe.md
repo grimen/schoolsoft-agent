@@ -57,15 +57,22 @@ rate limits, and uses `Referrer-Policy: same-origin` from the start (#58 explain
 | `probe_elicit_url` | true, false, false, false | URL elicitation (`elicitation/create`, `mode: "url"`): shown, opened, completed |
 | `probe_elicit_url_required` | true, false, false, false | URL elicitation by error (`-32042`, `URLElicitationRequiredError`) and the retry after it |
 | `probe_step_up` | true, false, true, false | Re-authorisation on `403 insufficient_scope` for a scope in `scopes_supported` (http only) |
+| `probe_step_up_meta` | true, false, true, false | The same, challenged in a `200` tool result with `_meta["mcp/www_authenticate"]`, as ChatGPT apps document (http only) |
 | `probe_step_up_hidden` | true, false, true, false | The same for a scope not in `scopes_supported` (http only) |
 | `probe_confirmed_write` | false, true, false, true | #59's preview → confirmation token pair with a fake absence: how the preview shows, whether the model confirms without asking |
 
-Every tool is listed whatever the grant holds; `probe_step_up*` calls without their
-scope get `403` with `WWW-Authenticate: Bearer error="insufficient_scope",
-scope="<granted and required>", resource_metadata="…"`, the MCP step-up challenge.
-Scopes: `probe_read` (needed for any call, ticked by default), `probe_step_up`
-(advertised, unticked by default, like a write scope in #59) and `probe_step_up_hidden`
-(accepted when requested, never advertised).
+Every tool is listed whatever the grant holds. `probe_step_up` and `probe_step_up_hidden`
+calls without their scope get `403` with `WWW-Authenticate: Bearer
+error="insufficient_scope", scope="<granted and required>", resource_metadata="…"`, the
+MCP step-up challenge; `probe_step_up_meta` answers an `isError` result carrying the same
+challenge in `_meta["mcp/www_authenticate"]`, and every listed tool carries ChatGPT's
+top-level `securitySchemes`. Scopes: `probe_read` (needed for any call, ticked by
+default), `probe_step_up` and `probe_step_up_meta` (advertised, unticked by default, like
+a write scope in #59) and `probe_step_up_hidden` (accepted when requested, never
+advertised). The `initialize` request is recorded raw, before the SDK rewrites a legacy
+`elicitation: {}` into form mode; per-request capabilities in `_meta` (2026-07-28) are
+recorded by name. The SDK (1.30.0) speaks up to 2025-11-25, so a newer host negotiates
+down; the log shows what it asked for.
 
 `probe_confirmed_write` follows #59 without SchoolSoft: the first call returns a
 preview, a `write_id`, an opaque `wct_` token and `expires_at` (10 minutes), stored
