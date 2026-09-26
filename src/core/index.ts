@@ -46,6 +46,20 @@ export {
 } from "./wiring.js";
 export { runOperation } from "./operations/run.js";
 export {
+  verifyOperations,
+  verifyExitCode,
+  isVerifiable,
+  VERIFY_EXCLUSIONS,
+} from "./operations/verify.js";
+export type {
+  VerifyOperationsOptions,
+  VerifyReport,
+  VerifyResult,
+  VerifyStatus,
+  VerifySkipReason,
+  VerifyDrift,
+} from "./operations/verify.js";
+export {
   MemorySessionHistoryStore,
   FileSessionHistoryStore,
   SessionHistoryRecorder,
