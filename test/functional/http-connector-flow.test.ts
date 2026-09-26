@@ -46,7 +46,7 @@ test("owner sign-in, OAuth consent, scoped MCP and REST reads, rotation, revocat
       origin: config.publicUrl,
       adminPassword: config.adminPassword,
     });
-    assert.equal(steps.length, 12);
+    assert.equal(steps.length, 13);
     // The limited grant never reached the calendar endpoints; only the full grant did, once.
     const agenda = upstream.calls.filter((call) => call.includes("/agenda"));
     assert.deepEqual(agenda, [

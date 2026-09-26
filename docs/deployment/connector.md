@@ -263,9 +263,16 @@ There is no separate password, key or cookie, and nothing is open to anyone
 without an approval. Revoking the app on the owner page stops its API access
 immediately.
 
-This is groundwork for now. The approval page only returns to Claude's and
-ChatGPT's addresses, so no other app can finish connecting yet. A small page served
-by the connector itself is planned as the first app that can.
+The approval page returns only to Claude's and ChatGPT's addresses and to the
+connector's own reference page, so that page is the first app that can connect.
+Open `https://<your connector>/reference/` (the owner page links it) and choose
+**Connect this page**. You then approve it like an AI app: sign in with the
+administrator password, pick the children and untick what it should not read. It
+shows one child's week at a time: lessons, lunch and school events, with a child
+picker when you approved several. It keeps its connection only while the browser
+tab is open. It is a minimal proof that the API is enough for an app, not a
+finished app. **Disconnect this page** withdraws its approval, and so does
+**Disconnect this app** on the owner page.
 
 `GET /api/v1/session` tells the app whether the connector is signed in to
 SchoolSoft, which children it may show and whether SchoolSoft is currently pushing
@@ -358,7 +365,8 @@ daemon it prints a skip notice and exits successfully; set
    inside the image: OAuth discovery, client registration, S256-only PKCE, owner
    login and consent for chosen children and tools, code exchange, MCP
    `tools/list` and tool calls, the REST API (session, children, a schedule, and a
-   refused child, scope and token), refresh-token rotation and replay rejection, the
+   refused child, scope and token), the reference page (served with its own
+   policy, its callback registering exactly), refresh-token rotation and replay rejection, the
    calendar scope limit, per-child denial, revoking an app from the dashboard and
    the owner-login rate limit. The school portal is a synthetic stand-in
    (`test/packaging/connector-smoke/fake-upstream.mjs`) mounted read-only beside a

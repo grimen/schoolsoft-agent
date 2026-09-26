@@ -83,6 +83,11 @@ interface Options {
   randomToken?: () => string;
   /** Capacity overrides for tests; production uses LIMITS. */
   limits?: Partial<typeof LIMITS>;
+  /**
+   * Exact callback URLs on the connector's own origin (its reference page), accepted
+   * next to the vendor allowlist. Compared as whole strings: no prefix, query or variant.
+   */
+  ownCallbacks?: readonly string[];
 }
 /** Bounds on state that anonymous callers can create. */
 const LIMITS = { clients: 256, pending: 128, pendingPerRequester: 8 };
@@ -138,7 +143,10 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
       getClient: (id) =>
         Object.hasOwn(this.state.clients, id) ? structuredClone(this.state.clients[id]) : undefined,
       registerClient: (client) => {
-        if (!client.redirect_uris.length || !client.redirect_uris.every(approvedRedirect))
+        if (
+          !client.redirect_uris.length ||
+          !client.redirect_uris.every((uri) => this.callbackAllowed(uri))
+        )
           throw new InvalidClientMetadataError("Unsupported callback URL");
         this.prune();
         for (const [id, existing] of Object.entries(this.state.clients)) {
@@ -166,6 +174,9 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
         return structuredClone(registered);
       },
     };
+  }
+  private callbackAllowed(uri: string): boolean {
+    return approvedRedirect(uri) || (this.options.ownCallbacks ?? []).includes(uri);
   }
   private clientInUse(id: string): boolean {
     return (
@@ -225,7 +236,7 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
     this.resource(params.resource);
     if (
       !client.redirect_uris.includes(params.redirectUri) ||
-      !approvedRedirect(params.redirectUri) ||
+      !this.callbackAllowed(params.redirectUri) ||
       !/^[A-Za-z0-9_-]{43}$/.test(params.codeChallenge)
     )
       throw new InvalidRequestError("Invalid authorization request");

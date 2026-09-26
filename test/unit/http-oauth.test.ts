@@ -101,6 +101,41 @@ test("callback allowlist rejects hostile origins, path variants and URL componen
   ])
     assert.equal(approvedRedirect(value), false, value);
 });
+test("the connector's own callbacks are accepted exactly, next to the vendor allowlist", async () => {
+  const own = "https://parent.example/reference/";
+  const provider = new ConnectorOAuthProvider({
+    resourceUrl: resource.href,
+    scopes,
+    repository: { read: () => undefined, write: () => {} },
+    ownCallbacks: [own],
+  });
+  const page = await provider.clientsStore.registerClient!({
+    redirect_uris: [own],
+    client_name: "Reference page",
+    token_endpoint_auth_method: "none",
+  });
+  const id = await consent(provider, page, { redirectUri: own });
+  assert.equal(provider.pending(id).redirectUri, own);
+  const redirect = new URL(provider.approve(id, undefined, [1]));
+  assert.equal(redirect.origin + redirect.pathname, own);
+  assert.ok(redirect.searchParams.get("code"));
+  // The vendors stay accepted; nothing else on the connector's origin is.
+  await provider.clientsStore.registerClient!({ redirect_uris: [callback] });
+  for (const value of [
+    "https://parent.example/reference",
+    "https://parent.example/reference/x",
+    "https://parent.example/reference/?a=1",
+    "https://parent.example/reference/#a",
+    "https://parent.example:8443/reference/",
+    "http://parent.example/reference/",
+    "https://parent.example/owner",
+  ])
+    assert.throws(() => provider.clientsStore.registerClient!({ redirect_uris: [value] }), value);
+  // Without the option (every existing deployment path but the composition root) it is refused.
+  assert.throws(() => setup().provider.clientsStore.registerClient!({ redirect_uris: [own] }));
+  // A client registered for the callback cannot authorize elsewhere.
+  await assert.rejects(consent(provider, page, { redirectUri: callback }));
+});
 test("client registration is bounded, copies data and never fetches callback URLs", async () => {
   const s = setup();
   const c = await client(s.provider);

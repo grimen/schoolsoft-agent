@@ -7,6 +7,8 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { setTimeout as delay } from "node:timers/promises";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
+import { bootServed } from "../helpers/reference.js";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 
@@ -143,6 +145,20 @@ test(
       const protectedResponse = await fetch(url + "/mcp");
       assert.equal(protectedResponse.status, 401);
       await protectedResponse.body?.cancel();
+      // The reference page from the built output (tsc's app.js), hashed as served and runnable.
+      const page = await fetch(url + "/reference/");
+      assert.equal(page.status, 200);
+      const html = await page.text();
+      const script = /<script type="module">([\s\S]*)<\/script>/.exec(html)![1];
+      const hash = createHash("sha256").update(script).digest("base64");
+      assert.ok(
+        page.headers.get("content-security-policy")!.includes(`script-src 'sha256-${hash}'`),
+      );
+      assert.doesNotMatch(script, /sourceMappingURL|^\s*import\s/m);
+      assert.match(
+        await bootServed(script.replace(/boot\(globalThis\);\n$/, "")),
+        /data-action="connect"/,
+      );
       child.kill("SIGTERM");
       const [code, signal] = await exited;
       assert.equal(code, 0, output);
