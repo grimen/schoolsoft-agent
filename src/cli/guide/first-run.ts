@@ -142,7 +142,7 @@ export async function runFirstRun(
       line("changeSchool");
     } else if (!prompt) {
       throw new NotConfiguredError(
-        "setup needs --query <name> or --school <slug> without a terminal",
+        "pass --query <name> or --school <slug>, or run setup in a terminal",
       );
     } else {
       chosen = await askSchool();
