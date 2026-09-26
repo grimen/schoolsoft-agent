@@ -365,6 +365,16 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   assert.match(restAnonymous.headers["www-authenticate"], /resource_metadata=/);
   step("REST: session, children and schedule; refused child, scope and token");
 
+  // --- The reference page: public, data-free, an OAuth client of this connector -------
+  const page = await request("/reference/");
+  assert.equal(page.status, 200);
+  assert.match(page.headers["content-type"], /^text\/html; charset=utf-8/);
+  assert.match(page.headers["content-security-policy"], /^default-src 'none'; script-src 'sha256-/);
+  assert.doesNotMatch(page.text, /Synthetic/);
+  assert.equal((await register("Reference page", origin + "/reference/")).status, 201);
+  assert.equal((await register("Lookalike page", origin + "/reference/x")).status, 400);
+  step("reference page served with its own policy; its callback registers exactly");
+
   // --- Refresh rotation ----------------------------------------------------
   const rotatedResponse = await refresh(limited.clientId, limited.tokens.refresh_token);
   assert.equal(rotatedResponse.status, 200);

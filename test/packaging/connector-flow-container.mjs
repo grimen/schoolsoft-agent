@@ -77,7 +77,7 @@ try {
     );
   }
   console.log(output);
-  assert.match(output, /Connector flow passed: 12 stages\./);
+  assert.match(output, /Connector flow passed: 13 stages\./);
   docker("stop", "--timeout", "5", name);
   assert.equal(
     docker("inspect", "--format", "{{.State.ExitCode}}", name),

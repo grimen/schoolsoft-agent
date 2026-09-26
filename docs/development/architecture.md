@@ -72,6 +72,20 @@ the granted children and routes without starting a login. The runtime marks its
 refusals with a reason (`ConnectorRefusedError`) so the adapter can answer `403` or
 `503` without parsing prose.
 
+**Reference page.** `/reference/` is the smallest UI over that surface
+([spec](../planning/specs/2026-09-26-reference-page.md)). It is one public, data-free
+HTML document. Its logic (`src/http/reference/app.ts`) runs in the browser, never
+in the connector. It is an ordinary OAuth client: it discovers the sign-in from
+the API's `401` challenge, registers, and uses PKCE through the owner consent
+page, with its callback `<publicUrl>/reference/` (the only same-origin callback
+`ConnectorOAuthProvider` accepts, passed as `ownCallbacks`). Then it reads
+`/api/v1/session` and the routes the session lists. The access token stays in
+memory; the refresh token stays in `sessionStorage`. `page.ts` inlines the module
+under a policy for that path alone: `script-src` and `style-src` by hash,
+`connect-src 'self'`. The module is tsc's output in the built connector and
+type-stripped `app.ts` when running from source, so it uses erasable syntax only
+and imports nothing but types. It never uses the owner cookie.
+
 The deployment is one process per private state volume. The storage key comes from
 the parent's deployment environment; the project author operates no central service.
 Hosting administrators may access plaintext during use, and requested results enter

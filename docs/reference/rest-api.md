@@ -4,6 +4,8 @@
 
 Read-only JSON for custom UIs, served by the [parent-hosted connector](../deployment/connector.md) at `https://<your connector>/api/v1`. The routes are generated from the same operations as the connector's MCP tools, behind the same OAuth access tokens, scopes and per-child approval: an app gets a token through the ordinary connection approval and sends it as `Authorization: Bearer <token>`. There are no cookies or API keys. Same-origin only: no CORS headers are sent and a request with another site's `Origin` is refused. Each caller may make 60 requests per minute. Design: [REST surface spec](../planning/specs/2026-09-26-rest-surface.md).
 
+A worked example is the connector's own reference page at `/reference/` ([spec](../planning/specs/2026-09-26-reference-page.md)): it discovers the authorization server from the `401` challenge on `/api/v1/session`, registers as a public client with its own address as the callback, completes the authorization code flow with PKCE and the resource indicator, then reads only the routes the session lists.
+
 Responses are the operations' validated domain objects, unchanged, as `application/json`. Failures are `application/problem+json` (see [Problems](#problems)).
 
 | Route | Operation | Scope | Query parameters |
