@@ -4,7 +4,7 @@ This guide helps you connect SchoolSoft to an AI assistant. You will install an 
 
 **You do not need to know how to code.** Choose one route below and follow its guide. You do not need to install all the assistants.
 
-> This is an independent project, not a SchoolSoft or BankID product. Information you ask for is sent to your chosen AI assistant. Read [where your data goes](../../README.md#privacy) before connecting an account.
+> This is an independent project, not a SchoolSoft or BankID product. Information you ask for is sent to your chosen AI assistant. Read [how your family's data is handled](data-handling.md) before connecting an account.
 
 ## 1. Choose your starting point
 

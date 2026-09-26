@@ -76,12 +76,14 @@ Login problems are covered in [Troubleshooting](docs/getting-started/troubleshoo
 
 ## Privacy
 
-- Requested school information is sent to your chosen assistant/model provider. A messaging interface may involve another provider. This project has no telemetry or author-operated service receiving family data.
+**[How your family's data is handled](docs/getting-started/data-handling.md)** explains, in plain language, what is stored, where, for how long, and what reaches your AI provider, SchoolSoft and your hosting provider. In short:
+
+- Requested school information is sent to your chosen assistant/model provider, which handles it under its own terms. A messaging interface may involve another provider. This project has no telemetry, crash reporting or analytics, and no author-operated service receiving family data.
 - Local installations save an encrypted session under your platform's config directory (`schoolsoft-agent doctor` shows where). `schoolsoft-agent logout` deletes that session. The parent-hosted connector also saves encrypted permissions and owner identity on your server; follow its [deletion steps](docs/deployment/connector.md#everyday-use-and-recovery).
 - With parent hosting, your hosting provider and anyone administering your server may access data while it is processed. Encryption at rest does not prevent that access. The project author does not host your copy or receive its SchoolSoft session.
-- Nothing is written to log files. Diagnostics on stderr never include personal data.
+- Nothing is written to log files. The few diagnostic lines on stderr contain no children's names or school content.
 - This is unofficial automated access. Check SchoolSoft's terms of service for your municipality before relying on it.
-- Nothing is ever written to SchoolSoft: every tool is read-only, and the hidden browser blocks any request that could change something.
+- Reporting an absence is the only tool that changes anything at SchoolSoft. It is off unless you set `SCHOOLSOFT_ALLOW_WRITES=1` and previews before sending. Every other tool only reads, and the hidden browser blocks any request that could change something.
 
 ## Development
 
