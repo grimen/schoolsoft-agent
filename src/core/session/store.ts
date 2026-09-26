@@ -8,6 +8,7 @@
  */
 import type { GuardianContext } from "../portal/guardian.js";
 import type { WebSession } from "../browser/web-login.js";
+import type { VersionedFormat } from "../versioned.js";
 
 export interface PersistedSession {
   /** School portal provider id (absent in files written before the provider seam: SchoolSoft). */
@@ -65,3 +66,10 @@ export function migratePersisted(raw: Record<string, unknown>): PersistedSession
   for (const [k, v] of Object.entries(raw)) (CORE_KEYS.has(k) ? core : data)[k] = v;
   return { ...core, data } as unknown as PersistedSession;
 }
+
+/**
+ * The persisted session's format (the local session.enc and the connector's
+ * encrypted session). v0 → v1 is the pre-provider-seam fold above; a new
+ * format is one more migration here.
+ */
+export const SESSION_FORMAT: VersionedFormat = { migrations: [migratePersisted] };

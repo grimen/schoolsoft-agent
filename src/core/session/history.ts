@@ -8,6 +8,13 @@
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import {
+  loadVersioned,
+  storedVersion,
+  unchanged,
+  writeVersioned,
+  type VersionedFormat,
+} from "../versioned.js";
 
 /** What the session manager and the portal observers report. */
 export type SessionEvent =
@@ -42,8 +49,8 @@ export interface SessionLoss {
   longestGapMs: number;
 }
 
+/** Stored with `version` (the file was written as `version: 1` from the start). */
 export interface SessionHistory {
-  version: 1;
   app: SessionSpan | null;
   web: SessionSpan | null;
   losses: SessionLoss[];
@@ -59,8 +66,11 @@ export const MAX_HISTORY_EVENTS = 300;
 export const MAX_HISTORY_LOSSES = 50;
 
 export function emptyHistory(): SessionHistory {
-  return { version: 1, app: null, web: null, losses: [], events: [] };
+  return { app: null, web: null, losses: [], events: [] };
 }
+
+/** The history's format (local session-history.json and the connector's encrypted history). */
+export const HISTORY_FORMAT: VersionedFormat = { migrations: [unchanged] };
 
 export class MemorySessionHistoryStore implements SessionHistoryStore {
   private value: SessionHistory | null = null;
@@ -78,18 +88,30 @@ export class FileSessionHistoryStore implements SessionHistoryStore {
   private get path(): string {
     return join(this.dir, "session-history.json");
   }
+  /** Unreadable reads as nothing (the next event starts afresh); a newer file throws and is left alone. */
   read(): SessionHistory | null {
     if (!existsSync(this.path)) return null;
+    return loadVersioned<SessionHistory, null>(
+      HISTORY_FORMAT,
+      this.path,
+      () => JSON.parse(readFileSync(this.path, "utf8")),
+      () => null,
+    );
+  }
+  /** The format version on disk (0 before versions existed); null when absent or unreadable. */
+  storedVersion(): number | null {
+    if (!existsSync(this.path)) return null;
     try {
-      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as SessionHistory;
-      return parsed.version === 1 ? parsed : null;
+      return storedVersion(JSON.parse(readFileSync(this.path, "utf8")));
     } catch {
       return null;
     }
   }
   write(history: SessionHistory): void {
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    writeFileSync(this.path, JSON.stringify(history), { mode: 0o600 });
+    writeFileSync(this.path, JSON.stringify(writeVersioned(HISTORY_FORMAT, history)), {
+      mode: 0o600,
+    });
   }
 }
 
@@ -120,7 +142,12 @@ export class SessionHistoryRecorder {
 
   /** How long the named session has been idle, null when it is not being tracked. */
   idleMs(session: SessionName): number | null {
-    const span = this.read()[session];
+    let span: SessionSpan | null;
+    try {
+      span = this.read()[session];
+    } catch {
+      return null; // e.g. a history file from a newer build: the loss itself must still be reported
+    }
     return span ? this.now() - span.lastActivityAt : null;
   }
 

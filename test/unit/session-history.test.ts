@@ -164,7 +164,7 @@ test("recording is best effort: a store that cannot be written never breaks the 
   assert.deepEqual(r.read(), emptyHistory());
 });
 
-test("file store: 0600 json in the state dir; absent, corrupt or foreign files read as nothing", () => {
+test("file store: 0600 json in the state dir; absent, corrupt or malformed-version files read as nothing", () => {
   const dir = mkdtempSync(join(tmpdir(), "ss-history-"));
   try {
     const store = new FileSessionHistoryStore(join(dir, "state"));
@@ -177,7 +177,7 @@ test("file store: 0600 json in the state dir; absent, corrupt or foreign files r
     assert.equal(store.read()?.events.length, 1);
     writeFileSync(file, "{broken");
     assert.equal(store.read(), null);
-    writeFileSync(file, JSON.stringify({ version: 2 }));
+    writeFileSync(file, JSON.stringify({ version: "2" }));
     assert.equal(store.read(), null);
   } finally {
     rmSync(dir, { recursive: true, force: true });

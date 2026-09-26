@@ -121,6 +121,18 @@ What to know before turning it on:
 
 Some answers are remembered in the program's memory for a short time: the lunch menu, subject list and contact lists for up to 6 hours, shared files 1 hour, schedule and calendar 30 minutes, news, assignments and the activity log 10 minutes. Messages, bookings, grades, documents, absence and attendance are always read from SchoolSoft. Ask for "the latest" (the assistant passes `fresh: true`, on the command line `--fresh`), or set `SCHOOLSOFT_CACHE=off`. Nothing remembered this way is written to disk; it is gone when the program closes, when you log in or out, and when you switch child.
 
+## "… was written by a newer version of schoolsoft-agent"
+
+You have used a newer version of schoolsoft-agent on this computer, and now an older one is running. That happens when one assistant starts the latest version and another still uses a copy it saved earlier. The newer version stored your settings, login or login history in a form the older one does not understand, so the older one stops instead of guessing, and leaves the file exactly as it is.
+
+Update, and the message goes away:
+
+```bash
+npx -y schoolsoft-agent@latest doctor
+```
+
+If you installed it with `npm install -g`, run `npm install -g schoolsoft-agent@latest`. For an assistant's extension or plugin, update or reinstall it there, then restart the assistant. Do not delete the file to make the message go away: the newest version reads it fine, and deleting your login means another BankID login. For a parent-hosted connector, update the connector to the latest version.
+
 ## "The setting … has the value …, but it must be …"
 
 One of the settings above has a value the tool does not understand, for example `SCHOOLSOFT_KEEPALIVE=yes`. The message names the setting and the values it accepts.
@@ -164,7 +176,7 @@ schoolsoft-agent configure --query "<school name>"
 npx -y schoolsoft-agent doctor
 ```
 
-Reports Node version, configuration, saved session, how long logins have lasted so far, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
+Reports Node version, configuration, saved session, how long logins have lasted so far, the format version of each saved file, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
 
 ## Still stuck?
 

@@ -1,6 +1,9 @@
 /** Composition root for one parent-owned connector process. */
 import {
+  HISTORY_FORMAT,
+  SESSION_FORMAT,
   resolveConfig,
+  type VersionedFormat,
   type KeepaliveDeps,
   type SessionDeps,
   type SessionHistory,
@@ -8,13 +11,17 @@ import {
 } from "../core/index.js";
 import { connectorConfig, type ConnectorConfig } from "./config.js";
 import { EncryptedRepository } from "./storage.js";
-import { ConnectorOAuthProvider, type OAuthState } from "./oauth.js";
+import { ConnectorOAuthProvider, OAUTH_STATE_FORMAT, type OAuthState } from "./oauth.js";
 import { ConnectorRuntime, CONNECTOR_OPERATIONS } from "./runtime.js";
 import { createConnectorApp } from "./server.js";
 type ConnectorKeepaliveDeps = Pick<
   KeepaliveDeps,
   "timer" | "random" | "hourOf" | "fetchImpl" | "log"
 >;
+/** The pinned guardian (identity.enc). v0 stored the bare string; v1 wraps it so it can carry a version. */
+export const IDENTITY_FORMAT: VersionedFormat = {
+  migrations: [(pin: string) => ({ identity: pin })],
+};
 /**
  * The object graph without a listener, so callers choose where (and whether) to listen.
  * Nothing is started here: `startConnector` starts the keepalive.
@@ -29,17 +36,29 @@ export function composeConnector(
     config.stateDir,
     "session",
     config.storageKey,
+    SESSION_FORMAT,
   );
   const history = new EncryptedRepository<SessionHistory>(
     config.stateDir,
     "history",
     config.storageKey,
+    HISTORY_FORMAT,
   );
-  const identity = new EncryptedRepository<string>(config.stateDir, "identity", config.storageKey);
+  const identity = new EncryptedRepository<{ identity: string }>(
+    config.stateDir,
+    "identity",
+    config.storageKey,
+    IDENTITY_FORMAT,
+  );
   const oauth = new ConnectorOAuthProvider({
     resourceUrl: config.publicUrl + "/mcp",
     scopes: [...CONNECTOR_OPERATIONS],
-    repository: new EncryptedRepository<OAuthState>(config.stateDir, "oauth", config.storageKey),
+    repository: new EncryptedRepository<OAuthState>(
+      config.stateDir,
+      "oauth",
+      config.storageKey,
+      OAUTH_STATE_FORMAT,
+    ),
   });
   const runtime = new ConnectorRuntime({
     config: resolveConfig(
@@ -61,7 +80,10 @@ export function composeConnector(
       save: (value) => session.write(value),
       clear: () => session.clear(),
     },
-    identityStore: identity,
+    identityStore: {
+      read: () => identity.read()?.identity,
+      write: (pin) => identity.write({ identity: pin }),
+    },
     deps: {
       history: { read: () => history.read() ?? null, write: (value) => history.write(value) },
       ...deps,

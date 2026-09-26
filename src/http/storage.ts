@@ -1,4 +1,8 @@
-/** Authenticated encrypted atomic disk persistence. The encryption key lives outside this disk. */
+/**
+ * Authenticated encrypted atomic disk persistence. The encryption key lives outside this disk.
+ * Each repository stores one versioned format; the version sits inside the encrypted payload,
+ * where the GCM tag covers it (docs/planning/specs/2026-09-26-versioned-state.md).
+ */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import {
   mkdirSync,
@@ -11,13 +15,14 @@ import {
   closeSync,
 } from "node:fs";
 import { join } from "node:path";
-import { InputError } from "../core/index.js";
-export class EncryptedRepository<T> {
+import { InputError, loadVersioned, writeVersioned, type VersionedFormat } from "../core/index.js";
+export class EncryptedRepository<T extends object> {
   private path: string;
   constructor(
     private directory: string,
     name: string,
     private key: Buffer,
+    private format: VersionedFormat,
   ) {
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.path = join(directory, name + ".enc");
@@ -30,24 +35,34 @@ export class EncryptedRepository<T> {
       if ((e as NodeJS.ErrnoException).code === "ENOENT") return undefined;
       throw e;
     }
-    try {
-      const decipher = createDecipheriv("aes-256-gcm", this.key, data.subarray(0, 12));
-      decipher.setAAD(Buffer.from(this.path.split("/").pop()!));
-      decipher.setAuthTag(data.subarray(12, 28));
-      return JSON.parse(
-        Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString(),
-      ) as T;
-    } catch {
-      throw new InputError(
-        "Stored connector data cannot be read. Restore the matching encryption key and disk backup.",
-      );
-    }
+    // Fail closed on anything unreadable, a malformed version included; a payload
+    // from a newer build escapes as NewerFormatError and the file is left alone.
+    return loadVersioned<T, never>(
+      this.format,
+      this.path,
+      () => {
+        const decipher = createDecipheriv("aes-256-gcm", this.key, data.subarray(0, 12));
+        decipher.setAAD(Buffer.from(this.path.split("/").pop()!));
+        decipher.setAuthTag(data.subarray(12, 28));
+        return JSON.parse(
+          Buffer.concat([decipher.update(data.subarray(28)), decipher.final()]).toString(),
+        );
+      },
+      () => {
+        throw new InputError(
+          "Stored connector data cannot be read. Restore the matching encryption key and disk backup.",
+        );
+      },
+    );
   }
   write(value: T): void {
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", this.key, iv);
     cipher.setAAD(Buffer.from(this.path.split("/").pop()!));
-    const body = Buffer.concat([cipher.update(JSON.stringify(value)), cipher.final()]);
+    const body = Buffer.concat([
+      cipher.update(JSON.stringify(writeVersioned(this.format, value))),
+      cipher.final(),
+    ]);
     const temporary = this.path + ".tmp";
     writeFileSync(temporary, Buffer.concat([iv, cipher.getAuthTag(), body]), {
       mode: 0o600,

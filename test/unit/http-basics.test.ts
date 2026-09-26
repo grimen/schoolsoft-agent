@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectorConfig } from "../../src/http/config.js";
 import { EncryptedRepository } from "../../src/http/storage.js";
+import { unchanged } from "../../src/core/index.js";
+const FORMAT = { migrations: [unchanged] };
 import { OwnerSessions, OWNER_PASSWORD_MAX_BYTES } from "../../src/http/owner-session.js";
 import { clientKey } from "../../src/http/client-key.js";
 import { escapeHtml, page, form, hidden } from "../../src/http/pages.js";
@@ -62,7 +64,7 @@ test("encrypted repository authenticates files, writes atomically and survives r
   const dir = mkdtempSync(join(tmpdir(), "connector-storage-"));
   const key = Buffer.alloc(32, 3);
   try {
-    const repository = new EncryptedRepository<{ secret: string }>(dir, "state", key);
+    const repository = new EncryptedRepository<{ secret: string }>(dir, "state", key, FORMAT);
     assert.equal(repository.read(), undefined);
     repository.clear();
     repository.write({ secret: "SYNTHETIC_PRIVATE_VALUE" });
@@ -70,10 +72,10 @@ test("encrypted repository authenticates files, writes atomically and survives r
     const data = readFileSync(filename);
     assert.ok(!data.includes("SYNTHETIC_PRIVATE_VALUE"));
     assert.equal(statSync(filename).mode & 0o777, 0o600);
-    assert.deepEqual(new EncryptedRepository(dir, "state", key).read(), {
+    assert.deepEqual(new EncryptedRepository(dir, "state", key, FORMAT).read(), {
       secret: "SYNTHETIC_PRIVATE_VALUE",
     });
-    assert.throws(() => new EncryptedRepository(dir, "state", Buffer.alloc(32)).read());
+    assert.throws(() => new EncryptedRepository(dir, "state", Buffer.alloc(32), FORMAT).read());
     data[28] ^= 1;
     writeFileSync(filename, data);
     assert.throws(() => repository.read());
