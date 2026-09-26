@@ -3,9 +3,11 @@
  * which HTTP status that means, and the core's localized message and hint for the
  * `http` surface. Classification only; the router decides when to send one.
  */
+import { z } from "zod";
 import { InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import {
   AgentError,
+  EXIT_CODE_BY_KIND,
   PortalPushbackError,
   describeError,
   type ErrorKind,
@@ -202,21 +204,31 @@ export const refusals = {
   }),
 };
 
-export interface ProblemBody {
-  type: string;
-  title: string;
-  status: number;
-  detail: string;
-  hint?: string;
-  kind: string;
-  retryable: boolean;
-  /** Where the parent signs in to SchoolSoft again (SchoolSoft-session problems). */
-  ownerDashboard?: string;
-  /** RFC 6750 error code, so OAuth clients recognise token problems. */
-  error?: "invalid_token" | "insufficient_scope";
-  /** When the connector sends requests to the school portal again (ISO-8601; `portal-pushback`). */
-  retryAt?: string;
-}
+/** The problem details body (RFC 9457) every REST failure answers, as a schema. */
+export const ProblemSchema = z.object({
+  type: z.string().describe(`\`${PROBLEM_TYPE_PREFIX}<name>\`; branch on this`),
+  title: z.string().describe("Short English title of the problem type"),
+  status: z.number().int().describe("The HTTP status this problem is answered with"),
+  detail: z.string().describe("What happened, in the negotiated language"),
+  hint: z.string().optional().describe("What to do next, in the negotiated language"),
+  kind: z
+    .enum(Object.keys(EXIT_CODE_BY_KIND) as [ErrorKind, ...ErrorKind[]])
+    .describe("The error kind, as the MCP tools and the CLI report it"),
+  retryable: z.boolean().describe("Whether repeating the same request may succeed"),
+  ownerDashboard: z
+    .string()
+    .optional()
+    .describe("Where the parent signs in to SchoolSoft again (SchoolSoft-session problems)"),
+  error: z
+    .enum(["invalid_token", "insufficient_scope"])
+    .optional()
+    .describe("RFC 6750 error code on token problems"),
+  retryAt: z
+    .string()
+    .optional()
+    .describe("When the connector sends requests to the school portal again (`portal-pushback`)"),
+});
+export type ProblemBody = z.infer<typeof ProblemSchema>;
 
 /** The response body for a classified failure, in one language. */
 export function problemBody(
@@ -264,5 +276,7 @@ export function negotiateLang(header: string | undefined, fallback: Lang): Lang 
     })
     .filter((entry) => (entry.lang === "sv" || entry.lang === "en") && entry.q > 0)
     .sort((a, b) => b.q - a.q || a.index - b.index);
-  return (ranked[0]?.lang as Lang | undefined) ?? fallback;
+  // A constant, never the header's own text: only "sv" or "en" can leave here.
+  const first = ranked[0]?.lang;
+  return first === "sv" ? "sv" : first === "en" ? "en" : fallback;
 }

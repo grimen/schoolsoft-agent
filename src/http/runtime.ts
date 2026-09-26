@@ -13,6 +13,8 @@ import {
   portalHealth,
   requestBudgetOf,
   type Config,
+  type GuardianChild,
+  type Operation,
   type PortalHealth,
   type KeepaliveDeps,
   type Portal,
@@ -55,6 +57,13 @@ export class ConnectorRefusedError extends InputError {
     super(detail);
   }
 }
+/** One read of `executeForChild`: an offered operation and its arguments without `child_id`. */
+export interface ChildRead {
+  name: string;
+  args: Record<string, unknown>;
+}
+/** A read's value, or the failure `executeForChild` was told to keep in its place. */
+export type ReadOutcome = { ok: true; value: unknown } | { ok: false; error: unknown };
 export interface ExecutionAuthorization {
   check?: () => void;
   signal?: AbortSignal;
@@ -254,41 +263,10 @@ export class ConnectorRuntime {
     allowedChildIds: readonly number[],
     authorization: ExecutionAuthorization = {},
   ): Promise<unknown> {
-    if (this.outstanding >= 16)
-      return Promise.reject(
-        new ConnectorRefusedError("unavailable", "Connector is busy. Try again shortly."),
-      );
-    this.outstanding++;
-    const check = () => {
-      if (this.closed) throw new ConnectorRefusedError("unavailable", "Connector is closed.");
-      if (authorization.signal?.aborted) throw new InputError("Request cancelled.");
-      authorization.check?.();
-    };
-    return this.serialized(async () => {
-      check();
-      if (!CONNECTOR_OPERATIONS.some((value) => value === name))
-        throw new InputError("This operation is not available through the connector.");
-      const operation = getOperation(name)!;
-      const parsed = z.object(operation.input).strict().safeParse(args);
-      if (!parsed.success) throw new InputError("Check the operation arguments.");
-      const requested = parsed.data.child_id as number | undefined;
-      // A child named outside the grant is refused before the session is even restored.
-      if (requested !== undefined && !allowedChildIds.includes(requested))
-        throw new ConnectorRefusedError(
-          "child",
-          "This child was not permitted for this connection.",
-        );
-      await this.manager.ensureSession();
-      this.checkIdentity();
-      const guardian = this.manager.guardian();
-      const permitted = guardian.children.filter((child) =>
-        allowedChildIds.includes(child.studentId),
-      );
-      if (!permitted.length)
-        throw new ConnectorRefusedError(
-          "child",
-          "No permitted children. Reconnect and choose a child.",
-        );
+    return this.admitted(authorization, async (check) => {
+      const { operation, input } = this.parse(name, args);
+      const requested = input.child_id as number | undefined;
+      const { guardian, permitted } = await this.permitted(requested, allowedChildIds);
       if (name === "list_children") {
         check();
         return {
@@ -303,76 +281,179 @@ export class ConnectorRuntime {
         };
       }
       const childId = requested ?? guardian.childInFocus;
-      if (!permitted.some((child) => child.studentId === childId))
-        throw new ConnectorRefusedError(
-          "child",
-          "This child was not permitted for this connection.",
-        );
-      const validateChild = () => {
-        check();
-        this.checkIdentity();
-        if (
-          !allowedChildIds.includes(childId) ||
-          !this.manager.guardian().children.some((child) => child.studentId === childId)
-        )
-          throw new ConnectorRefusedError(
-            "child",
-            "This child is no longer permitted or available. Reconnect and choose a child.",
-          );
-      };
-      const validateFocus = () => {
-        validateChild();
-        if (this.manager.guardian().childInFocus !== childId)
-          throw new ConnectorRefusedError(
-            "child_changed",
-            "The child's session changed. Try again.",
-          );
-      };
-      validateChild();
-      await this.manager.focusChild(childId);
-      // A cache hit makes no HTTP request, so `beforeRead` is also the cache's guard:
-      // consent and child focus are rechecked before any cached value is served.
-      const portals = createPortals(this.manager, {
-        fetchImpl: this.options.deps?.fetchImpl,
-        // A request the caller abandoned while it waited in the budget's queue is never sent.
-        signal: authorization.signal,
-        browser: null,
-        beforeRead: validateFocus,
-        beforeRecovery: check,
-        afterRecovery: async () => {
-          validateChild();
-          await this.manager.focusChild(childId);
-          validateFocus();
-        },
-      });
-      const guarded = (portal: Portal): Portal => ({
-        ...portal,
-        getScheduleWeek: async (week) => {
-          validateFocus();
-          return portal.getScheduleWeek(week);
-        },
-        getLunchWeek: async (orgId, week, year) => {
-          validateFocus();
-          return portal.getLunchWeek(orgId, week, year);
-        },
-      });
-      const result = await runOperation(
-        operation,
-        {
-          config: this.options.config,
-          manager: this.manager,
-          provider: resolveProvider(this.options.config),
-          portal: guarded(portals.portal),
-          freshPortal: guarded(portals.freshPortal),
-          log: () => {},
-        },
-        { ...parsed.data, child_id: childId },
+      const reader = await this.focused(childId, permitted, allowedChildIds, check, authorization);
+      return reader.read(operation, input);
+    });
+  }
+
+  /**
+   * Several reads for one child in one turn of the queue: one grant check, one session
+   * restore, at most one child switch, and no other request between the reads, so a
+   * UI that alternates children costs one switch per call rather than one per read.
+   * Reads run in order, each under the same guards as `execute`. A read whose failure
+   * `keep` accepts is reported in its place and the next one runs; any other failure
+   * ends the call and nothing is released.
+   */
+  executeForChild(
+    childId: number,
+    reads: readonly ChildRead[],
+    allowedChildIds: readonly number[],
+    authorization: ExecutionAuthorization,
+    keep: (error: unknown) => boolean,
+  ): Promise<{ child: GuardianChild; results: ReadOutcome[] }> {
+    return this.admitted(authorization, async () => {
+      const parsed = reads.map((read) =>
+        this.parse(read.name, { ...read.args, child_id: childId }),
       );
-      validateFocus();
-      return result;
+      const { permitted } = await this.permitted(childId, allowedChildIds);
+      const check = this.checker(authorization);
+      const reader = await this.focused(childId, permitted, allowedChildIds, check, authorization);
+      const results: ReadOutcome[] = [];
+      for (const { operation, input } of parsed) {
+        try {
+          results.push({ ok: true, value: await reader.read(operation, input) });
+        } catch (error) {
+          if (!keep(error)) throw error;
+          results.push({ ok: false, error });
+        }
+      }
+      reader.validateFocus();
+      return {
+        child: this.manager.guardian().children.find((child) => child.studentId === childId)!,
+        results,
+      };
+    });
+  }
+
+  /** At most 16 requests wait or run; each runs alone in the queue, checked first. */
+  private admitted<T>(
+    authorization: ExecutionAuthorization,
+    run: (check: () => void) => Promise<T>,
+  ): Promise<T> {
+    if (this.outstanding >= 16)
+      return Promise.reject(
+        new ConnectorRefusedError("unavailable", "Connector is busy. Try again shortly."),
+      );
+    this.outstanding++;
+    const check = this.checker(authorization);
+    return this.serialized(async () => {
+      check();
+      return run(check);
     }).finally(() => {
       this.outstanding--;
     });
+  }
+
+  private checker(authorization: ExecutionAuthorization): () => void {
+    return () => {
+      if (this.closed) throw new ConnectorRefusedError("unavailable", "Connector is closed.");
+      if (authorization.signal?.aborted) throw new InputError("Request cancelled.");
+      authorization.check?.();
+    };
+  }
+
+  private parse(name: string, args: Record<string, unknown>) {
+    if (!CONNECTOR_OPERATIONS.some((value) => value === name))
+      throw new InputError("This operation is not available through the connector.");
+    const operation = getOperation(name)!;
+    const parsed = z.object(operation.input).strict().safeParse(args);
+    if (!parsed.success) throw new InputError("Check the operation arguments.");
+    return { operation, input: parsed.data };
+  }
+
+  /** The children this grant may read; a named child outside it is refused before restoring. */
+  private async permitted(requested: number | undefined, allowedChildIds: readonly number[]) {
+    if (requested !== undefined && !allowedChildIds.includes(requested))
+      throw new ConnectorRefusedError("child", "This child was not permitted for this connection.");
+    await this.manager.ensureSession();
+    this.checkIdentity();
+    const guardian = this.manager.guardian();
+    const permitted = guardian.children.filter((child) =>
+      allowedChildIds.includes(child.studentId),
+    );
+    if (!permitted.length)
+      throw new ConnectorRefusedError(
+        "child",
+        "No permitted children. Reconnect and choose a child.",
+      );
+    return { guardian, permitted };
+  }
+
+  /**
+   * Focus `childId` and return a reader for it: every read runs through `runOperation`
+   * with consent and focus rechecked before each upstream request and cache hit, after
+   * recovery, and on the result before it is released.
+   */
+  private async focused(
+    childId: number,
+    permitted: readonly GuardianChild[],
+    allowedChildIds: readonly number[],
+    check: () => void,
+    authorization: ExecutionAuthorization,
+  ) {
+    if (!permitted.some((child) => child.studentId === childId))
+      throw new ConnectorRefusedError("child", "This child was not permitted for this connection.");
+    const validateChild = () => {
+      check();
+      this.checkIdentity();
+      if (
+        !allowedChildIds.includes(childId) ||
+        !this.manager.guardian().children.some((child) => child.studentId === childId)
+      )
+        throw new ConnectorRefusedError(
+          "child",
+          "This child is no longer permitted or available. Reconnect and choose a child.",
+        );
+    };
+    const validateFocus = () => {
+      validateChild();
+      if (this.manager.guardian().childInFocus !== childId)
+        throw new ConnectorRefusedError("child_changed", "The child's session changed. Try again.");
+    };
+    validateChild();
+    await this.manager.focusChild(childId);
+    // A cache hit makes no HTTP request, so `beforeRead` is also the cache's guard:
+    // consent and child focus are rechecked before any cached value is served.
+    const portals = createPortals(this.manager, {
+      fetchImpl: this.options.deps?.fetchImpl,
+      // A request the caller abandoned while it waited in the budget's queue is never sent.
+      signal: authorization.signal,
+      browser: null,
+      beforeRead: validateFocus,
+      beforeRecovery: check,
+      afterRecovery: async () => {
+        validateChild();
+        await this.manager.focusChild(childId);
+        validateFocus();
+      },
+    });
+    const guarded = (portal: Portal): Portal => ({
+      ...portal,
+      getScheduleWeek: async (week) => {
+        validateFocus();
+        return portal.getScheduleWeek(week);
+      },
+      getLunchWeek: async (orgId, week, year) => {
+        validateFocus();
+        return portal.getLunchWeek(orgId, week, year);
+      },
+    });
+    const context = {
+      config: this.options.config,
+      manager: this.manager,
+      provider: resolveProvider(this.options.config),
+      portal: guarded(portals.portal),
+      freshPortal: guarded(portals.freshPortal),
+      log: () => {},
+    };
+    return {
+      validateFocus,
+      read: async (operation: Operation, input: Record<string, unknown>) => {
+        const result = await runOperation(operation, context, { ...input, child_id: childId });
+        validateFocus();
+        return result;
+      },
+    };
   }
 
   logout(): Promise<void> {

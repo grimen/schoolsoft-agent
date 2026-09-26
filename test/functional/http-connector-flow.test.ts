@@ -55,8 +55,9 @@ test("owner sign-in, OAuth consent, scoped MCP and REST reads, rotation, revocat
     ]);
     // The refused child never became the session's child in focus under the limited grant:
     // every weekly-schedule read was for the approved child (asserted in the flow by its echo):
-    // one through MCP, one through REST with fresh=true (the refused REST read never left).
-    assert.equal(upstream.calls.filter((call) => call.includes("/lessons/week/")).length, 2);
+    // one through MCP, one through REST and one through the overview, both with fresh=true
+    // (the refused REST and overview reads never left).
+    assert.equal(upstream.calls.filter((call) => call.includes("/lessons/week/")).length, 3);
     const files = readdirSync(stateDir);
     assert.deepEqual(files.sort(), ["history.enc", "identity.enc", "oauth.enc", "session.enc"]);
     for (const file of files) {

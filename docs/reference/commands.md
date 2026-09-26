@@ -96,14 +96,15 @@ schoolsoft-agent list-children
 Get the lesson schedule (timetable) for one child for a given ISO week.
 
 Returns lessons with title, start/end (ISO date-time with the Stockholm offset),
-room, teaching group, teacher and note.
+room, teaching group, teacher and note, and the week's year, Monday and Sunday.
 
 Args:
-  - week (number, optional): ISO week 1–53. Defaults to current week.
+  - week (number, optional): ISO week 1–53. Defaults to current week; the week
+    nearest today is meant (week 2 asked in December is next January's).
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { week, child: { id, firstName }, lessons: [{ id, title, start, end, room, group, teacher, note }] }
+Returns: { year, week, startDate, endDate, child: { id, firstName }, lessons: [{ id, title, start, end, room, group, teacher, note }] }
 
 Use when: "vad har barnet på schemat", "när slutar skolan på fredag".
 
@@ -117,7 +118,10 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 
 | Field | Type | Description |
 |---|---|---|
+| `year` | integer | ISO week-year: the year in which this week starts nearest today |
 | `week` | integer |  |
+| `startDate` | string (date) | Monday of the week, YYYY-MM-DD in Europe/Stockholm |
+| `endDate` | string (date) | Sunday of the week, YYYY-MM-DD in Europe/Stockholm |
 | `child` | object | The child the result is for |
 | `child.id` | integer | Child id; pass it as child_id |
 | `child.firstName` | string |  |
