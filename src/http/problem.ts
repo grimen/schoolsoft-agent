@@ -276,5 +276,7 @@ export function negotiateLang(header: string | undefined, fallback: Lang): Lang 
     })
     .filter((entry) => (entry.lang === "sv" || entry.lang === "en") && entry.q > 0)
     .sort((a, b) => b.q - a.q || a.index - b.index);
-  return (ranked[0]?.lang as Lang | undefined) ?? fallback;
+  // A constant, never the header's own text: only "sv" or "en" can leave here.
+  const first = ranked[0]?.lang;
+  return first === "sv" ? "sv" : first === "en" ? "en" : fallback;
 }
