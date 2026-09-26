@@ -8,6 +8,13 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BankIdBrowserStrategy } from "../../src/providers/schoolsoft/auth/bankid-browser.js";
+import { createHash } from "node:crypto";
+import {
+  createSessionManager,
+  resolveConfig,
+  MemorySessionStore,
+  MemoryPendingLoginStore,
+} from "../../src/core/index.js";
 import { SchoolsoftSession } from "../../src/providers/schoolsoft/session.js";
 
 function jwt(payload: Record<string, unknown>): string {
@@ -293,4 +300,34 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
     parent: { ...PARENT, children: [{ ...PARENT.children[0], schools: [] }] },
   });
   await assert.rejects(noSchool.login(new SchoolsoftSession("taby")), /has no school/);
+});
+
+test("session wiring forwards remote authorization through the provider and preserves PKCE at token exchange", async () => {
+  const { fetchImpl, log } = fakeSchoolsoft();
+  const store = new MemorySessionStore();
+  const config = resolveConfig([{ school: "taby" }], { home: "/unused", platform: "linux" });
+  let challenge = "";
+  const manager = createSessionManager(config, {
+    store,
+    pending: new MemoryPendingLoginStore(),
+    fetchImpl,
+    redirectUri: "https://parent.example/school/callback",
+    openBrowser: () => assert.fail("must not open the server's browser"),
+    browserAuthorization: async ({ url, state }) => {
+      const params = new URLSearchParams(url.split("?")[1]);
+      assert.equal(params.get("redirect_uri"), "https://parent.example/school/callback");
+      assert.equal(params.get("state"), state);
+      challenge = params.get("code_challenge")!;
+      return "REMOTE_CODE";
+    },
+  });
+  const info = await manager.login();
+  assert.equal(info.name, "Förälder Test");
+  const exchange = new URL(log[0].url).searchParams;
+  assert.equal(exchange.get("code"), "REMOTE_CODE");
+  assert.equal(
+    createHash("sha256").update(exchange.get("codeVerifier")!).digest("base64url"),
+    challenge,
+  );
+  assert.equal(manager.guardian().childInFocus, 100);
 });

@@ -6,7 +6,7 @@
  * post-processing by unit tests; this file is therefore excluded from the
  * unit-coverage gate (.c8rc.json).
  *
- * Structure observed on Täby, 2026-09-06 (see docs/schoolsoft-api.md):
+ * Structure observed on Täby, 2026-09-06 (see docs/reference/schoolsoft-api.md):
  *  - Kontaktlistor: #contAll_content > .h3_bold (group) + table rows with
  *    .display-info blocks: #name.heading_bold, #email a[href^=mailto], #phone,
  *    #address, #type, #role, #contact.

@@ -6,6 +6,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { createServer } from "node:http";
 import { runBrowserLogin } from "../../src/providers/schoolsoft/auth/browser-flow.js";
 
@@ -212,4 +213,63 @@ test("the error page escapes whatever the identity provider put in the query str
   const body = await bodyPromise;
   assert.ok(body.includes("&lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;&amp;&quot;"), body);
   assert.ok(!body.includes("<script>alert"), "raw script tag must not appear");
+});
+
+test("remote authorization keeps PKCE private and never opens a local browser or port", async () => {
+  const port = usePort();
+  const blocker = createServer();
+  await new Promise<void>((resolve) => blocker.listen(port, "127.0.0.1", resolve));
+  try {
+    let challenge = "";
+    const { result } = await runBrowserLogin({
+      school: "testskola",
+      port,
+      redirectUri: "https://parent.example/school/callback",
+      openBrowser: () => assert.fail("a hosted flow must not open the server's browser"),
+      browserAuthorization: async (request) => {
+        assert.deepEqual(Object.keys(request).sort(), ["state", "url"]);
+        const params = new URLSearchParams(request.url.split("?")[1]);
+        assert.equal(params.get("redirect_uri"), "https://parent.example/school/callback");
+        assert.equal(params.get("state"), request.state);
+        assert.equal(params.get("code_challenge_method"), "S256");
+        challenge = params.get("code_challenge")!;
+        return "REMOTE_CODE";
+      },
+    });
+    assert.equal(result.code, "REMOTE_CODE");
+    assert.equal(createHash("sha256").update(result.verifier).digest("base64url"), challenge);
+  } finally {
+    blocker.close();
+  }
+});
+
+test("remote authorization failures propagate without falling back to local login", async () => {
+  const denied = new Error("authorization denied by the remote callback");
+  await assert.rejects(
+    runBrowserLogin({
+      school: "testskola",
+      redirectUri: "https://parent.example/school/callback",
+      openBrowser: () => assert.fail("must not fall back to local login"),
+      browserAuthorization: async () => {
+        throw denied;
+      },
+    }),
+    (error) => error === denied,
+  );
+});
+
+test("each remote login gets independent state and PKCE material", async () => {
+  const requests: { url: string; state: string }[] = [];
+  const login = () =>
+    runBrowserLogin({
+      school: "testskola",
+      redirectUri: "https://parent.example/school/callback",
+      browserAuthorization: async (request) => {
+        requests.push(request);
+        return "CODE";
+      },
+    });
+  const [a, b] = await Promise.all([login(), login()]);
+  assert.notEqual(requests[0].state, requests[1].state);
+  assert.notEqual(a.result.verifier, b.result.verifier);
 });

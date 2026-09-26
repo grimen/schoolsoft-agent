@@ -48,11 +48,11 @@ after(async () => {
 });
 
 test(
-  "M0: tools/list exposes all 23 operations and find_school works without auth",
+  "M0: tools/list exposes all 24 operations and find_school works without auth",
   { skip },
   async () => {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 23);
+    assert.equal(tools.length, 24);
     const res = await call("schoolsoft_find_school", { query: "rösjö" });
     assert.notEqual(res.isError, true, res.content[0]?.text);
     const data = res.structuredContent as { schools: { slug: string; orgId: number }[] };

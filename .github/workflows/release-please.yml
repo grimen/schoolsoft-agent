@@ -11,7 +11,7 @@ name: Release Please
 # changelog section) and dispatches ci.yml at the tag with `release_tag`,
 # because GitHub never triggers workflows from events the workflow token
 # itself created. ci.yml treats that dispatch exactly like a `release`
-# event. See docs/releasing.md.
+# event. See docs/development/releasing.md.
 on:
   push:
     branches: [main]

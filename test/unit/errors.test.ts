@@ -206,3 +206,14 @@ test("detectLang: SCHOOLSOFT_LANG wins, then a Swedish locale, else English", ()
     "unsupported explicit value falls back to the locale rule",
   );
 });
+
+test("network guard describes cause-only and name-only transport failures", async () => {
+  for (const failure of [{ cause: { message: "ECONNREFUSED" } }, { name: "ECONNREFUSED" }]) {
+    await assert.rejects(
+      guardNetwork(async () => {
+        throw failure;
+      }),
+      NetworkError,
+    );
+  }
+});

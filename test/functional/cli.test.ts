@@ -615,3 +615,32 @@ test("errors render in Swedish when SCHOOLSOFT_LANG=sv; network failures exit 4 
   assert.match(n.err, /Could not reach SchoolSoft \(ENOTFOUND\)/);
   assert.match(n.err, /Next: Try again in a moment/);
 });
+
+test("get-calendar maps date flags, returns entries, and explains invalid ranges", async () => {
+  const { run } = harness();
+  await run("login");
+  const result = await run(
+    "get-calendar",
+    "--start-date",
+    "2026-09-01",
+    "--end-date",
+    "2026-09-30",
+    "--child-id",
+    "101",
+  );
+  assert.equal(result.code, EXIT.OK);
+  assert.equal(result.json().child.studentId, 101);
+  assert.equal(result.json().start_date, "2026-09-01");
+  assert.equal(result.json().end_date, "2026-09-30");
+  assert.equal(result.json().timezone, "Europe/Stockholm");
+  assert.ok(result.json().entries.length > 0);
+  const invalid = await run(
+    "get-calendar",
+    "--start-date",
+    "2026-02-30",
+    "--end-date",
+    "2026-03-01",
+  );
+  assert.equal(invalid.code, EXIT.INPUT);
+  assert.match(invalid.err, /YYYY-MM-DD/);
+});

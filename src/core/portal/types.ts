@@ -21,6 +21,8 @@ export interface Portal {
   // ----- api: webview REST (cookies) -----
   getSession(): Promise<unknown>;
   getScheduleWeek(week: number): Promise<unknown[]>;
+  /** Lessons and school events for the inclusive local date range. */
+  getCalendar(startDate: string, endDate: string): Promise<unknown[]>;
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]>;
   getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }>;
   /** Verksamhetslogg: activity log entries (legacy /rest endpoint, read-only POST with cookies). */
@@ -62,6 +64,7 @@ export const CAPABILITIES: readonly Capability[] = [
   "getNextCalendarEvent",
   "getSession",
   "getScheduleWeek",
+  "getCalendar",
   "getAssignmentsWeek",
   "getAssignmentDetail",
   "getActivityLog",

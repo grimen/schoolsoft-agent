@@ -12,6 +12,17 @@ type Template = (p: Record<string, string>) => string;
 type Catalog = Record<string, Record<Lang, Template>>;
 
 export const MESSAGES = {
+  calendar_range: {
+    en: () =>
+      "Use both start_date and end_date as valid YYYY-MM-DD dates, in order, covering at most 366 days; omit both for this week.",
+    sv: () =>
+      "Ange både start_date och end_date som giltiga datum i formatet YYYY-MM-DD, i ordning, för högst 366 dagar; utelämna båda för denna vecka.",
+  },
+  calendar_response: {
+    en: () =>
+      "SchoolSoft returned an unexpected calendar response. The full calendar could not be read.",
+    sv: () => "SchoolSoft returnerade ett oväntat kalendersvar. Hela kalendern kunde inte läsas.",
+  },
   not_configured: {
     en: (p) => `Not configured: no school is set${p.reason ? ` (${p.reason})` : ""}.`,
     sv: (p) => `Inte konfigurerad: ingen skola är vald${p.reason ? ` (${p.reason})` : ""}.`,

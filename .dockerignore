@@ -1,0 +1,10 @@
+# Allow only the inputs needed to build the connector. Never send local state,
+# environment secrets, live test dumps, or git history to a build service.
+*
+!package.json
+!package-lock.json
+!tsconfig.json
+!src/
+!src/**
+!deploy/
+!deploy/connector-entrypoint.mjs

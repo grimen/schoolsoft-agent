@@ -32,7 +32,7 @@ function recorder() {
 
 test("SchoolSoft's routing lists every Portal capability with a non-empty provider list", () => {
   const caps = Object.keys(ROUTING) as Capability[];
-  assert.equal(caps.length, 21);
+  assert.equal(caps.length, 22);
   assert.deepEqual(
     [...caps].sort(),
     [...CAPABILITIES].sort(),
@@ -49,7 +49,7 @@ test("SchoolSoft's routing lists every Portal capability with a non-empty provid
     "getStudentDocuments",
     "getUnreportedAbsence",
   ]);
-  assert.equal(API_CAPABILITIES.length, 13);
+  assert.equal(API_CAPABILITIES.length, 14);
 });
 
 test("api capabilities route to the api part with their arguments", async () => {

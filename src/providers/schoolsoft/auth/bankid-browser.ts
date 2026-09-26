@@ -12,6 +12,7 @@
  *      JSESSIONID+hash cookies for the /rest-api/parent/* endpoints.
  */
 import type { SchoolsoftClient } from "@elias4044/ssp-node";
+import type { BrowserAuthorization } from "../../../core/provider/types.js";
 import type { AuthStrategy, LoginInfo } from "../../../core/auth/strategy.js";
 import type { PersistedSession } from "../../../core/session/store.js";
 import type { SchoolsoftSession, SchoolsoftCredentials } from "../session.js";
@@ -35,6 +36,8 @@ export interface BankIdBrowserOptions {
   /** Test seams — production uses ssp-node's schoolsoftFetch. */
   fetchImpl?: ExchangeFetch & TokenFetch & ApiFetch;
   openBrowser?: (url: string) => void;
+  browserAuthorization?: BrowserAuthorization;
+  redirectUri?: string;
 }
 
 export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
@@ -59,6 +62,8 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
       clientId: this.clientId,
       port: this.options.callbackPort,
       openBrowser: this.options.openBrowser,
+      browserAuthorization: this.options.browserAuthorization,
+      redirectUri: this.options.redirectUri,
     });
     const tokens = await exchangeCode({
       school: client.school,

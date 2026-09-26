@@ -24,16 +24,28 @@ export interface ProviderSession {
   cookieHeader(): string | null;
 }
 
-/** Test seams every provider's auth strategies accept. */
+/**
+ * Browser authorization owned by the host. It must bind the response to the
+ * supplied state, reject errors/replays and resolve only with a verified code.
+ * The PKCE verifier stays inside the provider and is never exposed to the host.
+ */
+export type BrowserAuthorization = (request: { url: string; state: string }) => Promise<string>;
+
+/** Dependencies every provider's auth strategies accept. */
 export interface AuthDeps {
   /** Injected HTTP for the provider's auth calls (tests). */
   fetchImpl?: unknown;
   /** Opens a URL in the user's browser; tests inject a callback simulator. */
   openBrowser?: (url: string) => void;
+  /** Remote hosts supply both this callback and their validated redirect URI. */
+  browserAuthorization?: BrowserAuthorization;
+  redirectUri?: string;
 }
 
 /** What a provider gets when building its API portal. */
 export interface ApiPortalContext {
+  /** Called before each API read; may throw when host consent is no longer valid. */
+  beforeRead?: () => void;
   /** Cookies from the web login, as a header, null without a web session. */
   webCookieHeader: () => string | null;
   /** Which child the caller wants the WEB session on; null = leave it. */

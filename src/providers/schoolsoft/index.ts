@@ -40,6 +40,8 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       callbackPort: config.callbackPort,
       fetchImpl: deps.fetchImpl as BankIdBrowserOptions["fetchImpl"],
       openBrowser: deps.openBrowser,
+      browserAuthorization: deps.browserAuthorization,
+      redirectUri: deps.redirectUri,
     }),
   ],
 
@@ -48,6 +50,7 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       school: session.school,
       accessToken: () => session.client.accessToken,
       cookieHeader: () => session.cookieHeader(),
+      beforeRead: ctx.beforeRead,
       webCookieHeader: ctx.webCookieHeader,
       webChildTarget: ctx.webChildTarget,
       fetchImpl: ctx.fetchImpl as ApiFetch | undefined,

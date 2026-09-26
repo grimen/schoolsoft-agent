@@ -25,6 +25,7 @@ export type ApiPortalPart = Pick<
     | "getNextCalendarEvent"
     | "getSession"
     | "getScheduleWeek"
+    | "getCalendar"
     | "getAssignmentsWeek"
     | "getAssignmentDetail"
     | "getActivityLog"

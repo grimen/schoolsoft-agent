@@ -12,7 +12,7 @@ function mdFiles(dir: string, out: string[] = []): string[] {
   for (const e of readdirSync(dir)) {
     const p = join(dir, e);
     if (statSync(p).isDirectory()) {
-      if (!/node_modules|dist|superpowers/.test(p)) mdFiles(p, out);
+      if (!/node_modules|dist|planning/.test(p)) mdFiles(p, out);
     } else if (p.endsWith(".md")) out.push(p);
   }
   return out;
@@ -50,11 +50,10 @@ test("every diagram source has a rendered SVG, and vice versa; architecture embe
     .sort();
   assert.deepEqual(svg, mmd, "run make diagrams");
   assert.ok(mmd.length >= 5, `expected at least 5 diagrams, found ${mmd.length}`);
-  const arch = readFileSync(join(process.cwd(), "docs/architecture.md"), "utf8");
+  const arch = readFileSync(join(process.cwd(), "docs/development/architecture.md"), "utf8");
   for (const n of mmd) {
-    assert.match(
-      arch,
-      new RegExp(`\\(diagrams/dist/${n}\\.svg\\)\\]\\(diagrams/src/${n}\\.mmd\\)`),
+    assert.ok(
+      arch.includes(`](../diagrams/dist/${n}.svg)](../diagrams/src/${n}.mmd)`),
       `architecture.md must embed ${n}`,
     );
   }

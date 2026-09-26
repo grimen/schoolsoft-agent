@@ -39,7 +39,7 @@ check-code: lint typecheck format-check boundaries ## Lint + typecheck + format 
 shellcheck: ## shellcheck every repo shell script (scripts/**, skills/**)
 	shellcheck -x scripts/*.sh scripts/*/*.sh skills/schoolsoft/scripts/*.sh
 
-check-ci: shellcheck ## Lint the CI itself: actionlint (workflows) + shellcheck (scripts)
+check-ci: shellcheck diagrams-check ## CI lint and generated diagram freshness
 	actionlint
 
 audit: ## Dependency audit (audit-ci.jsonc allowlist)
@@ -154,7 +154,7 @@ install-pi: skills ## Copy the skill into ~/.pi/agent/skills/schoolsoft
 
 release: ## Merge the open release PR (release-please opens it after a feat/fix lands on main); needs one approval first
 	@pr=$$(gh pr list --state open --label 'autorelease: pending' --json number,title -q '.[0] | "\(.number) \(.title)"'); \
-	test -n "$$pr" || { echo "no open release PR: one appears after a feat/fix/perf commit reaches main (docs/releasing.md)"; exit 1; }; \
+	test -n "$$pr" || { echo "no open release PR: one appears after a feat/fix/perf commit reaches main (docs/development/releasing.md)"; exit 1; }; \
 	echo "merging #$$pr"; gh pr merge "$${pr%% *}" --squash
 
 release-rc: ## Hand-cut a prerelease-suffixed tag that ships under next: make release-rc V=X.Y.Z-rc.1

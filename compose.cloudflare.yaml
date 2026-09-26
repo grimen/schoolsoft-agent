@@ -1,0 +1,21 @@
+# Fresh deployment using a named Cloudflare Tunnel instead of Caddy.
+# Run with this file alone; do not combine it with compose.connector.yaml.
+services:
+  connector:
+    extends:
+      file: compose.connector.yaml
+      service: connector
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:?Set TUNNEL_TOKEN in .env}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      connector:
+        condition: service_healthy
+volumes:
+  schoolsoft-state:

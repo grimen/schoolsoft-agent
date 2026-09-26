@@ -2,8 +2,10 @@
   "all": true,
   "include": ["src/**/*.ts"],
   "exclude": [
-    "src/**/index.ts",
-    "src/http/**",
+    "src/core/index.ts",
+    "src/cli/index.ts",
+    "src/mcp/index.ts",
+    "src/http/index.ts",
     "src/core/auth/strategy.ts",
     "src/shared/version.ts",
     "src/core/browser/session.ts",

@@ -18,7 +18,7 @@ name: CI
 # Publishing (PUBLISH_GITHUB / PUBLISH_NPM below):
 #   - GitHub Packages, as @grimen/schoolsoft-agent, with the workflow's own
 #     GITHUB_TOKEN; always on, nothing to set up. Consumers need a token with
-#     read:packages even for public packages (docs/releasing.md).
+#     read:packages even for public packages (docs/development/releasing.md).
 #   - npmjs.com, as schoolsoft-agent with provenance, whenever the NPM_TOKEN
 #     secret exists (PUBLISH_NPM=auto); the step is skipped, not failed,
 #     until then. GITHUB_TOKEN cannot publish to npmjs.com.
