@@ -140,10 +140,10 @@ A v2 document whose `accounts` is not an object is treated as holding no account
 
 ## Design
 
-- `src/core/accounts.ts` (pure): `accountKey`, `accountKeyOf`, the `AccountsDocument` helpers (`accountsOf`, `withAccount`, `withoutAccount`), the config fold and `accountSource` (the file's settings for a selection).
-- `CONFIG_FORMAT`, `SESSION_FORMAT` and `HISTORY_FORMAT` each gain one migration; nothing else in `versioned.ts` changes.
-- `FileSessionStore(dir, account)` and `FileSessionHistoryStore(dir, account)` implement the existing one-account ports for one key; both also list the stored accounts for `doctor`. `SessionStore`, `SessionHistoryStore` and `SessionManager` are unchanged (open/closed: the store decides where an account's entry lives, not the manager).
-- The connector's store adapters in `src/http/start.ts` use the same helpers over `EncryptedRepository`, so one format per file kind still serves both hosts.
+- `src/core/accounts.ts` (pure): `accountKey`, `accountKeyOf` and the `AccountsDocument` helpers (`accountsOf`, `entryOf`, `withAccount`, `withoutAccount`).
+- `CONFIG_FORMAT`, `SESSION_FORMAT` and `HISTORY_FORMAT` each gain one migration, declared next to their types as before (`foldAccountSettings` in `config.ts`, `keySessionByAccount` in `store.ts`, `keepLegacyHistory` in `history.ts`); nothing else in `versioned.ts` changes. `accountSource` (the file's settings for a selection) sits next to the fold in `config.ts`.
+- `accountSessionStore` (`store.ts`) and `accountHistoryStore` (`history.ts`) give one account's view of a keyed document behind the existing one-account ports. `FileSessionStore(dir, account)` and `FileSessionHistoryStore(dir, account)` are those views over the local files; both also list the stored accounts for `doctor`. `SessionStore`, `SessionHistoryStore` and `SessionManager` are unchanged (open/closed: the store decides where an account's entry lives, not the manager).
+- The connector uses the same two views over `EncryptedRepository` (`connectorAccountState` in `src/http/start.ts`), so one format per file kind still serves both hosts.
 - `src/shared/bootstrap.ts` reads the selection from flags and environment before it asks the file for its settings. `configure` writes the account entry.
 - `doctor` names the current account on the session line and says how many accounts are stored when there is more than one.
 
@@ -160,12 +160,12 @@ A v2 document whose `accounts` is not an object is treated as holding no account
 
 ## Tasks & Acceptance
 
-- [ ] Two accounts are stored side by side in `config.json`, `session.enc` and `session-history.json` (local) and in the connector's `session.enc` and `history.enc`, and a save, refresh, loss or logout of one leaves the other exactly as it was.
-- [ ] A v0 and a v1 file of each kind (fixtures in the old shapes) loads as the account it belongs to and is written back as v2 on the next write.
-- [ ] A file at v3 is refused with the newer-version message in both languages and left byte-for-byte unchanged.
-- [ ] A single-account user sees the same results: configure, login, restore, refresh, logout (no `session.enc` left), doctor, auth status, connector restart.
-- [ ] Switching `--school` keeps the other school's session and does not borrow its `orgId`.
-- [ ] Architecture, troubleshooting and connector pages describe it in plain language.
+- [x] Two accounts are stored side by side in `config.json`, `session.enc` and `session-history.json` (local) and in the connector's `session.enc` and `history.enc`, and a save, refresh, loss or logout of one leaves the other exactly as it was.
+- [x] A v0 and a v1 file of each kind (fixtures in the old shapes) loads as the account it belongs to and is written back as v2 on the next write.
+- [x] A file at v3 is refused with the newer-version message in both languages and left byte-for-byte unchanged.
+- [x] A single-account user sees the same results: configure, login, restore, refresh, logout (no `session.enc` left), doctor, auth status, connector restart.
+- [x] Switching `--school` keeps the other school's session and does not borrow its `orgId`.
+- [x] Architecture, troubleshooting and connector pages describe it in plain language.
 
 ## Verification
 
