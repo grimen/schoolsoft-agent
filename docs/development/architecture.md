@@ -101,6 +101,8 @@ Five operations (`list_children`, `get_schedule`, `get_calendar`, `get_lunch_men
 
 The mapping lives in the provider: `src/providers/schoolsoft/portal/domain/` holds one module per upstream shape, a Zod schema of the raw answer plus a function to the domain type, called by the API backends. The `Portal` methods therefore return domain types, and the guardian profile reaches the session without fields core never uses. Because the cache decorator wraps the portal, it stores mapped, validated values; a drifted answer throws before it could be stored. An answer that does not map, or a result that fails its schema, is a `ResponseDriftError` (kind `upstream`, exit 7, not retryable) naming the operation, with field paths and issue codes but no values. It never clears a saved session. The other operations still return raw JSON until E4.5.
 
+**Text views in the CLI.** The CLI prints JSON by default, byte for byte as the operation returned it. `--format text` renders a typed result for people ([CLI output for humans](../planning/specs/2026-09-26-cli-text-output.md)). The views live in the CLI adapter, never in core: `src/cli/text/renderers/` has one pure function per operation (result → lines), registered by operation name in `src/cli/text/registry.ts`, and a boundary test requires a view for every operation that declares `output`. Words come from one English/Swedish table (`labels.ts`) chosen by `detectLang`; times are formatted for Europe/Stockholm from the ISO values, never the machine's zone; width (`COLUMNS`, else the TTY's) and colour (TTY, no `NO_COLOR`) come from injected `CliDeps` (`isTTY`, `columns`). Truncation is grapheme-aware and portal text is stripped of control characters. Untyped operations and the other commands print pretty JSON with a one-line note on stderr; errors are the same two lines in every format.
+
 Swedish portals all end their login in BankID; the two capture paths above cover an OAuth-style redirect (SchoolSoft) and a plain SAML/e-tjänst web login (everyone else), so a new provider chooses one and writes no browser code.
 
 ## Errors and recovery
@@ -168,7 +170,7 @@ src/core/         vendor-neutral: cache/ (ReadCache port, TTL policy), keepalive
 src/providers/    one directory per school portal vendor implementing SchoolProvider + index.ts registry
 src/providers/schoolsoft/  auth/ (BankID via SchoolSoft OAuth, token/cookie exchange), portal/ (api-portal facade + api/{transport,eva,webview,legacy,web-session}, browser-portal, pages, extractors, fingerprints), routing.ts, session.ts, web-login.ts, schools.ts
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
-src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, index.ts (bin)
+src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, text/ (--format text views), index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts
 src/http/         parent-hosted HTTPS adapter: OAuth, owner pages, scoped runtime, REST routes (routes, rest, problem), encrypted storage and startup
 skills/schoolsoft SKILL.md, scripts/schoolsoft.sh, references/commands.md (generated)

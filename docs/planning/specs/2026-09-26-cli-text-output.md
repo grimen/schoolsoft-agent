@@ -118,11 +118,11 @@ Unchanged, whatever the format: two lines on stderr from `describeError` and the
 ## Tasks & Acceptance
 
 - [x] Spec (this file).
-- [ ] Given each typed operation and `--format text`, when it runs against synthetic fixtures in English and Swedish, then stdout equals the stored view.
-- [ ] Given every operation, when run without `--format`, with `--format json` and with `--pretty`, then stdout is byte-identical to `JSON.stringify` of the result as before.
-- [ ] Given an untyped operation and `--format text`, then pretty JSON and one note.
-- [ ] Given `--format xml`, then exit 6 and two lines.
-- [ ] Registry test: every typed operation has a renderer.
+- [x] Given each typed operation and `--format text`, when it runs against synthetic fixtures in English and Swedish, then stdout equals the stored view.
+- [x] Given every operation, when run without `--format`, with `--format json` and with `--pretty`, then stdout is byte-identical to `JSON.stringify` of the result as before.
+- [x] Given an untyped operation and `--format text`, then pretty JSON and one note.
+- [x] Given `--format xml`, then exit 6 and two lines.
+- [x] Registry test: every typed operation has a renderer.
 
 ## Verification
 
