@@ -104,6 +104,30 @@ Escape hatches: `git commit --no-verify` skips `pre-commit` and
    say so in the PR (counts only, never data).
 5. Open a PR with a Conventional Commits title; every check must be green.
 
+## Live pass
+
+Some behaviour can only be confirmed with a real guardian login. The open items are
+tracked in issue #25 (E2). Do them in this order, in one sitting:
+
+1. `make login`, then `make login-web` (both open your own browser; BankID is never
+   automated).
+2. `make capture`. It uses the saved sessions only, never logs in, never submits a
+   form and never calls a write endpoint. It writes redacted files to `.captures/`,
+   which git ignores: the structure of the absence, leave and message forms, the
+   Översikt page, and a school-event agenda. Without a saved session it stops with
+   the usual "not logged in" message before doing anything.
+3. **Read every file in `.captures/` yourself.** No child's name, subject, teacher,
+   free text, e-mail, phone number or id may remain. Fix or delete anything that
+   does. Put names the check should know about in `.capture-denylist` (also ignored
+   by git, one per line).
+4. `make capture-promote`. It checks every file again and refuses to move anything
+   if one of them still looks personal; otherwise it moves them into
+   `test/fixtures/`. Then read `git diff`, run `make format`, and commit only what
+   you have read.
+5. The live items: `make e2e`, `make browser-verify`, the connector checks in
+   [docs/deployment/connector.md](docs/deployment/connector.md#what-still-needs-a-real-acceptance-test),
+   then `make fingerprints`.
+
 ## Releases
 
 See [docs/development/releasing.md](docs/development/releasing.md). Short version: merging the
