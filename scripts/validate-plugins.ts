@@ -38,11 +38,24 @@ export function validatePlugins(root: string): Problem[] {
     mp,
     "must list exactly schoolsoft-mcp and schoolsoft-skill",
   );
-  for (const p of (m.plugins ?? []) as { name: string; source: string }[]) {
+  // Every version below is bumped by release-please through `extra-files`
+  // in release-please-config.json; test/packaging/release-sync.test.ts
+  // replays that bump and runs this validator on the result.
+  need(
+    m.metadata?.version === pkg.version,
+    mp,
+    `metadata.version must equal package.json (${pkg.version})`,
+  );
+  for (const p of (m.plugins ?? []) as { name: string; source: string; version?: string }[]) {
     need(
       typeof p.source === "string" && existsSync(join(root, "plugins/claude", p.source)),
       mp,
       `source ${p.source} must exist`,
+    );
+    need(
+      p.version === pkg.version,
+      mp,
+      `plugins[${p.name}].version must equal package.json (${pkg.version})`,
     );
     const pj = join(root, "plugins/claude", p.source, ".claude-plugin/plugin.json");
     need(existsSync(pj), pj, "plugin.json missing");
@@ -71,10 +84,11 @@ export function validatePlugins(root: string): Problem[] {
   const mb = "plugins/mcpb/manifest.json";
   const b = json(join(root, mb));
   need(
-    b.manifest_version && b.name && b.version === pkg.version && b.description && b.author?.name,
+    b.manifest_version && b.name && b.description && b.author?.name,
     mb,
-    "manifest_version, name, version(=package), description, author.name required",
+    "manifest_version, name, description, author.name required",
   );
+  need(b.version === pkg.version, mb, `version must equal package.json (${pkg.version})`);
   need(
     b.server?.type === "node" && b.server?.entry_point && b.server?.mcp_config?.command,
     mb,
@@ -82,11 +96,24 @@ export function validatePlugins(root: string): Problem[] {
   );
   need(b.user_config?.school?.required === true, mb, "user_config.school must be required");
 
-  const oc = json(join(root, "plugins/opencode/opencode.json"));
+  const ocf = "plugins/opencode/opencode.json";
+  const oc = json(join(root, ocf));
   need(
     oc.mcp?.schoolsoft?.type === "local" && Array.isArray(oc.mcp.schoolsoft.command),
-    "plugins/opencode/opencode.json",
+    ocf,
     "mcp.schoolsoft local command[] required",
+  );
+  need(
+    JSON.stringify(oc.mcp?.schoolsoft?.command) ===
+      JSON.stringify([
+        "npx",
+        "-y",
+        "-p",
+        `schoolsoft-agent@${pkg.version}`,
+        "schoolsoft-agent-mcp",
+      ]),
+    ocf,
+    `mcp.schoolsoft.command must pin schoolsoft-agent@${pkg.version}`,
   );
   for (const host of ["opencode", "openclaw", "hermes"]) {
     const f = `plugins/${host}/skill-metadata.json`;

@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "schoolsoft-agent",
   "display_name": "SchoolSoft",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SchoolSoft for guardians: schedule, lunch, assignments, news and messages. BankID login in your browser.",
   "long_description": "Independent, MIT-licensed project. SchoolSoft is a trademark of SchoolSoft AB, which is not affiliated with, endorsing, or involved in this extension. Reads a guardian's SchoolSoft data through the same unofficial APIs the SchoolSoft app uses. Login is BankID in your own browser; a session is stored encrypted on your machine.",
   "author": {
@@ -15,13 +15,20 @@
     "url": "https://github.com/grimen/schoolsoft-agent"
   },
   "license": "MIT",
-  "keywords": ["schoolsoft", "school", "bankid", "sweden"],
+  "keywords": [
+    "schoolsoft",
+    "school",
+    "bankid",
+    "sweden"
+  ],
   "server": {
     "type": "node",
     "entry_point": "server/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/server/index.js"],
+      "args": [
+        "${__dirname}/server/index.js"
+      ],
       "env": {
         "SCHOOLSOFT_SCHOOL": "${user_config.school}",
         "SCHOOLSOFT_CONFIG_DIR": "${user_config.config_dir}"
@@ -45,11 +52,17 @@
   },
   "compatibility": {
     "claude_desktop": ">=0.10.0",
-    "platforms": ["darwin", "win32", "linux"],
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
     "runtimes": {
       "node": ">=22"
     }
   },
-  "privacy_policies": ["https://github.com/grimen/schoolsoft-agent#privacy"],
+  "privacy_policies": [
+    "https://github.com/grimen/schoolsoft-agent#privacy"
+  ],
   "tools": []
 }
