@@ -22,6 +22,8 @@ async function main(): Promise<void> {
     home: homedir(),
     platform: process.platform,
     version: PACKAGE_VERSION,
+    isTTY: process.stdout.isTTY === true,
+    columns: process.stdout.columns,
     prompt: rl ? (q) => rl.question(q) : undefined,
     detach: (argv) => {
       const child = spawn(process.execPath, [process.argv[1], ...argv], {

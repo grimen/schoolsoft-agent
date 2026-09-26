@@ -2,11 +2,13 @@
 
 # CLI commands
 
-Binary: `schoolsoft-agent`. Output is JSON on stdout; errors are one line on stderr.
+Binary: `schoolsoft-agent`. Output is JSON on stdout; errors are two lines on stderr (the problem, then what to do next).
 
 Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not configured (run `configure`) · `4` network · `5` not available · `6` input · `7` upstream (including `response_drift`: the portal's answer changed shape).
 
-Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`.
+Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`, `--format <json|text>`.
+
+`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for `list-children`, `get-schedule`, `get-calendar`, `get-lunch-menu`, `get-messages`; any other command prints pretty JSON and a one-line note on stderr.
 
 | Command | Purpose | Annotations |
 |---|---|---|
@@ -83,6 +85,8 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `children[].className` | string or null | Class name; null when not given |
 | `childInFocus` | integer | Id of the child reads default to |
 
+`--format text` prints a view of this result for people instead of JSON.
+
 ```bash
 schoolsoft-agent list-children
 ```
@@ -126,6 +130,8 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `lessons[].group` | string or null | Teaching group; null when not given |
 | `lessons[].teacher` | string or null | Teacher; null when not given |
 | `lessons[].note` | string or null | Lesson description; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-schedule --week 37
@@ -182,6 +188,8 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `events[].category` | string or null | Portal category, e.g. lesson or lunch; null when not given |
 | `events[].note` | string or null | Description; null when not given |
 
+`--format text` prints a view of this result for people instead of JSON.
+
 ```bash
 schoolsoft-agent get-calendar
 ```
@@ -221,6 +229,8 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `days[].dishes` | object[] |  |
 | `days[].dishes[].kind` | string or null | Kind of meal, as the school names it; null when not given |
 | `days[].dishes[].description` | string |  |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-lunch-menu
@@ -330,6 +340,8 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `messages[].sender.name` | string |  |
 | `messages[].sentAt` | string (date-time) | ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00 |
 | `messages[].hasAttachments` | boolean |  |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-messages
@@ -714,6 +726,10 @@ Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?,
   null or { since, ageMinutes, lastActivity, idleMinutes, activityCount, longestGapSurvivedMinutes } and losses lists
   the last observed session losses as { session: "app" | "web", at, ageMinutes, idleMinutes, ... }. Timestamps and
   counters only; it shows how long SchoolSoft really keeps a login alive.
+  Also portal: { state: "ok" | "backing_off" | "paused" | "probing", retryAt } for this process's request budget:
+  anything but "ok" means the school portal pushed back and requests pause until retryAt (probing: the next
+  request tests whether it answers again). While it is not "ok", authenticated: false with a portal reason only
+  means the session could not be checked; do not ask the user to log in.
 
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.

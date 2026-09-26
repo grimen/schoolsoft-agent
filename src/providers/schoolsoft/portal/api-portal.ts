@@ -47,7 +47,10 @@ export interface GuardianApiOptions {
    * so gated reads first align it; null = leave the web session as it is.
    */
   webChildTarget?: () => WebChild | null;
-  fetchImpl?: ApiFetch;
+  /** The budgeted HTTP helper (net.ts) in production, a fake in tests. */
+  fetchImpl: ApiFetch;
+  /** The host request's cancellation, for the budget's queue. */
+  signal?: AbortSignal;
 }
 
 export class ApiPortal implements ApiPortalPart {
@@ -58,7 +61,7 @@ export class ApiPortal implements ApiPortalPart {
   readonly absence: AbsenceApi;
 
   constructor(o: GuardianApiOptions) {
-    const http = new SchoolsoftHttp(o.school, o.fetchImpl, o.beforeRead);
+    const http = new SchoolsoftHttp(o.school, o.fetchImpl, o.beforeRead, o.signal);
     this.eva = new EvaApi(http, o.accessToken);
     this.webview = new WebviewApi(http, o.cookieHeader);
     this.legacy = new LegacyApi(http, o.cookieHeader);

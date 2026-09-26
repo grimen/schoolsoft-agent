@@ -19,6 +19,9 @@ import {
   emptyHistory,
   summarizeHistory,
   browserStatus,
+  createRequestBudget,
+  portalHealth,
+  probePortal,
   type Config,
   type SessionHistory,
   type PersistedSession,
@@ -144,23 +147,33 @@ export async function runDoctor(
     checks.push(historyCheck(config, deps.now?.() ?? Date.now()));
   }
 
-  // Default goes through globalThis.fetch so tests can stub it without network.
-  const fetchImpl =
-    deps.fetchImpl ?? ((url: string, init?: { method?: string }) => globalThis.fetch(url, init));
+  // Through a request budget like every request to the portal (the provider's HTTP; tests inject fetchImpl).
+  const budgetConfig = config ?? { provider: "schoolsoft", requestBudget: {} };
+  const budget = createRequestBudget(budgetConfig);
   try {
-    const r = await fetchImpl("https://sms.schoolsoft.se/", { method: "HEAD" });
+    const status = await probePortal(budgetConfig, { budget, fetchImpl: deps.fetchImpl });
     checks.push({
       name: "network",
-      ok: r.status < 500,
-      detail: `sms.schoolsoft.se HTTP ${r.status}`,
+      ok: status < 500,
+      detail: `school portal HTTP ${status}`,
     });
   } catch (e) {
     checks.push({
       name: "network",
       ok: false,
-      detail: `sms.schoolsoft.se unreachable: ${e instanceof Error ? e.message : e}`,
+      detail: `school portal unreachable: ${e instanceof Error ? e.message : e}`,
     });
   }
+  const { limits } = budget.snapshot();
+  const health = portalHealth(budget.snapshot());
+  checks.push({
+    name: "request-budget",
+    ok: true, // informational: this process starts fresh; a running server reports its own in auth-status
+    detail:
+      `${limits.perMinute}/min, burst ${limits.burst}, ${limits.maxInFlight} in flight (per process); ` +
+      `portal ${health.state}${health.retryAt ? ` until ${health.retryAt}` : ""}` +
+      "; a running MCP server or connector reports its own state in auth-status / the owner dashboard",
+  });
   const bs = await browserStatus(
     config?.browser ?? { kind: "chromium", headless: true },
     deps.browserProbes,

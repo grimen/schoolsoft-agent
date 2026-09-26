@@ -6,8 +6,14 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CAPABILITIES, resolveConfig, type SchoolProvider } from "../../src/core/index.js";
+import {
+  BUDGET_BOUNDS,
+  CAPABILITIES,
+  resolveConfig,
+  type SchoolProvider,
+} from "../../src/core/index.js";
 import { getProvider, providerIds } from "../../src/providers/index.js";
+import { CountingBudget } from "../helpers/budget.js";
 
 const defaults = { home: "/h", platform: "linux" as const, env: {} };
 
@@ -53,7 +59,7 @@ for (const id of providerIds) {
   });
 
   test(`[${id}] session: created per school, serialisable to a plain object, verifiable, with a cookie header or null`, async () => {
-    const session = provider.createSession("demo");
+    const session = provider.createSession("demo", { budget: new CountingBudget() });
     assert.equal(session.school, "demo");
     const data = provider.serializeSession(session);
     assert.equal(typeof data, "object");
@@ -68,7 +74,10 @@ for (const id of providerIds) {
       [{ provider: id, school: "demo", configDir: "/nowhere" }],
       defaults,
     );
-    const strategies = provider.createAuthStrategies(config, { openBrowser: () => {} });
+    const strategies = provider.createAuthStrategies(config, {
+      budget: new CountingBudget(),
+      openBrowser: () => {},
+    });
     assert.ok(strategies.length >= 1);
     assert.equal(new Set(strategies.map((s) => s.id)).size, strategies.length);
     for (const s of strategies) {
@@ -79,8 +88,10 @@ for (const id of providerIds) {
   });
 
   test(`[${id}] portals and directory are constructible without network and cover the routing`, () => {
-    const session = provider.createSession("demo");
+    const budget = new CountingBudget();
+    const session = provider.createSession("demo", { budget });
     const api = provider.createApiPortal(session, {
+      budget,
       webCookieHeader: () => null,
       webChildTarget: () => null,
     });
@@ -100,8 +111,29 @@ for (const id of providerIds) {
       );
     }
     assert.equal(typeof api.syncWebChild, "function");
-    const dir = provider.createSchoolDirectory("/nowhere/schools.json");
+    const dir = provider.createSchoolDirectory("/nowhere/schools.json", budget);
     assert.equal(typeof dir.find, "function");
+  });
+
+  test(`[${id}] request budget: default limits within the bounds; the reachability probe goes through the budget`, async () => {
+    for (const key of ["perMinute", "burst", "maxInFlight"] as const) {
+      const value = provider.requestBudget[key];
+      assert.ok(
+        Number.isInteger(value) &&
+          value >= BUDGET_BOUNDS[key].min &&
+          value <= BUDGET_BOUNDS[key].max,
+        `${key} ${value}`,
+      );
+    }
+    const budget = new CountingBudget();
+    const urls: string[] = [];
+    const status = await provider.probeReachability(budget, async (url: string) => {
+      urls.push(url);
+      return { status: 204 };
+    });
+    assert.equal(status, 204);
+    assert.equal(budget.calls.length, 1, "the probe went through the budget");
+    assert.ok(urls[0].startsWith(provider.webLogin.origin), urls[0]);
   });
 }
 

@@ -156,9 +156,15 @@ test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy 
   const { run } = harness({ home });
   const bad = await run("--config-dir", dir, "doctor");
   assert.equal(bad.code, EXIT.ERROR);
-  const checks = bad.json().checks as { name: string; ok: boolean }[];
+  const checks = bad.json().checks as { name: string; ok: boolean; detail: string }[];
   assert.equal(checks.find((c) => c.name === "config")?.ok, false);
   assert.equal(checks.find((c) => c.name === "network")?.ok, true);
+  const budget = checks.find((c) => c.name === "request-budget")!;
+  assert.equal(budget.ok, true);
+  assert.match(
+    budget.detail,
+    /^20\/min, burst 10, 2 in flight \(per process\); portal ok; a running MCP server/,
+  );
 
   mkdirSync(join(home, ".schoolsoft-mcp"), { recursive: true });
   writeFileSync(join(home, ".schoolsoft-mcp", "session.enc"), "blob");

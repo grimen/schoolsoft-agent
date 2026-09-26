@@ -5,6 +5,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PlaywrightSession, type PlaywrightLike } from "../../src/core/browser/playwright.js";
+import { CountingBudget, FakeClock, fakeBudget } from "../helpers/budget.js";
+import { PortalPushbackError } from "../../src/core/index.js";
 import {
   BrowserRequiredError,
   PortalGatedError,
@@ -20,6 +22,8 @@ interface FakeState {
   closedContexts: number;
   closedBrowsers: number;
   landing: string;
+  /** What a navigation answers (Playwright's Response); null for none. */
+  response?: { status: () => number; headers: () => Record<string, string> } | null;
 }
 
 function fakePlaywright(state: FakeState): PlaywrightLike {
@@ -31,6 +35,7 @@ function fakePlaywright(state: FakeState): PlaywrightLike {
     },
     goto: async (url: string) => {
       state.landing = state.landing || url;
+      return state.response ?? null;
     },
     url: () => state.landing,
     evaluate: async (fn: () => unknown) => fn(),
@@ -93,6 +98,7 @@ function fresh(): FakeState {
 test("chromium engine launches headless once, injects cookies, closes contexts", async () => {
   const state = fresh();
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=a; hash=b; usertype=2",
     loader: async () => fakePlaywright(state),
@@ -118,6 +124,7 @@ test("chromium engine launches headless once, injects cookies, closes contexts",
 test("cdp engine connects to the endpoint instead of launching", async () => {
   const state = fresh();
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=a; hash=b",
     engine: { kind: "cdp", endpoint: "ws://obscura:9222" },
@@ -132,6 +139,7 @@ test("the guard aborts non-GET requests unless allowed", async () => {
   const state = fresh();
   const pw = fakePlaywright(state);
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=a",
     loader: async () => pw,
@@ -172,6 +180,7 @@ test("landing on Login.jsp or the app-blocked page throws typed errors", async (
     const state = fresh();
     state.landing = landing;
     const s = new PlaywrightSession({
+      budget: new CountingBudget(),
       school: "taby",
       cookieHeader: () => "JSESSIONID=a",
       loader: async () => fakePlaywright(state),
@@ -186,6 +195,7 @@ test("landing on Login.jsp or the app-blocked page throws typed errors", async (
 
 test("missing playwright surfaces as BrowserRequiredError; missing cookies as SessionLostError", async () => {
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=a",
     loader: async () => {
@@ -197,6 +207,7 @@ test("missing playwright surfaces as BrowserRequiredError; missing cookies as Se
     /headless browser/,
   );
   const t = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => null,
     loader: async () => fakePlaywright(fresh()),
@@ -256,6 +267,7 @@ test("browserStatus reports the three states and installChromium spawns playwrig
 test("web-login cookies are used only when a call asks for them (gated pages)", async () => {
   const state = fresh();
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=app; hash=h",
     webCookies: () => [
@@ -277,6 +289,7 @@ test("web-login cookies are used only when a call asks for them (gated pages)", 
     "web cookies when asked",
   );
   const noWeb = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=app",
     loader: async () => fakePlaywright(fresh()),
@@ -291,6 +304,7 @@ test("headless default, cookie expiry, allowWrites, web-session loss and waitFor
   const state = fresh();
   const pw = fakePlaywright(state);
   const s = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=app",
     webCookies: () => [
@@ -331,6 +345,7 @@ test("headless default, cookie expiry, allowWrites, web-session loss and waitFor
   // web cookies present but empty → app cookies
   const st2 = fresh();
   const s2 = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=app",
     webCookies: () => [],
@@ -346,6 +361,7 @@ test("headless default, cookie expiry, allowWrites, web-session loss and waitFor
   const st3 = fresh();
   st3.landing = "https://sms.schoolsoft.se/taby/jsp/Login.jsp";
   const s3 = new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "taby",
     cookieHeader: () => "JSESSIONID=app",
     webCookies: () => [{ name: "JSESSIONID", value: "w", domain: "sms.schoolsoft.se", path: "/" }],
@@ -422,5 +438,39 @@ test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn er
       mk((c) => c.emit("error", new Error("ENOENT"))),
     ),
     /ENOENT/,
+  );
+});
+
+test("every navigation is one request of the budget; its status and Retry-After teach the breaker", async () => {
+  const state = fresh();
+  const counting = new CountingBudget();
+  const s = new PlaywrightSession({
+    budget: counting,
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=a",
+    loader: async () => fakePlaywright(state),
+  });
+  await s.withPage(async (p) => {
+    await p.goto("/jsp/one.jsp");
+    state.response = { status: () => 503, headers: () => ({ "retry-after": "12" }) };
+    await p.goto("/jsp/two.jsp");
+  });
+  assert.equal(counting.calls.length, 2);
+  assert.deepEqual(counting.answers, [
+    { status: 200, retryAfter: null },
+    { status: 503, retryAfter: "12" },
+  ]);
+  const clock = new FakeClock();
+  const budget = fakeBudget(clock);
+  state.response = { status: () => 429, headers: () => ({}) };
+  const limited = new PlaywrightSession({
+    budget,
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=a",
+    loader: async () => fakePlaywright(state),
+  });
+  await assert.rejects(
+    limited.withPage((p) => p.goto("/jsp/three.jsp")),
+    (e) => e instanceof PortalPushbackError && e.sent,
   );
 });

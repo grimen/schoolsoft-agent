@@ -1,5 +1,8 @@
 import { defineOperation } from "./types.js";
 import { NotAuthenticatedError } from "../session/session-manager.js";
+import { PortalPushbackError } from "../errors/index.js";
+import { portalHealth } from "../budget/budget.js";
+import { requestBudgetOf } from "../wiring.js";
 
 /** What auth_status reports about a login started with background: true. */
 function progress(p: import("../session/pending-login.js").PendingLogin | null) {
@@ -22,6 +25,10 @@ Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?,
   null or { since, ageMinutes, lastActivity, idleMinutes, activityCount, longestGapSurvivedMinutes } and losses lists
   the last observed session losses as { session: "app" | "web", at, ageMinutes, idleMinutes, ... }. Timestamps and
   counters only; it shows how long SchoolSoft really keeps a login alive.
+  Also portal: { state: "ok" | "backing_off" | "paused" | "probing", retryAt } for this process's request budget:
+  anything but "ok" means the school portal pushed back and requests pause until retryAt (probing: the next
+  request tests whether it answers again). While it is not "ok", authenticated: false with a portal reason only
+  means the session could not be checked; do not ask the user to log in.
 
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.`,
@@ -29,6 +36,7 @@ errors from other operations.`,
   portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx) {
+    const portal = () => portalHealth(requestBudgetOf(ctx.manager).snapshot());
     try {
       await ctx.manager.ensureSession();
       const { saved } = ctx.manager.status();
@@ -36,6 +44,7 @@ errors from other operations.`,
         authenticated: true as const,
         loginInProgress: progress(ctx.manager.pendingLogin()),
         keepalive: ctx.config.keepalive.mode,
+        portal: portal(),
         sessionHistory: ctx.manager.sessionHistory(),
         school: ctx.config.school,
         authMethod: saved?.authMethod,
@@ -53,13 +62,14 @@ errors from other operations.`,
         })),
       };
     } catch (e) {
-      if (e instanceof NotAuthenticatedError) {
+      if (e instanceof NotAuthenticatedError || e instanceof PortalPushbackError) {
         return {
           authenticated: false as const,
           school: ctx.config.school,
           reason: e.message,
           loginInProgress: progress(ctx.manager.pendingLogin()),
           keepalive: ctx.config.keepalive.mode,
+          portal: portal(),
           sessionHistory: ctx.manager.sessionHistory(),
         };
       }

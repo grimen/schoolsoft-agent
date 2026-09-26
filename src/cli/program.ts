@@ -13,12 +13,14 @@ import {
   type ConfigSource,
   type Lang,
   type OperationContext,
+  InputError,
 } from "../core/index.js";
 import { flagsFromSchema, parseFlags, kebab } from "./flags.js";
 import { EXIT, type ExitCode } from "./exit-codes.js";
 import { registerConfigure } from "./commands/configure.js";
 import { registerDoctor } from "./commands/doctor.js";
 import { registerBrowser } from "./commands/browser.js";
+import { emitText, FORMATS } from "./text/emit.js";
 
 export interface CliDeps {
   /** Builds the operation context; `overrides` come from global flags. */
@@ -43,8 +45,12 @@ export interface CliDeps {
    * used by `login --background` so the callback server outlives this process.
    */
   detach?: (argv: string[]) => number;
-  /** Clock for `doctor`'s session-history ages; injectable for tests. */
+  /** Clock for `doctor`'s session-history ages and the text views' "today"; injectable for tests. */
   now?: () => number;
+  /** Whether stdout is a terminal (colour in text views); absent means no. */
+  isTTY?: boolean;
+  /** stdout's width in columns when it is a terminal (text views). */
+  columns?: number;
 }
 
 export class CliExit extends Error {
@@ -75,13 +81,31 @@ export function buildProgram(deps: CliDeps): Command {
     .option("--config-dir <dir>", "Config directory")
     .option("--state-dir <dir>", "Session state directory")
     .option("--pretty", "Pretty-print JSON output")
+    .option(
+      "--format <format>",
+      "Output format: json (default) or text, a view for people (list-children, get-schedule, get-calendar, get-lunch-menu, get-messages)",
+    )
     .exitOverride()
     .configureOutput({
       writeOut: (s) => deps.stdout(s.trimEnd()),
       writeErr: (s) => deps.stderr(s.trimEnd()),
     });
 
-  const emit = (data: unknown) => {
+  // The command being run, for the text fallback's note.
+  let running = "";
+  program.hook("preAction", (_root, action) => {
+    const format = program.opts().format as string | undefined;
+    if (format !== undefined && !(FORMATS as readonly string[]).includes(format))
+      throw new InputError(`--format must be one of ${FORMATS.join(", ")}, got "${format}"`);
+    running = commandPath(action);
+  });
+
+  /** JSON exactly as always; with --format text, the operation's view or pretty JSON and a note. */
+  const emit = (data: unknown, operation?: string) => {
+    if (program.opts().format === "text") {
+      emitText(deps, data, operation, running);
+      return;
+    }
     const pretty = Boolean(program.opts().pretty);
     deps.stdout(JSON.stringify(data, null, pretty ? 2 : 0));
   };
@@ -103,7 +127,7 @@ export function buildProgram(deps: CliDeps): Command {
         return;
       }
       const result = await runOperation(op, ctx, args as never);
-      emit(result);
+      emit(result, op.name);
     });
   }
 
@@ -157,6 +181,13 @@ async function backgroundLogin(
 }
 
 export { backgroundLogin };
+
+/** "get-news", "browser verify": the command's names below the program. */
+function commandPath(cmd: Command): string {
+  const names: string[] = [];
+  for (let c: Command | null = cmd; c?.parent; c = c.parent) names.unshift(c.name());
+  return names.join(" ");
+}
 
 function firstLine(s: string): string {
   return s.split("\n")[0].trim();

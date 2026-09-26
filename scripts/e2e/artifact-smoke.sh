@@ -6,4 +6,4 @@
 # Requires: make build skills mcpb-stage (make e2e-artifact does that).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-./node_modules/.bin/tsx --test --test-concurrency=1 'test/e2e-hosts/*.e2e.test.ts' 'test/functional/cli-spawn.test.ts'
+./node_modules/.bin/tsx --import ./test/helpers/offline.mjs --test --test-concurrency=1 'test/e2e-hosts/*.e2e.test.ts' 'test/functional/cli-spawn.test.ts'

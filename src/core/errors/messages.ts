@@ -12,6 +12,18 @@ export type Surface = "cli" | "mcp" | "http";
 type Template = (p: Record<string, string>) => string;
 type Catalog = Record<string, Record<Lang, Template>>;
 
+/** A wait for people: seconds under a minute, else about N minutes (rounded up). */
+function wait(seconds: string, lang: Lang): string {
+  const s = Number(seconds);
+  if (s < 60) {
+    if (lang === "sv") return `${s} ${s === 1 ? "sekund" : "sekunder"}`;
+    return `${s} ${s === 1 ? "second" : "seconds"}`;
+  }
+  const m = Math.ceil(s / 60);
+  if (lang === "sv") return `ungefär ${m} ${m === 1 ? "minut" : "minuter"}`;
+  return `about ${m} ${m === 1 ? "minute" : "minutes"}`;
+}
+
 export const MESSAGES = {
   calendar_range: {
     en: () =>
@@ -86,6 +98,22 @@ export const MESSAGES = {
       `SchoolSoft answered HTTP ${p.status} for ${p.what}. This is usually temporary; try again in a moment.`,
     sv: (p) =>
       `SchoolSoft svarade HTTP ${p.status} för ${p.what}. Det är oftast tillfälligt; försök igen om en stund.`,
+  },
+  portal_slow_down: {
+    en: (p) =>
+      `SchoolSoft is asking for fewer requests or answering with errors, so schoolsoft-agent is pausing requests to it for ${wait(p.seconds, "en")}.`,
+    sv: (p) =>
+      `SchoolSoft ber om färre förfrågningar eller svarar med fel, så schoolsoft-agent pausar förfrågningar dit i ${wait(p.seconds, "sv")}.`,
+  },
+  portal_paused: {
+    en: (p) =>
+      `SchoolSoft has pushed back several times in a row (asked for fewer requests, answered with errors or did not answer), so schoolsoft-agent sends it nothing for ${wait(p.seconds, "en")}. Nothing was sent.`,
+    sv: (p) =>
+      `SchoolSoft har sagt ifrån flera gånger i rad (bett om färre förfrågningar, svarat med fel eller inte svarat), så schoolsoft-agent skickar inget dit på ${wait(p.seconds, "sv")}. Inget skickades.`,
+  },
+  request_cancelled: {
+    en: () => `The request was cancelled before it was sent to SchoolSoft.`,
+    sv: () => `Begäran avbröts innan den skickades till SchoolSoft.`,
   },
   upstream_rejected: {
     en: (p) => `SchoolSoft rejected the session (HTTP ${p.status}) for ${p.what}.`,
@@ -325,6 +353,18 @@ export const HINTS = {
       cli: `Försök igen om en stund; om det fortsätter, kör: schoolsoft-agent doctor`,
       mcp: `Försök igen om en stund; om det fortsätter, be användaren köra "schoolsoft-agent doctor".`,
       http: `Försök igen om en stund; om det fortsätter, be föräldern kontrollera anslutningens ägarsida.`,
+    },
+  },
+  portal_pushback: {
+    en: {
+      cli: `Wait until then and run the command again; trying sooner is refused without contacting SchoolSoft. If it keeps happening, run: schoolsoft-agent doctor`,
+      mcp: `Tell the user the school portal is pushing back and to try again after the wait. Do not retry on your own before then; schoolsoft_auth_status shows when requests resume (portal.retryAt).`,
+      http: `Tell the parent the school portal is pushing back and try again after Retry-After (retryAt); do not retry sooner. Signing in again does not help.`,
+    },
+    sv: {
+      cli: `Vänta tills dess och kör kommandot igen; tidigare försök nekas utan att SchoolSoft kontaktas. Om det fortsätter, kör: schoolsoft-agent doctor`,
+      mcp: `Berätta för användaren att skolportalen säger ifrån och att försöka igen efter väntetiden. Försök inte igen på eget initiativ före dess; schoolsoft_auth_status visar när förfrågningar återupptas (portal.retryAt).`,
+      http: `Berätta för föräldern att skolportalen säger ifrån och försök igen efter Retry-After (retryAt); försök inte tidigare. Att logga in igen hjälper inte.`,
     },
   },
   list_children: {
