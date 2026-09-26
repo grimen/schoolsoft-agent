@@ -12,7 +12,6 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import {
@@ -51,8 +50,7 @@ import {
 const TYPED = ["list_children", "get_schedule", "get_calendar", "get_lunch_menu", "get_messages"];
 
 /** Production wiring over the offline stand-in, a saved session and fixture answers. */
-function wired(t: { mock: { method: typeof import("node:test").mock.method } }) {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+function wired() {
   const now = 1_900_000_000_000;
   const sim = new SchoolsoftSim(() => now);
   const store = new MemorySessionStore();
@@ -124,8 +122,8 @@ test("MCP publishes an outputSchema for exactly the five typed operations", asyn
   await client.close();
 });
 
-test("the five operations map live-shaped JSON to the domain model", async (t) => {
-  const { ctx } = wired(t);
+test("the five operations map live-shaped JSON to the domain model", async () => {
+  const { ctx } = wired();
   assert.deepEqual(await run(ctx, "list_children"), {
     guardianName: "Synthetic Guardian",
     children: [
@@ -255,8 +253,8 @@ function breakAnswer(w: ReturnType<typeof wired>, name: string, kind: DriftKind)
 
 for (const name of TYPED) {
   for (const kind of DRIFT_KINDS) {
-    test(`${name}, ${kind} field: one drift error naming the operation; nothing cached, session kept`, async (t) => {
-      const w = wired(t);
+    test(`${name}, ${kind} field: one drift error naming the operation; nothing cached, session kept`, async () => {
+      const w = wired();
       const repair = breakAnswer(w, name, kind);
       await assert.rejects(run(w.ctx, name), (e: unknown) => {
         assert.ok(e instanceof ResponseDriftError, String(e));
@@ -274,9 +272,9 @@ for (const name of TYPED) {
   }
 }
 
-test("MCP: drift is an error result with two lines, not a protocol failure, for each typed tool", async (t) => {
+test("MCP: drift is an error result with two lines, not a protocol failure, for each typed tool", async () => {
   for (const name of TYPED) {
-    const w = wired(t);
+    const w = wired();
     breakAnswer(w, name, "wrong-typed");
     const server = createMcpServer({ getContext: () => w.ctx, lang: "sv" });
     const [ct, st] = InMemoryTransport.createLinkedPair();
@@ -294,9 +292,9 @@ test("MCP: drift is an error result with two lines, not a protocol failure, for 
   }
 });
 
-test("CLI: drift exits 7 with the problem and the next step on stderr, nothing on stdout", async (t) => {
+test("CLI: drift exits 7 with the problem and the next step on stderr, nothing on stdout", async () => {
   for (const name of TYPED) {
-    const w = wired(t);
+    const w = wired();
     breakAnswer(w, name, "missing");
     const out: string[] = [];
     const err: string[] = [];

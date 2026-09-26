@@ -8,7 +8,7 @@ import { dirname } from "node:path";
 
 export const SCHOOL_LIST_URL = "https://sms.schoolsoft.se/internal/rest-api/login/schoollist";
 
-import { AgentError, UpstreamError, guardNetwork } from "../../core/errors/index.js";
+import { AgentError } from "../../core/errors/index.js";
 import {
   rankSchools,
   type RankedSchool,
@@ -41,19 +41,14 @@ export function parseSchoolList(raw: unknown): SchoolEntry[] {
 export interface SchoolDirectoryOptions {
   cacheFile: string;
   ttlMs?: number;
-  fetchImpl?: (url: string) => Promise<unknown>;
+  /** JSON GET of the list: net.ts `budgetedJson` in production, a fake in tests. */
+  fetchImpl: (url: string) => Promise<unknown>;
   now?: () => number;
 }
 
 interface CacheShape {
   fetchedAt: number;
   schools: SchoolEntry[];
-}
-
-export async function defaultFetch(url: string): Promise<unknown> {
-  const res = await guardNetwork(() => fetch(url, { headers: { Accept: "application/json" } }));
-  if (!res.ok) throw new UpstreamError(res.status, "the public school list");
-  return res.json();
 }
 
 export class SchoolDirectory implements SchoolDirectoryPort {
@@ -63,7 +58,7 @@ export class SchoolDirectory implements SchoolDirectoryPort {
 
   constructor(private readonly o: SchoolDirectoryOptions) {
     this.ttlMs = o.ttlMs ?? 24 * 60 * 60 * 1000;
-    this.fetchImpl = o.fetchImpl ?? defaultFetch;
+    this.fetchImpl = o.fetchImpl;
     this.now = o.now ?? Date.now;
   }
 

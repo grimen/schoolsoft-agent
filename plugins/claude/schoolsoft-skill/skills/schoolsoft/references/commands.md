@@ -713,6 +713,10 @@ Returns: { authenticated: boolean, school, authMethod?, savedAt?, childInFocus?,
   null or { since, ageMinutes, lastActivity, idleMinutes, activityCount, longestGapSurvivedMinutes } and losses lists
   the last observed session losses as { session: "app" | "web", at, ageMinutes, idleMinutes, ... }. Timestamps and
   counters only; it shows how long SchoolSoft really keeps a login alive.
+  Also portal: { state: "ok" | "backing_off" | "paused" | "probing", retryAt } for this process's request budget:
+  anything but "ok" means the school portal pushed back and requests pause until retryAt (probing: the next
+  request tests whether it answers again). While it is not "ok", authenticated: false with a portal reason only
+  means the session could not be checked; do not ask the user to log in.
 
 Use when: deciding whether login is needed, or diagnosing authentication
 errors from other operations.

@@ -10,11 +10,11 @@
  * headers, so it can never work for guardians. Header names follow
  * sebdanielsson/better-schoolsoft.
  */
-import { schoolsoftFetch, ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
+import { ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
 import { AgentError, guardNetwork } from "../../../core/errors/index.js";
 
-/** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
+/** Minimal shape of the provider's HTTP helper (net.ts, budgeted), injectable for tests. */
 export type ExchangeFetch = (
   url: string,
   school: string,
@@ -38,7 +38,7 @@ export interface ExchangeOptions {
   orgId: number;
   /** Student the cookie session should be bound to (guardians). */
   childInFocus?: number;
-  fetchImpl?: ExchangeFetch;
+  fetchImpl: ExchangeFetch;
 }
 
 const APP_UA = "SchoolSoftPlus-Mobile/1.0";
@@ -56,8 +56,7 @@ export async function exchangeTokenForCookies(
       hint: "login",
     });
   }
-  /* c8 ignore next: live default, exercised by make e2e (A1) */
-  const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as ExchangeFetch);
+  const { fetchImpl } = options;
   const { school } = client;
   const { userType } = options;
 

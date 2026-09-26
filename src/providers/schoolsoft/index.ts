@@ -11,7 +11,7 @@
 import type { SchoolProvider } from "../../core/provider/types.js";
 import type { Config } from "../../core/config.js";
 import { BankIdBrowserStrategy, type BankIdBrowserOptions } from "./auth/bankid-browser.js";
-import { ApiPortal, type ApiFetch } from "./portal/api-portal.js";
+import { ApiPortal } from "./portal/api-portal.js";
 import { BrowserPortal } from "./portal/browser-portal.js";
 import { PAGES } from "./portal/pages.js";
 import { FINGERPRINTS } from "./portal/fingerprints.js";
@@ -19,6 +19,7 @@ import { SchoolDirectory } from "./schools.js";
 import { SchoolsoftSession } from "./session.js";
 import { ROUTING, WEB_SESSION_CAPABILITIES } from "./routing.js";
 import { webLoginSpec } from "./web-login.js";
+import { budgetedFetch, budgetedHead, budgetedJson, type HeadFetch } from "./net.js";
 
 export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
   id: "schoolsoft",
@@ -28,8 +29,12 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
   pages: PAGES,
   fingerprints: FINGERPRINTS,
   webLogin: webLoginSpec,
+  // A parent's use is a handful of requests a minute; see docs/planning/specs/2026-09-26-request-budget.md.
+  requestBudget: { perMinute: 20, burst: 10, maxInFlight: 2 },
 
-  createSession: (school) => new SchoolsoftSession(school),
+  // Every entry point wraps the fetch it is given (a test fake too) in the process's budget.
+  createSession: (school, ctx) =>
+    new SchoolsoftSession(school, budgetedFetch(ctx.budget, ctx.fetchImpl)),
   serializeSession: (session) => ({ ...session.serialize() }),
 
   createAuthStrategies: (config: Config, deps) => [
@@ -38,7 +43,7 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       userType: config.userType,
       clientId: config.clientId,
       callbackPort: config.callbackPort,
-      fetchImpl: deps.fetchImpl as BankIdBrowserOptions["fetchImpl"],
+      fetchImpl: budgetedFetch(deps.budget, deps.fetchImpl) as BankIdBrowserOptions["fetchImpl"],
       openBrowser: deps.openBrowser,
       browserAuthorization: deps.browserAuthorization,
       redirectUri: deps.redirectUri,
@@ -54,7 +59,8 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       beforeRead: ctx.beforeRead,
       webCookieHeader: ctx.webCookieHeader,
       webChildTarget: ctx.webChildTarget,
-      fetchImpl: ctx.fetchImpl as ApiFetch | undefined,
+      fetchImpl: budgetedFetch(ctx.budget, ctx.fetchImpl),
+      signal: ctx.signal,
     }),
 
   createBrowserPortal: (browser, ctx) =>
@@ -64,7 +70,11 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       syncWebChild: ctx.syncWebChild,
     }),
 
-  createSchoolDirectory: (cacheFile) => new SchoolDirectory({ cacheFile }),
+  createSchoolDirectory: (cacheFile, budget) =>
+    new SchoolDirectory({ cacheFile, fetchImpl: budgetedJson(budget) }),
+
+  probeReachability: (budget, fetchImpl) =>
+    budgetedHead(budget, fetchImpl as HeadFetch | undefined),
 };
 
 export { SchoolsoftSession } from "./session.js";
@@ -92,5 +102,6 @@ export { SchoolsoftHttp } from "./portal/api/transport.js";
 export { BankIdBrowserStrategy } from "./auth/bankid-browser.js";
 export { decodeJwtClaims, buildAuthUrl, exchangeCode, refreshTokens } from "./auth/oauth.js";
 export { runBrowserLogin } from "./auth/browser-flow.js";
-export { SchoolDirectory, SCHOOL_LIST_URL, parseSchoolList, defaultFetch } from "./schools.js";
+export { SchoolDirectory, SCHOOL_LIST_URL, parseSchoolList } from "./schools.js";
+export { budgetedFetch, budgetedJson, budgetedHead, type SchoolsoftFetch } from "./net.js";
 export * from "./portal/extractors.js";

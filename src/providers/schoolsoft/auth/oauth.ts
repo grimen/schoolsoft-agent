@@ -6,7 +6,7 @@
  * yields a token that fails every call with "Vi kunde inte hitta
  * användaren". Everything varying by user type / client id lives here.
  */
-import { makePkcePair, makeState, schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
+import { makePkcePair, makeState, ssUrl } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
 import { AgentError, UpstreamError, guardNetwork } from "../../../core/errors/index.js";
 
@@ -49,7 +49,7 @@ export interface TokenSet {
   expiresAt: number | null;
 }
 
-/** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
+/** Minimal shape of the provider's HTTP helper (net.ts, budgeted), injectable for tests. */
 export type TokenFetch = (
   url: string,
   school: string,
@@ -100,10 +100,9 @@ export async function exchangeCode(options: {
   clientId: string;
   code: string;
   verifier: string;
-  fetchImpl?: TokenFetch;
+  fetchImpl: TokenFetch;
 }): Promise<TokenSet> {
-  /* c8 ignore next: live default, exercised by make e2e (A1) */
-  const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as TokenFetch);
+  const { fetchImpl } = options;
   const url =
     ssUrl(options.school, "/rest-api/login/token") +
     `?clientId=${encodeURIComponent(options.clientId)}` +
@@ -124,10 +123,9 @@ export async function refreshTokens(options: {
   school: string;
   clientId: string;
   refreshToken: string;
-  fetchImpl?: TokenFetch;
+  fetchImpl: TokenFetch;
 }): Promise<TokenSet> {
-  /* c8 ignore next: live default, exercised by make e2e (A3) */
-  const fetchImpl = options.fetchImpl ?? (schoolsoftFetch as TokenFetch);
+  const { fetchImpl } = options;
   const url =
     ssUrl(options.school, "/rest-api/login/token") +
     `?clientId=${encodeURIComponent(options.clientId)}` +

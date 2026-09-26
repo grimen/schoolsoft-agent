@@ -4,8 +4,11 @@
  * on a timer, run a little early rather than late (jitter), slower after a
  * transient failure (backoff), silent during quiet hours, and stopped for
  * good when the session is gone: only a human login starts it again, so it
- * can never loop against a dead session and never leads to BankID.
- * Timer, clock and randomness are injected.
+ * can never loop against a dead session and never leads to BankID. While
+ * the request budget says the portal is pushing back (`pausedUntil`), a run
+ * is skipped without a request: background work never waits in line and
+ * never tests the water for the user. Timer, clock and randomness are
+ * injected.
  */
 import { AgentError, isTransient } from "../errors/index.js";
 
@@ -42,6 +45,11 @@ export interface KeepaliveOptions {
   /** Local hour of a timestamp; injected so tests do not depend on the time zone. */
   hourOf?: (ms: number) => number;
   log?: (message: string) => void;
+  /**
+   * Null while requests to the portal flow; otherwise until when they are
+   * paused (epoch ms; now or earlier while one user request tests the water).
+   */
+  pausedUntil?: () => number | null;
 }
 
 export type KeepaliveState = "scheduled" | "stopped";
@@ -125,6 +133,13 @@ export class KeepaliveScheduler {
     const quiet = this.o.quietHours;
     if (quiet && inQuietHours(this.hourOf(this.o.now()), quiet)) {
       this.arm(slot, slot.task.intervalMs); // no request at night; look again later
+      return;
+    }
+    const paused = this.o.pausedUntil?.() ?? null;
+    if (paused !== null) {
+      // The portal is pushing back: send nothing, keep the task's state, look again later.
+      this.o.log?.(`keepalive: ${slot.task.name} skipped (school portal pushing back)`);
+      this.arm(slot, Math.max(slot.task.intervalMs, paused - this.o.now()));
       return;
     }
     let next: number;
