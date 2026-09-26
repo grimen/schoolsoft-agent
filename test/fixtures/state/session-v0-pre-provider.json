@@ -1,0 +1,7 @@
+{
+  "school": "taby",
+  "accessToken": "synthetic-access",
+  "refreshToken": "synthetic-refresh",
+  "savedAt": 1767225600000,
+  "authMethod": "bankid-browser"
+}

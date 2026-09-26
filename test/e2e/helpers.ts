@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 import {
   FileSessionStore,
+  accountKeyOf,
   type PersistedSession,
   type OperationContext,
 } from "../../src/core/index.js";
@@ -53,7 +54,8 @@ export function e2eContext(): OperationContext {
 }
 
 export function e2eStore(): FileSessionStore {
-  return new FileSessionStore(loadConfig(inputs()).stateDir);
+  const config = loadConfig(inputs());
+  return new FileSessionStore(config.stateDir, accountKeyOf(config));
 }
 
 export function loadPersisted(): PersistedSession | null {

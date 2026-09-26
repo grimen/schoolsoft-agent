@@ -13,6 +13,7 @@ import { join } from "node:path";
 import {
   AgentError,
   HISTORY_FORMAT,
+  currentVersion,
   SESSION_FORMAT,
   emptyHistory,
   type PersistedSession,
@@ -61,9 +62,21 @@ const connectorCases: {
   v0: unknown;
   value: object;
 }[] = [
-  { name: "session", format: SESSION_FORMAT, v0: session, value: session },
-  // The connector history was always written with `version: 1`, like the local file.
-  { name: "history", format: HISTORY_FORMAT, v0: emptyHistory(), value: emptyHistory() },
+  // Keyed by account since v2 (docs/planning/specs/2026-09-26-accounts-by-school.md).
+  {
+    name: "session",
+    format: SESSION_FORMAT,
+    v0: session,
+    value: { accounts: { "schoolsoft:testskola": session } },
+  },
+  // The connector history was always written with `version: 1`, like the local file; v2 keeps
+  // it for the first account that records an event.
+  {
+    name: "history",
+    format: HISTORY_FORMAT,
+    v0: emptyHistory(),
+    value: { accounts: {}, legacy: emptyHistory() },
+  },
   { name: "oauth", format: OAUTH_STATE_FORMAT, v0: oauthState, value: oauthState },
   {
     name: "identity",
@@ -74,18 +87,19 @@ const connectorCases: {
 ];
 
 for (const c of connectorCases) {
-  test(`connector ${c.name}.enc: v0 loads and is rewritten with version 1; v1 loads; newer refuses untouched; malformed fails closed`, () => {
+  test(`connector ${c.name}.enc: v0 loads and is rewritten with the current version, which loads; newer refuses untouched; malformed fails closed`, () => {
     const dir = tmp(`repo-${c.name}`);
     try {
       const repo = new EncryptedRepository<object>(dir, c.name, KEY, c.format);
       sealRepo(dir, c.name, c.v0);
       assert.deepEqual(repo.read(), c.value);
       repo.write(repo.read()!);
-      assert.deepEqual(openRepo(dir, c.name), { version: 1, ...c.value });
+      const current = currentVersion(c.format);
+      assert.deepEqual(openRepo(dir, c.name), { version: current, ...c.value });
       assert.deepEqual(repo.read(), c.value);
 
       const file = join(dir, c.name + ".enc");
-      const blob = sealRepo(dir, c.name, { version: 2, ...c.value });
+      const blob = sealRepo(dir, c.name, { version: current + 1, ...c.value });
       assert.throws(
         () => repo.read(),
         (e) => assertNewer(e, file),

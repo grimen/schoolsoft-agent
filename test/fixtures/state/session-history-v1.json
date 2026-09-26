@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "app": {
+    "startedAt": 1767225600000,
+    "lastActivityAt": 1767229200000,
+    "activityCount": 4,
+    "longestGapMs": 900000
+  },
+  "web": null,
+  "losses": [
+    {
+      "session": "web",
+      "at": 1767222000000,
+      "ageMs": 1800000,
+      "idleMs": 1200000,
+      "activityCount": 2,
+      "longestGapMs": 600000
+    }
+  ],
+  "events": [
+    { "type": "login", "at": 1767225600000 },
+    { "type": "refresh", "at": 1767229200000 }
+  ]
+}

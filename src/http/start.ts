@@ -2,13 +2,18 @@
 import {
   HISTORY_FORMAT,
   SESSION_FORMAT,
+  accountHistoryStore,
+  accountKeyOf,
+  accountSessionStore,
   detectLang,
   resolveConfig,
+  type HistoryDocument,
   type VersionedFormat,
   type KeepaliveDeps,
   type SessionDeps,
-  type SessionHistory,
-  type PersistedSession,
+  type SessionDocument,
+  type SessionHistoryStore,
+  type SessionStore,
 } from "../core/index.js";
 import { connectorConfig, type ConnectorConfig } from "./config.js";
 import { EncryptedRepository } from "./storage.js";
@@ -24,6 +29,44 @@ export const IDENTITY_FORMAT: VersionedFormat = {
   migrations: [(pin: string) => ({ identity: pin })],
 };
 /**
+ * One account's saved session and session history in the connector's
+ * encrypted session.enc and history.enc, which hold one entry per account in
+ * the same formats as the local files. A connector serves one account; the
+ * others' entries are kept as they are. Reading fails closed, as before.
+ */
+export function connectorAccountState(
+  config: Pick<ConnectorConfig, "stateDir" | "storageKey">,
+  account: string,
+): { store: SessionStore; history: SessionHistoryStore } {
+  const session = new EncryptedRepository<SessionDocument>(
+    config.stateDir,
+    "session",
+    config.storageKey,
+    SESSION_FORMAT,
+  );
+  const history = new EncryptedRepository<HistoryDocument>(
+    config.stateDir,
+    "history",
+    config.storageKey,
+    HISTORY_FORMAT,
+  );
+  return {
+    store: accountSessionStore(
+      {
+        read: () => session.read() ?? null,
+        write: (doc) => session.write(doc),
+        remove: () => session.clear(),
+      },
+      account,
+    ),
+    history: accountHistoryStore(
+      { read: () => history.read() ?? null, write: (doc) => history.write(doc) },
+      account,
+    ),
+  };
+}
+
+/**
  * The object graph without a listener, so callers choose where (and whether) to listen.
  * Nothing is started here: `startConnector` starts the keepalive.
  */
@@ -33,18 +76,6 @@ export function composeConnector(
   env: Record<string, string | undefined> = {},
   keepaliveDeps?: ConnectorKeepaliveDeps,
 ) {
-  const session = new EncryptedRepository<PersistedSession>(
-    config.stateDir,
-    "session",
-    config.storageKey,
-    SESSION_FORMAT,
-  );
-  const history = new EncryptedRepository<SessionHistory>(
-    config.stateDir,
-    "history",
-    config.storageKey,
-    HISTORY_FORMAT,
-  );
   const identity = new EncryptedRepository<{ identity: string }>(
     config.stateDir,
     "identity",
@@ -61,35 +92,33 @@ export function composeConnector(
       OAUTH_STATE_FORMAT,
     ),
   });
+  const resolved = resolveConfig(
+    [
+      {
+        school: config.school,
+        stateDir: config.stateDir,
+        configDir: config.stateDir,
+        keepalive: env.SCHOOLSOFT_KEEPALIVE || undefined,
+        keepaliveWebMinutes: env.SCHOOLSOFT_KEEPALIVE_WEB_MINUTES || undefined,
+        keepaliveQuietHours: env.SCHOOLSOFT_KEEPALIVE_QUIET_HOURS || undefined,
+        cache: env.SCHOOLSOFT_CACHE || undefined,
+        requestsPerMinute: env.SCHOOLSOFT_REQUESTS_PER_MINUTE || undefined,
+        requestBurst: env.SCHOOLSOFT_REQUEST_BURST || undefined,
+        maxConcurrentRequests: env.SCHOOLSOFT_MAX_CONCURRENT_REQUESTS || undefined,
+      },
+    ],
+    { home: config.stateDir, platform: "linux" },
+  );
+  const state = connectorAccountState(config, accountKeyOf(resolved));
   const runtime = new ConnectorRuntime({
-    config: resolveConfig(
-      [
-        {
-          school: config.school,
-          stateDir: config.stateDir,
-          configDir: config.stateDir,
-          keepalive: env.SCHOOLSOFT_KEEPALIVE || undefined,
-          keepaliveWebMinutes: env.SCHOOLSOFT_KEEPALIVE_WEB_MINUTES || undefined,
-          keepaliveQuietHours: env.SCHOOLSOFT_KEEPALIVE_QUIET_HOURS || undefined,
-          cache: env.SCHOOLSOFT_CACHE || undefined,
-          requestsPerMinute: env.SCHOOLSOFT_REQUESTS_PER_MINUTE || undefined,
-          requestBurst: env.SCHOOLSOFT_REQUEST_BURST || undefined,
-          maxConcurrentRequests: env.SCHOOLSOFT_MAX_CONCURRENT_REQUESTS || undefined,
-        },
-      ],
-      { home: config.stateDir, platform: "linux" },
-    ),
-    store: {
-      load: () => session.read() ?? null,
-      save: (value) => session.write(value),
-      clear: () => session.clear(),
-    },
+    config: resolved,
+    store: state.store,
     identityStore: {
       read: () => identity.read()?.identity,
       write: (pin) => identity.write({ identity: pin }),
     },
     deps: {
-      history: { read: () => history.read() ?? null, write: (value) => history.write(value) },
+      history: state.history,
       ...deps,
     },
     keepaliveDeps,
