@@ -51,7 +51,7 @@ Out: anything a product UI needs (E11): styling beyond legibility, translations,
 
 **Serving.** `GET /reference/` answers one HTML document with the script and the styles inline. `GET /reference` redirects there (301), so the callback URI stays canonical. Any other method or sub-path gets the connector's usual 404. The page is public: it holds no data and no secret, and without a token it shows only a "Connect" button. Every data read is authorized by the REST surface.
 
-**Headers.** For `/reference/` only, the security policy becomes `default-src 'none'; script-src 'sha256-<script>'; style-src 'sha256-<styles>'; connect-src 'self'; img-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`. The hashes cover the exact inline text, so no other script runs and nothing can be framed or posted. Every other connector header is unchanged: `no-store`, `nosniff`, `no-referrer` (the callback's code never leaves in a `Referer`), HSTS, host pinning. The owner routes and the API keep their strict policy.
+**Headers.** For `/reference/` only, the security policy becomes `default-src 'none'; script-src 'sha256-<script>'; style-src 'sha256-<styles>'; connect-src 'self'; img-src 'none'; form-action 'none'; frame-ancestors 'none'; base-uri 'none'`. The hashes cover the exact inline text, so no other script runs and nothing can be framed or posted. The page sets `Referrer-Policy: no-referrer`, so the callback's code never leaves in a `Referer`. Every other connector header is unchanged: `no-store`, `nosniff`, HSTS, host pinning. The owner routes and the API keep their strict policy.
 
 **What it renders.** After `GET /api/v1/session`:
 
@@ -101,9 +101,23 @@ The page's logic is one browser module, `src/http/reference/app.ts`. It has no v
 
 </frozen-after-approval>
 
-## Findings for the surface (to be completed as built)
+## Findings (as built)
 
-What a UI needs that the REST surface does not give, recorded for E5.4 to E5.8 and E11. The page works around none of them with a private path.
+The page needed no private route, cookie or header: the public surface was enough to connect, read and disconnect. Building it and running it in a real browser found one bug and several gaps. They are recorded here for E5.4 to E5.8 and E11. The page works around none of the gaps with a private path.
+
+**Bug, fixed in #58 (merged before this): the owner dashboard refused real browsers.** Every response carried `Referrer-Policy: no-referrer`. Under that policy a browser sends `Origin: null` on a form post, even to its own origin, and every owner route refuses any Origin but the connector's. So no parent could sign in to the dashboard, approve an app or start the SchoolSoft sign-in from a browser. The offline tests set `Origin` themselves and missed it. The connector now sends `same-origin`: a `Referer` still never goes to another site, and the Origin check, `SameSite=Strict` cookie and CSRF token are unchanged. The page keeps `no-referrer` (it posts no forms). #58 adds a real-Chromium test of the owner forms; this story's own Chromium test (`test/e2e-hosts/reference-page.e2e.test.ts`) drives the page, the owner sign-in and the consent page.
+
+**Gaps in the surface:**
+
+1. **The week has no year.** `get_schedule` takes and returns only an ISO week number. The portal endpoint has no year either, so a week near New Year is ambiguous. `get_lunch_menu` returns a `year` it picked from the connector's clock, and `get_calendar` takes dates. A UI computes the Monday itself and hopes the two clocks agree. Candidate: `year` and the week's dates in the schedule output (new non-null fields are not breaking), or a date range input as the calendar has (E5.6, E11.6).
+2. **One view is four requests, and switching child costs the portal.** The page makes a session read and three reads per week per child. The connector serializes them. A child switch needs a cookie exchange upstream and empties the read cache, so a UI that alternates children re-reads SchoolSoft each time. E5.6 (composite overview) should answer a whole week for one child in one call, and the cache should survive a switch back (E6).
+3. **Refresh has a trap.** Access tokens live 5 minutes, and refresh tokens rotate with reuse detection that revokes the whole grant. Two parallel reads that both see `401` and both refresh with the same token disconnect the app. The page single-flights its refresh and skips it when another read already rotated the token. The typed client (E5.4) should own this, not each UI.
+4. **The resource is named after MCP.** A REST-only client asks for tokens for `<origin>/mcp`, and the `401` challenge on `/api/v1` points to `/.well-known/oauth-protected-resource/mcp`. It works, and the page discovers it, but it reads as an MCP detail. Candidate: document it in the REST reference as the connector's single resource, or also serve the metadata at `/.well-known/oauth-protected-resource/api/v1` (E5.4).
+5. **Every new tab is a new client and a new consent.** The page registers on each connect and asks the owner for the administrator password and consent. A wall display or a phone home screen will want a longer-lived connection and a reused registration (E11.5). Stale registrations are pruned after a day, so nothing accumulates.
+6. **No freshness in the answer.** The page cannot say whether the week came from the connector's read cache. Its Reload button sends `fresh=true`; moving between weeks may be served from the cache. E5.5 (`fetched_at`, cached or fresh) closes this.
+7. **Children carry a first name only.** `/api/v1/session` and `/children` give `{ id, firstName }`. Two children with the same first name, or a UI that shows the school or class, need more (`list_children` knows the school and class; the connector projects them away).
+
+The discovery probe (`GET /api/v1/session` without a token) shows as a failed request in the browser console. That is expected and harmless.
 
 ## Code Map
 
@@ -112,13 +126,13 @@ What a UI needs that the REST surface does not give, recorded for E5.4 to E5.8 a
 - `src/http/oauth.ts`: extra exact callbacks (`ownCallbacks`).
 - `src/http/start.ts`: passes `<publicUrl>/reference/` as the connector's own callback.
 - `src/http/server.ts`: mounts the page; dashboard link; consent wording for the connector's own callback.
-- `test/unit/reference-app.test.ts`, `test/functional/http-reference.test.ts`, `test/unit/http-oauth.test.ts`, `test/packaging/connector.test.ts`.
+- `test/unit/reference-app.test.ts` (the module against a fake browser), `test/unit/reference-page.test.ts` (served text and hashes), `test/functional/http-reference.test.ts` (the module against the real connector), `test/unit/http-oauth.test.ts` (callbacks), `test/packaging/connector.test.ts` (the built page), `test/packaging/connector-smoke/flow.mjs` (the image), `test/e2e-hosts/reference-page.e2e.test.ts` (real Chromium).
 
 ## Tasks & Acceptance
 
-- [ ] Given the connector, when a browser opens `/reference/`, then it gets one page with a hash-scoped policy and no data.
-- [ ] Given the page, when the owner approves it on the consent page, then it reads the session and renders the selected child's week from the REST routes alone.
-- [ ] Given a response for another child, a revoked grant or a signed-out connector, then the page shows no other child's data, returns to the connect step, or links to the owner dashboard.
+- [x] Given the connector, when a browser opens `/reference/`, then it gets one page with a hash-scoped policy and no data.
+- [x] Given the page, when the owner approves it on the consent page, then it reads the session and renders the selected child's week from the REST routes alone.
+- [x] Given a response for another child, a revoked grant or a signed-out connector, then the page shows no other child's data, returns to the connect step, or links to the owner dashboard.
 - [ ] Live acceptance: the page on a parent's deployment against a real SchoolSoft session (E2).
 
 ## Verification
