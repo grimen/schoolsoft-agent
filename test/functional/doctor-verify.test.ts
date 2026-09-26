@@ -11,7 +11,6 @@ import assert from "node:assert/strict";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   MemorySessionHistoryStore,
   MemorySessionStore,
@@ -41,11 +40,7 @@ import {
 type Fetch = SimResponse | Promise<SimResponse>;
 
 /** Production wiring over the stand-in, a saved session (unless `empty`) and fixture answers. */
-function wired(
-  t: { mock: { method: typeof import("node:test").mock.method } },
-  o: { empty?: boolean; intercept?: (pathname: string) => Fetch | undefined } = {},
-) {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+function wired(o: { empty?: boolean; intercept?: (pathname: string) => Fetch | undefined } = {}) {
   const now = 1_900_000_000_000;
   const sim = new SchoolsoftSim(() => now);
   const store = new MemorySessionStore();
@@ -144,8 +139,8 @@ const FIXTURE_VALUES = [
   "2026-",
 ];
 
-test("doctor --verify: all five typed reads parse, exit 0, JSON report", async (t) => {
-  const { ctx } = wired(t);
+test("doctor --verify: all five typed reads parse, exit 0, JSON report", async () => {
+  const { ctx } = wired();
   const r = await cli(ctx, "doctor", "--verify");
   assert.equal(r.code, EXIT.OK, r.err);
   assert.equal(r.err, "");
@@ -161,8 +156,8 @@ test("doctor --verify: all five typed reads parse, exit 0, JSON report", async (
   for (const value of FIXTURE_VALUES) assert.ok(!r.out.includes(value), value);
 });
 
-test("doctor --verify: a renamed field is drift with path and code, no value in the output, exit 7", async (t) => {
-  const { ctx, answer } = wired(t);
+test("doctor --verify: a renamed field is drift with path and code, no value in the output, exit 7", async () => {
+  const { ctx, answer } = wired();
   answer(/\/calendar\/lessons\/week\/\d+$/, () =>
     driftedList(rawLessonsWeek(), DRIFT_FIELDS.lessons, "renamed"),
   );
@@ -180,8 +175,8 @@ test("doctor --verify: a renamed field is drift with path and code, no value in 
   for (const value of FIXTURE_VALUES) assert.ok(!r.out.includes(value), `leaked ${value}`);
 });
 
-test("doctor --verify: an upstream 5xx is an error, not drift", async (t) => {
-  const { ctx } = wired(t, {
+test("doctor --verify: an upstream 5xx is an error, not drift", async () => {
+  const { ctx } = wired({
     intercept: (pathname) =>
       pathname.endsWith("/messages/inbox")
         ? { status: 503, data: "Ett's inbox is down", headers: {}, setCookies: [] }
@@ -203,8 +198,8 @@ test("doctor --verify: an upstream 5xx is an error, not drift", async (t) => {
   assert.doesNotMatch(r.out, /Ett|inbox is down|messages\/inbox/);
 });
 
-test("doctor --verify without a saved session: not logged in, exit 2, zero requests", async (t) => {
-  const { ctx, sim } = wired(t, { empty: true });
+test("doctor --verify without a saved session: not logged in, exit 2, zero requests", async () => {
+  const { ctx, sim } = wired({ empty: true });
   const r = await cli(ctx, "doctor", "--verify");
   assert.equal(r.code, EXIT.NOT_AUTHENTICATED);
   assert.equal(r.out, "");
@@ -213,8 +208,8 @@ test("doctor --verify without a saved session: not logged in, exit 2, zero reque
   assert.deepEqual(sim.requests, []);
 });
 
-test("doctor --verify reads anew: a cached answer cannot hide drift", async (t) => {
-  const { ctx, sim, answer } = wired(t);
+test("doctor --verify reads anew: a cached answer cannot hide drift", async () => {
+  const { ctx, sim, answer } = wired();
   await runOperation(getOperation("get_schedule")!, ctx, {});
   const lessonReads = () => sim.requests.filter((r) => /lessons\/week/.test(r)).length;
   assert.equal(lessonReads(), 1);
@@ -226,8 +221,8 @@ test("doctor --verify reads anew: a cached answer cannot hide drift", async (t) 
   assert.equal(lessonReads(), 2, "the cached week was bypassed");
 });
 
-test("doctor --verify --all-children: every child by position, focus restored, no write sent", async (t) => {
-  const { ctx, sim, store } = wired(t);
+test("doctor --verify --all-children: every child by position, focus restored, no write sent", async () => {
+  const { ctx, sim, store } = wired();
   const r = await cli(ctx, "doctor", "--verify", "--all-children");
   assert.equal(r.code, EXIT.OK, r.err);
   const data = report(r.out);
@@ -245,8 +240,8 @@ test("doctor --verify --all-children: every child by position, focus restored, n
   for (const value of FIXTURE_VALUES) assert.ok(!r.out.includes(value), value);
 });
 
-test("--all-children without --verify is an input error", async (t) => {
-  const { ctx, sim } = wired(t);
+test("--all-children without --verify is an input error", async () => {
+  const { ctx, sim } = wired();
   const r = await cli(ctx, "doctor", "--all-children");
   assert.equal(r.code, EXIT.INPUT);
   assert.match(r.err, /--all-children needs --verify/);

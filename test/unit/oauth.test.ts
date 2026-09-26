@@ -4,6 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import {
   buildAuthUrl,
   exchangeCode,
@@ -37,6 +38,23 @@ test("buildAuthUrl targets the requested user type and client id", () => {
   assert.ok(verifier.length > 20);
 });
 
+test("PKCE: a fresh 32-byte base64url verifier, its S256 challenge and a 12-byte hex state each time", () => {
+  const start = () =>
+    buildAuthUrl({ school: "taby", userType: "parent", clientId: "vApp", redirectUri: "x" });
+  const a = start();
+  const b = start();
+  assert.match(a.verifier, /^[A-Za-z0-9_-]{43}$/, "32 random bytes, base64url without padding");
+  const q = new URLSearchParams(a.authUrl.split("?")[1]);
+  assert.equal(
+    q.get("code_challenge"),
+    createHash("sha256").update(a.verifier).digest("base64url"),
+    "RFC 7636 S256",
+  );
+  assert.match(a.state, /^[0-9a-f]{24}$/);
+  assert.notEqual(a.verifier, b.verifier);
+  assert.notEqual(a.state, b.state);
+});
+
 test("buildAuthUrl passes orgid through when given", () => {
   const { authUrl } = buildAuthUrl({
     school: "taby",
@@ -51,8 +69,10 @@ test("buildAuthUrl passes orgid through when given", () => {
 
 test("exchangeCode posts to the token endpoint with the given client id", async () => {
   let seen = "";
-  const fetchImpl: TokenFetch = async (url) => {
+  const fetchImpl: TokenFetch = async (url, _school, options) => {
     seen = url;
+    assert.equal(options.method, "POST");
+    assert.equal(options.redirect, "follow", "a token request is a read: it follows, as before");
     return {
       status: 200,
       data: { access_token: jwt({ exp: 123 }), refresh_token: "R", expires: 900 },

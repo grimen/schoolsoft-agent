@@ -1,14 +1,15 @@
 /**
- * SchoolSoft's app OAuth2 + PKCE flow, implemented here instead of via
- * ssp-node because ssp-node hardcodes the student route and the `eApp`
- * client id. SchoolSoft stamps the *user type* into the issued token and
- * resolves the actual user at use time, so getting the route/client wrong
+ * SchoolSoft's app OAuth2 + PKCE flow. SchoolSoft stamps the *user type*
+ * into the issued token and resolves the actual user at use time, so
+ * getting the route/client wrong (the student route, the `eApp` client id)
  * yields a token that fails every call with "Vi kunde inte hitta
  * användaren". Everything varying by user type / client id lives here.
  */
-import { makePkcePair, makeState, ssUrl } from "@elias4044/ssp-node";
+import { createHash, randomBytes } from "node:crypto";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
 import { AgentError, UpstreamError, guardNetwork } from "../../../core/errors/index.js";
+import type { FetchOptions } from "../net.js";
+import { portalUrl } from "../web-login.js";
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 
@@ -18,6 +19,12 @@ export interface AuthFlowStart {
   state: string;
 }
 
+/** RFC 7636: a 32-byte random verifier and its S256 challenge, both base64url without padding. */
+function pkcePair(): { verifier: string; challenge: string } {
+  const verifier = randomBytes(32).toString("base64url");
+  return { verifier, challenge: createHash("sha256").update(verifier).digest("base64url") };
+}
+
 export function buildAuthUrl(options: {
   school: string;
   userType: SchoolsoftUserType;
@@ -25,8 +32,8 @@ export function buildAuthUrl(options: {
   redirectUri: string;
   orgid?: string;
 }): AuthFlowStart {
-  const { verifier, challenge } = makePkcePair();
-  const state = makeState();
+  const { verifier, challenge } = pkcePair();
+  const state = randomBytes(12).toString("hex");
   const params = new URLSearchParams({
     code_challenge: challenge,
     code_challenge_method: "S256",
@@ -53,12 +60,8 @@ export interface TokenSet {
 export type TokenFetch = (
   url: string,
   school: string,
-  options: {
-    method?: string;
-    headers?: Record<string, string>;
-    responseType?: "json" | "text" | "buffer";
-  },
-  userAgent?: string,
+  options: FetchOptions,
+  userAgent: string,
 ) => Promise<{ status: number; data: unknown }>;
 
 function parseTokenResponse(status: number, data: unknown, what: string): TokenSet {
@@ -104,7 +107,7 @@ export async function exchangeCode(options: {
 }): Promise<TokenSet> {
   const { fetchImpl } = options;
   const url =
-    ssUrl(options.school, "/rest-api/login/token") +
+    portalUrl(options.school, "/rest-api/login/token") +
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=code&code=${encodeURIComponent(options.code)}` +
     `&codeVerifier=${encodeURIComponent(options.verifier)}`;
@@ -112,7 +115,12 @@ export async function exchangeCode(options: {
     fetchImpl(
       url,
       options.school,
-      { method: "POST", headers: { Accept: "application/json" }, responseType: "json" },
+      {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        responseType: "json",
+        redirect: "follow",
+      },
       MOBILE_UA,
     ),
   );
@@ -127,7 +135,7 @@ export async function refreshTokens(options: {
 }): Promise<TokenSet> {
   const { fetchImpl } = options;
   const url =
-    ssUrl(options.school, "/rest-api/login/token") +
+    portalUrl(options.school, "/rest-api/login/token") +
     `?clientId=${encodeURIComponent(options.clientId)}` +
     `&grantType=refresh_token` +
     `&refreshToken=${encodeURIComponent(options.refreshToken)}`;
@@ -135,7 +143,12 @@ export async function refreshTokens(options: {
     fetchImpl(
       url,
       options.school,
-      { method: "POST", headers: { Accept: "application/json" }, responseType: "json" },
+      {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        responseType: "json",
+        redirect: "follow",
+      },
       MOBILE_UA,
     ),
   );

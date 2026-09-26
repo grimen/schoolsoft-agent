@@ -1,7 +1,15 @@
-/** SchoolSoft's half of the headed-browser web login: where to open, what a landed portal page looks like. */
+/**
+ * Where SchoolSoft lives (its origin and a tenant's URLs), and its half of the
+ * headed-browser web login: where to open, what a landed portal page looks like.
+ */
 import type { WebLoginSpec } from "../../core/provider/types.js";
 
 export const SCHOOLSOFT_ORIGIN = "https://sms.schoolsoft.se";
+
+/** A URL on one tenant: `https://sms.schoolsoft.se/<slug><path>`, the path as given. */
+export function portalUrl(school: string, path: string): string {
+  return `${SCHOOLSOFT_ORIGIN}/${school}${path}`;
+}
 
 const LOGIN_MARKERS =
   /\/jsp\/Login\.jsp|\/samlLogin\.jsp|\/rest-api\/login\/|\/react\/#\/login|etjanst\.|\/wa\/auth\//;

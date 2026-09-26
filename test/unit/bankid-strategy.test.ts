@@ -112,9 +112,9 @@ test("login: code → token (vApp) → parent profile → cookies bound to first
     { studentId: 100, firstName: "Ett" },
     { studentId: 101, firstName: "Två" },
   ]);
-  assert.equal(client.client.accessToken?.split(".").length, 3);
-  assert.equal(client.client.refreshToken, "R1");
-  assert.equal(client.client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+  assert.equal(client.tokens.accessToken?.split(".").length, 3);
+  assert.equal(client.tokens.refreshToken, "R1");
+  assert.equal(client.tokens.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 100);
 
   const paths = log.map((l) => l.url.replace("https://sms.schoolsoft.se/taby", "").split("?")[0]);
@@ -139,8 +139,8 @@ test("restore: expired token refreshes with vApp and re-binds the remembered chi
     authMethod: "bankid-browser",
   });
   assert.match(log[0].url, /clientId=vApp&grantType=refresh_token&refreshToken=R1/);
-  assert.equal(client.client.refreshToken, "R2", "rotated refresh token adopted");
-  assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
+  assert.equal(client.tokens.refreshToken, "R2", "rotated refresh token adopted");
+  assert.equal(client.tokens.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 101);
 });
 
@@ -149,7 +149,7 @@ test("focusChild re-exchanges cookies for the other child and rejects unknown id
   const client = new SchoolsoftSession("taby", noRequests);
   await strategy.login(client);
   await strategy.focusChild(client, 101);
-  assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
+  assert.equal(client.tokens.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
   assert.equal(strategy.context?.childInFocus, 101);
   assert.equal(log.filter((l) => l.url.includes("/eva-apps/auth/login/parent")).length, 2);
   await assert.rejects(strategy.focusChild(client, 555), /No child with id 555/);
@@ -166,7 +166,7 @@ test("restore: unknown expiry refreshes up front", async () => {
     authMethod: "bankid-browser",
   });
   assert.match(log[0].url, /grantType=refresh_token/);
-  assert.equal(client.client.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
+  assert.equal(client.tokens.cookieHeader, "JSESSIONID=js-100; hash=h; usertype=2");
 });
 
 test("restore: a 401 on the profile call triggers one refresh-and-retry", async () => {
@@ -193,9 +193,9 @@ test("restore: a 401 on the profile call triggers one refresh-and-retry", async 
   });
   assert.equal(parentCalls, 2);
   assert.equal(log.filter((l) => l.url.includes("grantType=refresh_token")).length, 1);
-  assert.equal(client.client.refreshToken, "R2");
+  assert.equal(client.tokens.refreshToken, "R2");
   assert.equal(
-    client.client.cookieHeader,
+    client.tokens.cookieHeader,
     "JSESSIONID=js-101; hash=h; usertype=2",
     "remembered child re-bound after the retry",
   );
@@ -242,7 +242,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
   const opaque = variant({ tokenData: { access_token: "opaque" } });
   const c1 = new SchoolsoftSession("taby", noRequests);
   await opaque.login(c1);
-  assert.equal(c1.client.refreshToken, null);
+  assert.equal(c1.tokens.refreshToken, null);
 
   // restore guards
   await assert.rejects(
@@ -285,7 +285,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
     c3,
     saved({ data: { accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 } }) as never,
   );
-  assert.equal(c3.client.refreshToken, "R1");
+  assert.equal(c3.tokens.refreshToken, "R1");
   // focusChild before any login
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(

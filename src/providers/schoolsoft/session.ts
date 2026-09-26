@@ -1,33 +1,32 @@
 /**
- * SchoolSoft's live session object: ssp-node's SchoolsoftClient as the
- * token/cookie holder, plus what core needs from a ProviderSession. Its one
- * request (is the session still accepted?) goes through the provider's
- * budgeted transport, never ssp-node's own `verifySession`, which would
- * reach the portal around the request budget.
+ * SchoolSoft's live session object: the session's tokens and cookies
+ * (tokens.ts), plus what core needs from a ProviderSession. Its one request
+ * (is the session still accepted?) goes through the provider's budgeted
+ * transport like every other.
  */
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { ProviderSession } from "../../core/provider/types.js";
 import { isTransient } from "../../core/errors/index.js";
 import { decodeJwtClaims } from "./auth/oauth.js";
 import { SchoolsoftHttp, type ApiFetch } from "./portal/api/transport.js";
+import { SessionTokens } from "./tokens.js";
 
 export interface SchoolsoftCredentials {
   accessToken?: string;
   refreshToken?: string;
-  /** Unix SECONDS (ssp-node convention), not ms. */
+  /** Unix SECONDS, not ms. */
   accessTokenExpiresAt?: number;
 }
 
 export class SchoolsoftSession implements ProviderSession {
-  readonly client: SchoolsoftClient;
+  readonly tokens: SessionTokens;
   private readonly http: SchoolsoftHttp;
   constructor(
     readonly school: string,
     /** The budgeted HTTP helper (net.ts) in production, a fake in tests. */
     fetchImpl: ApiFetch,
-    client?: SchoolsoftClient,
+    tokens?: SessionTokens,
   ) {
-    this.client = client ?? new SchoolsoftClient({ school });
+    this.tokens = tokens ?? new SessionTokens(school);
     this.http = new SchoolsoftHttp(school, fetchImpl);
   }
 
@@ -50,16 +49,12 @@ export class SchoolsoftSession implements ProviderSession {
   }
 
   cookieHeader(): string | null {
-    try {
-      return this.client.cookieHeader;
-    } catch {
-      return null;
-    }
+    return this.tokens.cookieHeader;
   }
 
-  /** Credentials to persist; the JWT carries the expiry (ssp-node exposes no getter). */
+  /** Credentials to persist; the expiry is read from the JWT, as it always was. */
   serialize(): SchoolsoftCredentials {
-    const c = this.client;
+    const c = this.tokens;
     return {
       accessToken: c.accessToken ?? undefined,
       refreshToken: c.refreshToken ?? undefined,

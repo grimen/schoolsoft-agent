@@ -27,18 +27,16 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-test("the real tree: only the provider's net.ts imports the HTTP helper or calls fetch; nothing uses ssp-node's own requests", () => {
+test("the real tree: only the provider's net.ts calls fetch; @elias4044/ssp-node is gone", () => {
   assert.deepEqual(
-    checkBoundaries(process.cwd()).filter((v) => /budget|net\.ts|inbound/.test(v.message)),
+    checkBoundaries(process.cwd()).filter((v) => /budget|net\.ts|inbound|ssp-node/.test(v.message)),
     [],
   );
   const src = join(process.cwd(), "src");
-  const importers = walk(src)
-    .filter((f) =>
-      /import\s*\{[^}]*\bschoolsoftFetch\b[^}]*\}\s*from/.test(readFileSync(f, "utf8")),
-    )
+  const callers = walk(src)
+    .filter((f) => /(^|[^\w.$])fetch\(/.test(readFileSync(f, "utf8")))
     .map((f) => relative(src, f));
-  assert.deepEqual(importers, ["providers/schoolsoft/net.ts"]);
+  assert.deepEqual(callers, ["providers/schoolsoft/net.ts"]);
 });
 
 test("the checker refuses every way around the budget", () => {
@@ -49,8 +47,8 @@ test("the checker refuses every way around the budget", () => {
   writeFileSync(
     join(root, "src/providers/x/net.ts"),
     [
+      `export const get = (u: string) => fetch(u, { redirect: "manual" });`,
       `import { schoolsoftFetch } from "@elias4044/ssp-node";`,
-      `export const get = (u: string) => fetch(u);`,
     ].join("\n"),
   );
   writeFileSync(
@@ -58,14 +56,11 @@ test("the checker refuses every way around the budget", () => {
     [
       `import {`,
       `  ssUrl,`,
-      `  schoolsoftFetch,`,
-      `  rawRequest as raw,`,
       `  getNews,`,
       `} from "@elias4044/ssp-node";`,
       `import type { SchoolsoftClient } from "@elias4044/ssp-node";`,
       `export const a = () => globalThis.fetch("x");`,
-      `export const b = (client: SchoolsoftClient) => client.getSchedule(1);`,
-      `export const c = (s: { verifySession(): void }) => s.verifySession();`,
+      `export const b = async () => (await import("@elias4044/ssp-node")).getNews;`,
       `// a comment about a fetch (not a call) and this.fetchImpl(x) are fine`,
       `import { request } from "node:https";`,
     ].join("\n"),
@@ -77,17 +72,17 @@ test("the checker refuses every way around the budget", () => {
   );
   writeFileSync(join(root, "src/http/server.ts"), `import { createServer } from "node:http";\n`);
   const found = checkBoundaries(root).map((v) => `${v.file}:${v.line}: ${v.message}`);
+  const gone = "@elias4044/ssp-node is not a dependency; requests go through net.ts";
   assert.deepEqual(
     found.sort(),
     [
       "cli/doctor.ts:1: fetch is called outside the provider's budgeted transport (net.ts)",
-      "providers/x/backend.ts:1: rawRequest is imported outside the provider's budgeted transport (net.ts)",
-      "providers/x/backend.ts:1: schoolsoftFetch is imported outside the provider's budgeted transport (net.ts)",
-      "providers/x/backend.ts:1: ssp-node's getNews sends requests around the request budget",
-      "providers/x/backend.ts:12: https is imported outside the inbound servers; requests go through net.ts",
-      "providers/x/backend.ts:8: fetch is called outside the provider's budgeted transport (net.ts)",
-      "providers/x/backend.ts:9: SchoolsoftClient.getSchedule sends requests around the request budget",
-      "providers/x/backend.ts:10: verifySession sends requests around the request budget",
+      `providers/x/net.ts:2: ${gone}`,
+      `providers/x/backend.ts:4: ${gone}`,
+      `providers/x/backend.ts:5: ${gone}`,
+      `providers/x/backend.ts:7: ${gone}`,
+      "providers/x/backend.ts:9: https is imported outside the inbound servers; requests go through net.ts",
+      "providers/x/backend.ts:6: fetch is called outside the provider's budgeted transport (net.ts)",
     ].sort(),
   );
 });

@@ -2,7 +2,7 @@
  * Preloaded into every offline test process (`--import` in the `test` and
  * `coverage` scripts and in the artifact E2E): a request to the real school
  * portal fails at once instead of leaving the machine. The provider's live
- * defaults (ssp-node's helper over node:https, the global fetch) are one
+ * defaults (the global fetch; node:http(s) for anything else) are one
  * forgotten `fetchImpl` away in any test; this turns that slip into a loud
  * failure. The live suite (`make e2e`) does not load it.
  *

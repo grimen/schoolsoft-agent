@@ -387,7 +387,8 @@ test("reportAbsence sends exactly one cookie-authenticated POST with the mapped 
     const [{ url, options }] = f.requests;
     assert.equal(new URL(url).pathname, "/testskola/rest-api/parent/absence-notice");
     assert.equal(options.method, "POST");
-    assert.equal(options.followRedirects, false, "the HTTP helper must not re-issue the POST");
+    assert.equal(options.redirect, "manual", "a write never follows a redirect");
+    assert.equal(options.write, true);
     assert.equal(options.headers?.Cookie, "JSESSIONID=synthetic");
     assert.equal(options.headers?.Authorization, undefined);
     assert.match(options.headers?.["Content-Type"] ?? "", /application\/json/);

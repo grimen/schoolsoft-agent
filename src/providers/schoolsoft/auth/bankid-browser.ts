@@ -5,17 +5,17 @@
  *
  * Verified live (Täby, 2026-09-06). Sequence after the browser hands us
  * the code:
- *   1. code → access+refresh token (our oauth.ts; client id decides the
+ *   1. code → access+refresh token (our oauth.ts; tokens id decides the
  *      token's user_type — vApp for guardians).
  *   2. GET /eva/api/v1/parent (Bearer) → userId + children.
  *   3. GET /eva-apps/auth/login/parent with userId/orgId/childInFocus →
  *      JSESSIONID+hash cookies for the /rest-api/parent/* endpoints.
  */
-import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import type { BrowserAuthorization } from "../../../core/provider/types.js";
 import type { AuthStrategy, LoginInfo } from "../../../core/auth/strategy.js";
 import type { PersistedSession } from "../../../core/session/store.js";
 import type { SchoolsoftSession, SchoolsoftCredentials } from "../session.js";
+import type { SessionTokens } from "../tokens.js";
 import { runBrowserLogin } from "./browser-flow.js";
 import {
   DEFAULT_USER_TYPE,
@@ -56,9 +56,9 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
   }
 
   async login(session: SchoolsoftSession): Promise<LoginInfo> {
-    const client = session.client;
+    const held = session.tokens;
     const { result } = await runBrowserLogin({
-      school: client.school,
+      school: held.school,
       orgid: this.options.orgid,
       userType: this.userType,
       clientId: this.clientId,
@@ -68,13 +68,13 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
       redirectUri: this.options.redirectUri,
     });
     const tokens = await exchangeCode({
-      school: client.school,
+      school: held.school,
       clientId: this.clientId,
       code: result.code,
       verifier: result.verifier,
       fetchImpl: this.options.fetchImpl,
     });
-    client.setAccessToken(
+    held.setAccessToken(
       tokens.accessToken,
       tokens.refreshToken ?? undefined,
       tokens.expiresAt ?? undefined,
@@ -88,11 +88,11 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
         `got user_type=${claims?.user_type} client_id=${claims?.client_id} ` +
         `login_method=${claims?.login_method} exp=${claims?.exp}`,
     );
-    return this.establish(client, undefined);
+    return this.establish(held, undefined);
   }
 
   async restore(session: SchoolsoftSession, saved: PersistedSession): Promise<void> {
-    const client = session.client;
+    const tokens = session.tokens;
     const creds = saved.data as SchoolsoftCredentials;
     if (!creds.accessToken) {
       throw new AgentError({
@@ -102,26 +102,26 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
         hint: "login",
       });
     }
-    client.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
+    tokens.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
     // Access tokens live ~15 min. Refresh up front when expired or when we
     // don't know (older sessions without a stored expiry).
-    if (client.isAccessTokenExpired || creds.accessTokenExpiresAt == null) {
-      await this.refresh(client);
+    if (tokens.isAccessTokenExpired || creds.accessTokenExpiresAt == null) {
+      await this.refresh(tokens);
     }
     try {
-      await this.establish(client, saved.guardian?.childInFocus);
+      await this.establish(tokens, saved.guardian?.childInFocus);
     } catch (e) {
       // Clock skew / early revocation: one refresh-and-retry before giving
       // up, since giving up costs the user a BankID round.
-      if (!(e instanceof UpstreamError && e.sessionRejected) || !client.refreshToken) throw e;
-      await this.refresh(client);
-      await this.establish(client, saved.guardian?.childInFocus);
+      if (!(e instanceof UpstreamError && e.sessionRejected) || !tokens.refreshToken) throw e;
+      await this.refresh(tokens);
+      await this.establish(tokens, saved.guardian?.childInFocus);
     }
   }
 
   /** Refresh and adopt the rotated pair; resolves with the new expiry (unix seconds), null when unknown. */
-  private async refresh(client: SchoolsoftClient): Promise<number | null> {
-    if (!client.refreshToken) {
+  private async refresh(tokens: SessionTokens): Promise<number | null> {
+    if (!tokens.refreshToken) {
       throw new AgentError({
         kind: "not_authenticated",
         key: "not_authenticated",
@@ -130,14 +130,14 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
       });
     }
     const t = await refreshTokens({
-      school: client.school,
+      school: tokens.school,
       clientId: this.clientId,
-      refreshToken: client.refreshToken,
+      refreshToken: tokens.refreshToken,
       fetchImpl: this.options.fetchImpl,
     });
-    client.setAccessToken(
+    tokens.setAccessToken(
       t.accessToken,
-      t.refreshToken ?? client.refreshToken,
+      t.refreshToken ?? tokens.refreshToken,
       t.expiresAt ?? undefined,
     );
     this.options.onRefresh?.();
@@ -150,7 +150,7 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
     saved: PersistedSession,
     options: { now: number; leadMs: number },
   ): Promise<{ expiresAt: number | null }> {
-    const client = session.client;
+    const tokens = session.tokens;
     const creds = saved.data as SchoolsoftCredentials;
     if (!creds.accessToken) {
       throw new AgentError({
@@ -160,18 +160,18 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
         hint: "login",
       });
     }
-    client.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
+    tokens.setAccessToken(creds.accessToken, creds.refreshToken, creds.accessTokenExpiresAt);
     const savedExpiry =
       creds.accessTokenExpiresAt == null ? null : creds.accessTokenExpiresAt * 1000;
     if (savedExpiry !== null && savedExpiry - options.now > options.leadMs) {
       return { expiresAt: savedExpiry }; // another process refreshed it already
     }
-    const expiresAt = await this.refresh(client);
+    const expiresAt = await this.refresh(tokens);
     return { expiresAt: expiresAt === null ? null : expiresAt * 1000 };
   }
 
   async focusChild(session: SchoolsoftSession, studentId: number): Promise<void> {
-    const client = session.client;
+    const tokens = session.tokens;
     if (!this.context)
       throw new AgentError({
         kind: "not_authenticated",
@@ -180,14 +180,14 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
         hint: "login",
       });
     const child = childOf(this.context, studentId); // validates
-    await this.exchange(client, this.context, child.studentId);
+    await this.exchange(tokens, this.context, child.studentId);
     this.context = { ...this.context, childInFocus: child.studentId };
   }
 
-  private api(client: SchoolsoftClient): GuardianApi {
+  private api(tokens: SessionTokens): GuardianApi {
     return new GuardianApi({
-      school: client.school,
-      accessToken: () => client.accessToken,
+      school: tokens.school,
+      accessToken: () => tokens.accessToken,
       cookieHeader: () => null,
       fetchImpl: this.options.fetchImpl,
     });
@@ -195,10 +195,10 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
 
   /** Look up the guardian profile, then bind cookies to a child. */
   private async establish(
-    client: SchoolsoftClient,
+    tokens: SessionTokens,
     preferredChild: number | undefined,
   ): Promise<LoginInfo> {
-    const parent = await this.api(client).getParent();
+    const parent = await this.api(tokens).getParent();
     if (!parent.children?.length) {
       throw new AgentError({ kind: "upstream", key: "no_children" });
     }
@@ -211,7 +211,7 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
       children: parent.children,
       childInFocus,
     };
-    await this.exchange(client, context, childInFocus);
+    await this.exchange(tokens, context, childInFocus);
     this.context = context;
     const child = childOf(context, childInFocus);
     return {
@@ -223,12 +223,12 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
   }
 
   private async exchange(
-    client: SchoolsoftClient,
+    tokens: SessionTokens,
     context: GuardianContext,
     studentId: number,
   ): Promise<void> {
     const child = childOf(context, studentId);
-    await exchangeTokenForCookies(client, {
+    await exchangeTokenForCookies(tokens, {
       userType: this.userType,
       userId: context.userId,
       orgId: orgIdOf(child),
