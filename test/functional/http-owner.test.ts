@@ -127,6 +127,14 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     assert.match(html, /not connected/);
     const csrf = html.match(/name="csrf" value="([^"]+)"/)![1];
     assert.match(response.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
+    // same-origin, never no-referrer: under no-referrer a browser sends `Origin: null`
+    // on these pages' own form posts, and the Origin check refuses that (as it must).
+    assert.equal(response.headers.get("referrer-policy"), "same-origin");
+    assert.equal(
+      (await request("/owner/login", { password: config.adminPassword }, { Origin: "null" }))
+        .status,
+      403,
+    );
     assert.equal((await request("/owner/schoolsoft/login", { csrf: "bad" })).status, 403);
     assert.equal(
       (await request("/owner/schoolsoft/login", { csrf: "x".repeat(csrf.length) })).status,
