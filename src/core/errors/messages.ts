@@ -437,12 +437,12 @@ export const HINTS = {
   },
   update_or_report: {
     en: {
-      cli: `Retrying will not help. Update schoolsoft-agent; if the newest version fails too, run schoolsoft-agent doctor and open an issue naming this operation`,
+      cli: `Retrying will not help. Update schoolsoft-agent; if the newest version fails too, run schoolsoft-agent doctor --verify and open an issue with its output`,
       mcp: `Retrying will not help. Tell the user the school portal changed: they should update schoolsoft-agent, or report the operation named here if the newest version fails too.`,
       http: `Retrying will not help. The school portal changed: ask the parent to update the connector, or report the operation named here if the newest version fails too.`,
     },
     sv: {
-      cli: `Att försöka igen hjälper inte. Uppdatera schoolsoft-agent; om även den senaste versionen misslyckas, kör schoolsoft-agent doctor och öppna ett ärende som nämner den här åtgärden`,
+      cli: `Att försöka igen hjälper inte. Uppdatera schoolsoft-agent; om även den senaste versionen misslyckas, kör schoolsoft-agent doctor --verify och öppna ett ärende med utskriften`,
       mcp: `Att försöka igen hjälper inte. Berätta för användaren att skolportalen har ändrats: de bör uppdatera schoolsoft-agent, eller rapportera åtgärden som nämns här om även den senaste versionen misslyckas.`,
       http: `Att försöka igen hjälper inte. Skolportalen har ändrats: be föräldern uppdatera anslutningen, eller rapportera åtgärden som nämns här om även den senaste versionen misslyckas.`,
     },
