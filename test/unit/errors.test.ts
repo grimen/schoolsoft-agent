@@ -48,6 +48,7 @@ test("every message key renders in both languages with its parameters; every hin
     expected: "x",
     max: "14",
     operation: "o",
+    query: "q",
     file: "f",
     found: "2",
     supported: "1",

@@ -11,6 +11,7 @@ and [architecture](../development/architecture.md) for the current system.
 - [Capture probe](specs/2026-09-26-capture-probe.md)
 - [Host capability probe](specs/2026-09-26-host-probe.md)
 - [CLI output for humans](specs/2026-09-26-cli-text-output.md)
+- [Guided first run](specs/2026-09-26-guided-first-run.md)
 
 ## Implementation plans
 

@@ -3,6 +3,7 @@
  * when a prompt is available and no flags were given; otherwise
  * non-interactive via --school/--org-id. The school becomes the current
  * account; other schools already configured are kept with their settings.
+ * The lookup and the write are shared with `setup` (the guided first run).
  */
 import type { Command } from "commander";
 import { join } from "node:path";
@@ -14,11 +15,66 @@ import {
   envSource,
   getProvider,
   type AccountSettings,
+  type RankedSchool,
 } from "../../core/index.js";
 import { writeConfigFile, readConfigFile } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit } from "../program.js";
 import { EXIT } from "../exit-codes.js";
+
+type Globals = Record<string, string | undefined>;
+
+/** The config directory: --config-dir, else SCHOOLSOFT_CONFIG_DIR, else the platform default. */
+export function configDirOf(deps: CliDeps, g: Globals): string {
+  return (
+    g.configDir ||
+    deps.env.SCHOOLSOFT_CONFIG_DIR ||
+    defaultConfigDir(deps.home, deps.platform, deps.env)
+  );
+}
+
+/** The provider id from a flag or the environment; undefined means the default. */
+export function providerIdOf(deps: CliDeps, g: Globals): string | undefined {
+  return g.provider ?? envSource(deps.env).provider;
+}
+
+/** Best matches in the provider's public school list (cached in schools.json). */
+export async function findSchools(
+  configDir: string,
+  providerId: string | undefined,
+  query: string,
+  limit = 5,
+): Promise<RankedSchool[]> {
+  // The provider is known before the school is: env/flag, else the default.
+  const provider = getProvider(providerId ?? "schoolsoft");
+  // No session yet: a budget of the provider's defaults for this one command.
+  const dir = provider.createSchoolDirectory(
+    join(configDir, "schools.json"),
+    createRequestBudget({ provider: provider.id, requestBudget: {} }),
+  );
+  return dir.find(query, limit);
+}
+
+/** Make the school the current account in config.json, keeping every other school's settings. */
+export function saveSchool(
+  configDir: string,
+  providerId: string | undefined,
+  school: string,
+  orgId: string | undefined,
+): { file: string; config: ReturnType<typeof accountSource> } {
+  const existing = readConfigFile(configDir);
+  // The entry starts from what this school already had, never from another school's settings.
+  const account = accountKey(providerId, school);
+  const entry: AccountSettings = {
+    ...existing.accounts?.[account],
+    ...(providerId ? { provider: providerId } : {}),
+    school,
+    ...(orgId ? { orgId } : {}),
+  };
+  const next = { ...existing, account, accounts: { ...existing.accounts, [account]: entry } };
+  const file = writeConfigFile(configDir, next);
+  return { file, config: accountSource(next) };
+}
 
 export function registerConfigure(
   program: Command,
@@ -30,13 +86,9 @@ export function registerConfigure(
     .description("Write the config file (interactive school lookup, or --school/--org-id)")
     .option("--query <name>", "School name to look up (non-interactive)")
     .action(async (opts: { query?: string }) => {
-      const g = program.opts() as Record<string, string | undefined>;
-      const configDir =
-        g.configDir ||
-        deps.env.SCHOOLSOFT_CONFIG_DIR ||
-        defaultConfigDir(deps.home, deps.platform, deps.env);
-      const existing = readConfigFile(configDir);
-      const providerId = g.provider ?? envSource(deps.env).provider;
+      const g = program.opts() as Globals;
+      const configDir = configDirOf(deps, g);
+      const providerId = providerIdOf(deps, g);
 
       let school = g.school;
       let orgId = g.orgId;
@@ -50,14 +102,7 @@ export function registerConfigure(
             "Nothing to configure: pass --school <slug> [--org-id <id>] or --query <name>.",
           );
         }
-        // The provider is known before the school is: env/flag, else the default.
-        const provider = getProvider(providerId ?? "schoolsoft");
-        // No session yet: a budget of the provider's defaults for this one command.
-        const dir = provider.createSchoolDirectory(
-          join(configDir, "schools.json"),
-          createRequestBudget({ provider: provider.id, requestBudget: {} }),
-        );
-        const hits = await dir.find(query, 5);
+        const hits = await findSchools(configDir, providerId, query);
         if (hits.length === 0) throw new CliExit(EXIT.ERROR, `No school matched "${query}".`);
         let pick = hits[0];
         if (deps.prompt && hits.length > 1 && !opts.query) {
@@ -74,16 +119,7 @@ export function registerConfigure(
         orgId = String(pick.orgId);
       }
 
-      // The entry starts from what this school already had, never from another school's settings.
-      const account = accountKey(providerId, school);
-      const entry: AccountSettings = {
-        ...existing.accounts?.[account],
-        ...(providerId ? { provider: providerId } : {}),
-        school,
-        ...(orgId ? { orgId } : {}),
-      };
-      const next = { ...existing, account, accounts: { ...existing.accounts, [account]: entry } };
-      const file = writeConfigFile(configDir, next);
-      emit({ status: "configured", file, config: accountSource(next) });
+      const { file, config } = saveSchool(configDir, providerId, school, orgId);
+      emit({ status: "configured", file, config });
     });
 }

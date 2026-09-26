@@ -277,6 +277,14 @@ export const MESSAGES = {
     sv: () =>
       `Det finns ingen REST-väg på den här adressen, eller så tar den inte emot den här metoden.`,
   },
+  school_not_found: {
+    en: (p) => `No school in SchoolSoft's public list matched "${p.query}".`,
+    sv: (p) => `Ingen skola i SchoolSofts offentliga lista matchade "${p.query}".`,
+  },
+  cancelled: {
+    en: () => `Stopped before finishing; nothing more was changed.`,
+    sv: () => `Avbrutet innan det blev klart; inget mer ändrades.`,
+  },
   input: {
     en: (p) => `Invalid input: ${p.detail}.`,
     sv: (p) => `Ogiltig inmatning: ${p.detail}.`,
@@ -461,6 +469,30 @@ export const HINTS = {
       cli: `Uppdatera schoolsoft-agent till senaste versionen (npx -y schoolsoft-agent@latest, eller npm install -g schoolsoft-agent@latest) och kör kommandot igen; radera inte filen`,
       mcp: `Be användaren uppdatera schoolsoft-agent till senaste versionen och starta om den här servern; filen får inte raderas.`,
       http: `Be föräldern uppdatera anslutningen till senaste versionen; dess filer får inte raderas.`,
+    },
+  },
+  school_query: {
+    en: {
+      cli: `Try part of the school's name or its municipality, e.g. schoolsoft-agent find-school --query "<part of the name>"`,
+      mcp: `Call schoolsoft_find_school with part of the school's name or its municipality.`,
+      http: `The connector's school is set in its deployment; ask the parent to check SCHOOLSOFT_SCHOOL.`,
+    },
+    sv: {
+      cli: `Prova en del av skolans namn eller kommunen, t.ex. schoolsoft-agent find-school --query "<del av namnet>"`,
+      mcp: `Anropa schoolsoft_find_school med en del av skolans namn eller kommunen.`,
+      http: `Anslutningens skola anges i dess driftsättning; be föräldern kontrollera SCHOOLSOFT_SCHOOL.`,
+    },
+  },
+  run_again: {
+    en: {
+      cli: `Run schoolsoft-agent setup when you are ready; it continues where you left off`,
+      mcp: `Ask the user to run "schoolsoft-agent setup" in a terminal when they are ready.`,
+      http: `Try again when the parent is ready.`,
+    },
+    sv: {
+      cli: `Kör schoolsoft-agent setup när du är redo; det fortsätter där du slutade`,
+      mcp: `Be användaren köra "schoolsoft-agent setup" i en terminal när hen är redo.`,
+      http: `Försök igen när föräldern är redo.`,
     },
   },
   fix_input: {
