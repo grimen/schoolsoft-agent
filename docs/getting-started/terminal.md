@@ -2,7 +2,31 @@
 
 The `schoolsoft-agent` command prints JSON, because that is what AI assistants and scripts read. Add `--format text` to see the same answer laid out for a person instead. This page shows what each view looks like. All names and places below are made up.
 
-You need Node.js 22 or newer and one BankID login; see [Try it in a terminal first](../../README.md#try-it-in-a-terminal-first-optional) if you have not logged in yet. New to terminals? Read [how to enter commands](computer-basics.md) first.
+You need Node.js 22 or newer and one BankID login. New to terminals? Read [how to enter commands](computer-basics.md) first.
+
+## The first time
+
+Type this and press Enter:
+
+```bash
+npx -y schoolsoft-agent
+```
+
+On a computer where schoolsoft-agent has not been set up yet, it guides you through five steps, in Swedish when your computer's language is Swedish:
+
+1. **Find the school.** Type its name, or part of it. If several schools match, type the number of yours.
+2. **Save the settings.** Nothing to do; it says where they are saved.
+3. **Log in with BankID.** Press Enter and your web browser opens SchoolSoft's login page. Log in there as usual and come back. Never type BankID codes or passwords in the terminal. If no browser window opens, it prints the address to open on the same computer.
+4. **Check that it works.** It reads once from SchoolSoft and says how many checks passed.
+5. **This week's schedule** for your child, as in the view below.
+
+It ends by showing where your data is kept ([how it is handled](data-handling.md)) and which guide to follow to add an AI assistant. Press Ctrl+C to stop at any time; `npx -y schoolsoft-agent setup` continues where you left off and skips the steps that are already done.
+
+For scripts: `setup --query "<school name>"` takes the best match and asks nothing, `--no-login` stops before BankID (exit 2 when no login is saved), and without a terminal `setup` never asks. The guide is written to stderr; `setup` prints one JSON result on stdout.
+
+## Afterwards
+
+Any time later, ask for a view directly:
 
 ```bash
 npx -y schoolsoft-agent get-schedule --format text

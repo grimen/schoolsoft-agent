@@ -168,6 +168,7 @@ The program talks only to SchoolSoft (`sms.schoolsoft.se`), and only for things 
 - **Each question:** the requests needed to answer it. Switching child asks SchoolSoft for new cookies for that child.
 - **Finding a school:** SchoolSoft's public school list, without logging in.
 - **`doctor`:** one check that SchoolSoft can be reached.
+- **`setup` (the guided first run):** the school list and the login as above, then one read each of your children, the schedule, the calendar, the lunch menu and the inbox to check that they work (nothing of it is shown or kept), and this week's schedule, which it shows.
 - **Keepalive,** only if you turned it on (see above).
 
 These are the same kinds of requests the SchoolSoft app and website make for you. SchoolSoft sees your login and which pages and data were requested, as usual. The hidden browser opens SchoolSoft's pages as your own browser would, including anything those pages load themselves. Opening a message through the assistant may mark it as read in SchoolSoft, just as opening it in the app does. We have not checked this.
@@ -194,6 +195,8 @@ It prints a few lines to the error output (stderr). Some assistant apps save the
 - connector only: start-up problems, and a one-time notice about the proxy setting, without addresses.
 
 None of these lines contain names, messages, grades or other school content. On the connector, an unexpected error returns a fixed page and nothing is logged.
+
+The guided first run (`setup`, or `schoolsoft-agent` on its own in a terminal) is the exception, on purpose: it is written for you at the terminal, so it prints your name after the login, the login address, the folders it uses and this week's schedule for your child on the error output. Run it yourself, not through an assistant, if you do not want that to reach the assistant.
 
 If the command line or the MCP server stops because of a bug, it prints the error. That text is technical, but it can include file paths, which contain your computer's user name.
 

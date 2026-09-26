@@ -20,6 +20,8 @@ Open just that guide. Each starts with installing the assistant if you do not ha
 
 These routes include commands or settings to copy. If that is unfamiliar, read [how to enter commands](computer-basics.md) first. Installing this SchoolSoft add-on is free; the assistant or model service you choose may charge for use.
 
+**I want to see it working in a terminal first.** Run `npx -y schoolsoft-agent` (Node.js 22 or newer). It guides you from finding the school to your child's schedule this week, then points to the guide for your assistant. See [reading school data in a terminal](terminal.md#the-first-time).
+
 **I only have a phone or tablet.**
 
 The [parent-hosted connector](../deployment/connector.md) is an implemented release candidate for Claude/ChatGPT without a local agent. You need your own hosting account, and real SchoolSoft login plus AI client/mobile acceptance still need testing. Do not pay for hosting expecting a proven phone-only setup yet. Some assistants can instead control a computer you keep running; read [phone options](../integrations/support-matrix.md#using-a-phone). You do not need a server for the recommended desktop setup.

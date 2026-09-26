@@ -39,6 +39,12 @@ The [detailed support matrix](docs/integrations/support-matrix.md) compares desk
 Prerequisite: [Node.js](https://nodejs.org/en/download) 22 or newer.
 
 ```bash
+npx -y schoolsoft-agent                                    # a guided first run, in Swedish or English
+```
+
+It asks for your school's name, opens BankID in your own browser, checks that SchoolSoft answers, shows this week's schedule and says where your data is kept and how to add an AI assistant. Stop with Ctrl+C at any time; `npx -y schoolsoft-agent setup` continues where you left off. The same steps one by one, for scripts (`setup --query "<name>"` does them without asking):
+
+```bash
 npx -y schoolsoft-agent configure --query "Rösjöskolan"   # finds your school
 npx -y schoolsoft-agent login                              # BankID in your browser
 npx -y schoolsoft-agent get-calendar --pretty              # lessons and school events this week (JSON)

@@ -76,7 +76,7 @@ Every sentence is in one English/Swedish table in the CLI adapter (`src/cli/guid
 
 ## Output and exit codes
 
-- **Stdout for `setup`:** one JSON object at the end, the same way every command answers (`--pretty` applies): `{ status: "ready" | "check_failed", school, orgId?, configDir, stateDir, children, check: { ok, drift, skipped, error } }`. No names, ids or school data. Like `configure` and `doctor`, it is a diagnostic: not a contract. With `--format text` nothing is printed on stdout, because the guide on stderr is already the text.
+- **Stdout for `setup`:** one JSON object at the end, the same way every command answers (`--pretty` applies): `{ status: "ready" | "check_failed", school, configDir, stateDir, children, check: { ok, drift, skipped, error } }`. No names, ids or school data. Like `configure` and `doctor`, it is a diagnostic: not a contract. With `--format text` nothing is printed on stdout, because the guide on stderr is already the text.
 - **Stdout for the bare invocation:** nothing; it is for people only.
 - **Exit codes:** unchanged contract. 0 when the schedule was shown; 3 not configured (non-interactive, no school); 2 not logged in (`--no-login`, a failed or timed-out login); 4 network; 6 input (no school matched, cancelled); 7 drift or upstream; whatever kind an error has, through `describeError`'s two lines. A bug is still 1.
 - **Cancelled.** Ctrl+C or Ctrl+D at a question rejects the prompt; the guide turns that into a new `cancelled` input error (exit 6, "Stopped before finishing; nothing more was changed" and "Next: run setup to continue where you left off"), never an "unexpected error".
@@ -132,19 +132,20 @@ All in the CLI adapter; core gains two message keys and two hint keys and nothin
 - `scripts/gen-docs.ts`: the `setup` row and the bare-invocation sentence.
 - `test/functional/first-run.test.ts`: the flow in-process over the fake session manager and fake portal, both languages, every edge case above.
 - `test/unit/guide-words.test.ts`: both languages for every key; every linked guide exists.
+- `test/unit/errors.test.ts`: the new message renders with its parameter.
 - `test/functional/cli-spawn.test.ts`: the built binary's bare invocation without a TTY still prints help and exits 6, and `setup` without a school exits 3.
-- `docs/reference/commands.md` (generated), `docs/getting-started/terminal.md`, `README.md`, `docs/development/stability.md`, `docs/development/architecture.md`, `docs/planning/README.md`.
+- `docs/reference/commands.md` and the skill's copy (generated), `docs/getting-started/terminal.md`, `docs/getting-started/README.md`, `docs/getting-started/data-handling.md` (what `setup` reads), `README.md`, `docs/development/stability.md`, `docs/development/architecture.md`, `docs/planning/README.md`.
 
 ## Tasks & Acceptance
 
 - [x] Spec (this file).
-- [ ] Given a fresh config dir and a TTY, when the parent runs the bare command and answers a name, a number and Enter, then the school is saved, the fake login runs, five checks pass, the schedule view is printed and the exit code is 0.
-- [ ] Given no TTY, then the bare command prints help and exits 6, and `setup` without flags exits 3 without a request.
-- [ ] Given `setup --query X` on a TTY, then there is no prompt at all.
-- [ ] Given `--no-login` and no saved login, then the school is saved and the exit code is 2.
-- [ ] Given a drifting check, then two lines, `check_failed` and exit 7.
-- [ ] Given Ctrl+C at a question, then `cancelled` and exit 6.
-- [ ] Given a Swedish locale, then every line is Swedish.
+- [x] Given a fresh config dir and a TTY, when the parent runs the bare command and answers a name, a number and Enter, then the school is saved, the fake login runs, five checks pass, the schedule view is printed and the exit code is 0.
+- [x] Given no TTY, then the bare command prints help and exits 6, and `setup` without flags exits 3 without a request.
+- [x] Given `setup --query X` on a TTY, then there is no prompt at all.
+- [x] Given `--no-login` and no saved login, then the school is saved and the exit code is 2.
+- [x] Given a drifting check, then two lines, `check_failed` and exit 7.
+- [x] Given Ctrl+C at a question, then `cancelled` and exit 6.
+- [x] Given a Swedish locale, then every line is Swedish.
 
 ## Verification
 
