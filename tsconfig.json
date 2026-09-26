@@ -14,5 +14,6 @@
     "sourceMap": true,
     "declarationMap": false
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/http/probe"]
 }

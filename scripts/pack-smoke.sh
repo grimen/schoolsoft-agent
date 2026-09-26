@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # Packs the package and installs the tarball into a clean prefix, then
-# asserts the consumer contract: both bins resolve, the CLI answers
-# --version, the MCP bin starts and lists its tools, and the typed client
-# (`schoolsoft-agent/client`) imports with nothing but Zod. Run from the repo
-# root (CI: Checks / Packages). Local: make check-package.
+# asserts the consumer contract: the host probe is not in it, both bins
+# resolve, the CLI answers --version, the MCP bin starts and lists its tools,
+# and the typed client (`schoolsoft-agent/client`) imports with nothing but
+# Zod. Run from the repo root (CI: Checks / Packages). Local: make check-package.
 set -euo pipefail
 SMOKE="$(mktemp -d)"
 trap 'rm -rf "$SMOKE"' EXIT
 npm pack --pack-destination "$SMOKE" --silent >/dev/null
+# The host probe (src/http/probe) is a development tool and never ships.
+if tar -tzf "$SMOKE"/schoolsoft-agent-*.tgz | grep -q 'http/probe/'; then
+  echo "the host probe must not be in the package" >&2
+  exit 1
+fi
 npm install -g --prefix "$SMOKE/prefix" --no-audit --no-fund --silent "$SMOKE"/schoolsoft-agent-*.tgz
 BIN="$SMOKE/prefix/bin"
 test -x "$BIN/schoolsoft-agent" && test -x "$BIN/schoolsoft-agent-mcp"

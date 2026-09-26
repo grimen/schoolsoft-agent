@@ -12,3 +12,5 @@ lefthook-local.yml
 # make capture: redacted but unreviewed captures, and the maintainer's own denylist
 .captures/
 .capture-denylist
+# make host-probe: what the host probe saw (no personal data, but local only)
+.host-probe/
