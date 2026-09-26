@@ -116,7 +116,14 @@ export function createProbeApp(options: ProbeAppOptions) {
       "Open the host probe",
       `<p>This is the schoolsoft-agent host probe, not your SchoolSoft connector. It has no school data. Use the probe's own password.</p>${form("/owner/login", "", hiddenFields + '<label>Probe password <input type="password" name="password" autocomplete="current-password" required></label>', "Continue")}`,
     );
-  app.get("/owner/login", (req, res) => {
+  const loginPageLimit = rateLimit({
+    windowMs: 60_000,
+    limit: 60,
+    standardHeaders: "draft-8",
+    legacyHeaders: false,
+    ...perCaller,
+  });
+  app.get("/owner/login", loginPageLimit, (req, res) => {
     const request = typeof req.query.request === "string" ? req.query.request : "";
     const next = typeof req.query.next === "string" ? req.query.next : "";
     res.send(loginPage(hidden("request", request) + hidden("next", next)));
