@@ -6,6 +6,7 @@
     "src/cli/index.ts",
     "src/mcp/index.ts",
     "src/http/index.ts",
+    "src/http/probe/cli.ts",
     "src/core/auth/strategy.ts",
     "src/shared/version.ts",
     "src/core/browser/session.ts",
