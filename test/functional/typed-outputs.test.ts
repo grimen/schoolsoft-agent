@@ -28,6 +28,7 @@ import {
 import { ResponseDriftError } from "../../src/core/errors/index.js";
 import { isoWeekDate } from "../../src/core/domain/time.js";
 import { lunchYear } from "../../src/core/operations/get-lunch-menu.js";
+import { weekOf } from "../../src/core/operations/_week.js";
 import { schoolsoftProvider } from "../../src/providers/schoolsoft/index.js";
 import { createMcpServer } from "../../src/mcp/server.js";
 import { runCli } from "../../src/cli/program.js";
@@ -111,8 +112,11 @@ test("MCP publishes an outputSchema for exactly the five typed operations", asyn
   const schedule = tools.find((tool) => tool.name === "schoolsoft_get_schedule")!;
   assert.deepEqual(Object.keys(schedule.outputSchema!.properties!).sort(), [
     "child",
+    "endDate",
     "lessons",
+    "startDate",
     "week",
+    "year",
   ]);
   assert.equal(tools.length, 25);
   assert.deepEqual(
@@ -134,7 +138,7 @@ test("the five operations map live-shaped JSON to the domain model", async () =>
   });
   const child = { id: 100, firstName: "Ett" };
   assert.deepEqual(await run(ctx, "get_schedule"), {
-    week: 37,
+    ...weekOf(37),
     child,
     lessons: [
       {
