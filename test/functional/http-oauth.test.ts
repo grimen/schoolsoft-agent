@@ -62,6 +62,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
         executeHook?.();
         return { synthetic: true, children };
       },
+      executeForChild: () => Promise.reject(new Error("the overview is not under test here")),
       logout: async () => {
         authenticated = false;
       },
