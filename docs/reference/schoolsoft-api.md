@@ -268,7 +268,7 @@ something is learned live; never paste data, only shapes and behaviour.
 
 ## What ssp-node gets wrong for guardians
 
-`@elias4044/ssp-node` is a student client. It hardcodes the `student` login route, the `eApp` client id, the student cookie-exchange path, and sends none of the guardian headers. This project keeps it only for its HTTP helpers (`schoolsoftFetch`, `ssUrl`, `extractCookie`) and as the in-memory token/cookie holder.
+`@elias4044/ssp-node` is a student client. It hardcodes the `student` login route, the `eApp` client id, the student cookie-exchange path, and sends none of the guardian headers. Its HTTP helper also follows 301, 302, 307 and 308 by sending the same method again, with the same cookies, to any host. This project used it only for its HTTP helpers and as the in-memory token/cookie holder, and dropped it in E6.3 ([spec](../planning/specs/2026-09-26-drop-ssp-node.md)); the provider's `net.ts` and `tokens.ts` do that work now.
 
 ## Error strings worth recognising
 

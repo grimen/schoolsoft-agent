@@ -46,6 +46,8 @@ Written fresh from these needs; no code is copied from ssp-node.
   report (`postWrite`) and the cookie exchange say `"manual"`, as before. The write
   framework (E7.2) decides later whether a 301/302/303 after a form post means
   applied or rejected by sending its own GET; nothing here decides that for it.
+  The public school list and doctor's HEAD probe carry no cookie or token and keep
+  fetch's own following, now written out (`redirect: "follow"`).
 - **Small helpers**: `portalUrl(slug, path)` next to `SCHOOLSOFT_ORIGIN`; the cookie
   value reader inside the cookie exchange; PKCE (`randomBytes(32)` as base64url,
   its SHA-256 as base64url) and `state` (12 random bytes as hex) inside `oauth.ts`,
