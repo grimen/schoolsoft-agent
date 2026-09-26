@@ -138,15 +138,15 @@ The schedule and lunch sections carry `year`, `week`, `startDate` and `endDate` 
 - `src/http/overview.ts`: sections, schemas, the week and next-event logic, which failures stay in a section.
 - `src/http/rest.ts`: the route; `src/http/routes.ts`: the reserved slug and the query parser shared with it.
 - `scripts/gen-docs.ts` → `docs/reference/rest-api.md`, `tools.md`, `commands.md`.
-- `test/unit/week.test.ts`, `test/unit/http-overview.test.ts`, `test/functional/http-overview.test.ts`, updates to the typed-output and runtime tests.
+- `test/unit/week.test.ts`, `test/unit/http-overview.test.ts`, `test/functional/http-overview.test.ts` (on the REST fixture, now shared as `test/helpers/rest-connector.ts`), `test/packaging/connector-smoke/flow.mjs` (one overview), updates to the typed-output and runtime tests.
 
 ## Tasks & Acceptance
 
-- [ ] Given a grant for a child, when a UI calls the overview, then it gets the week's schedule and lunch and the next event, each validated, with the week named by Stockholm dates.
-- [ ] Given a grant without the child or without any section's scope, then the overview is refused before any upstream request; without one section's scope, that section is `not-granted`.
-- [ ] Given one section's read failing, then only that section carries the problem.
-- [ ] Given two children requested in parallel, then no section carries the other child's data.
-- [ ] Given a cold and a warm overview, then the upstream requests stay within the request budget and the warm one sends none.
+- [x] Given a grant for a child, when a UI calls the overview, then it gets the week's schedule and lunch and the next event, each validated, with the week named by Stockholm dates.
+- [x] Given a grant without the child or without any section's scope, then the overview is refused before any upstream request; without one section's scope, that section is `not-granted`.
+- [x] Given one section's read failing, then only that section carries the problem.
+- [x] Given two children requested in parallel, then no section carries the other child's data.
+- [x] Given a cold and a warm overview, then the upstream requests stay within the request budget and the warm one sends none.
 - [ ] Live acceptance: a dashboard on a parent's deployment against a real SchoolSoft session.
 
 ## Verification
