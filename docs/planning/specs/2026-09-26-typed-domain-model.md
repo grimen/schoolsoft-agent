@@ -81,7 +81,7 @@ Message `response_drift` (English and Swedish): the portal's answer for the oper
 
 ## Surfaces
 
-- **MCP (stdio).** SDK 1.30.0 supports `outputSchema` on `registerTool` (Zod object, converted to JSON Schema in `tools/list`) and validates `structuredContent` against it. The five tools declare it. Every typed result carries `structuredContent`, also when the text copy is truncated at 25 000 characters, because the protocol requires structured content from a tool that declares an output schema. A drift error is an ordinary tool error result (`isError`, two lines, `error.kind: "upstream"`), never a protocol failure.
+- **MCP (stdio).** SDK 1.30.0 supports `outputSchema` on `registerTool` (Zod object, converted to JSON Schema in `tools/list`); its server validates `structuredContent` against it, and so does its client. The five tools declare it. Every typed result carries `structuredContent`, also when the text copy is truncated at 25 000 characters, because the protocol requires structured content from a tool that declares an output schema. Error results of typed tools carry the two text lines only: the SDK client validates `structuredContent` against the output schema even when `isError` is set, so the usual `{ error: { kind, retryable } }` object would turn a clean tool error into a protocol failure. Untyped tools keep it. A drift error is therefore an ordinary tool error result, never a protocol failure.
 - **CLI.** JSON on stdout in the new shapes; drift prints two lines on stderr and exits 7.
 - **Connector.** Unchanged security behaviour: consent and child focus are checked before the cache and every GET. Drift surfaces as its generic "access is unavailable" error result.
 - **Docs.** `make docs` renders an "Output" table per typed tool and command from the schema; `make skills` copies it into the skill.
@@ -103,7 +103,7 @@ Message `response_drift` (English and Swedish): the portal's answer for the oper
 | `Lesson.start`, `end` | `startDate`, `endDate` | names verified; local `YYYY-MM-DDTHH:MM[:SS]` assumed |
 | `Lesson.room`, `group`, `teacher`, `note` | `room`, `teachingGroup`, `teacher`, `description` | names verified; string, null or absent assumed |
 | `CalendarEvent.*` | agenda `eventId`, `name`, `startDate`, `endDate`, `allDay`, `room`, `teacher`, `teachingGroup`, `category`, `description` | assumed: taken from the upstream skolplattformen adapter and synthetic fixtures, not observed live |
-| `LunchDay.date` | lunch `week`, `dayId` + the resolved year | names verified; Mon=1…Fri=5 verified; which year SchoolSoft means assumed |
+| `LunchDay.date` | requested week, `dayId` + the resolved year (the raw `week` is type-checked, not used) | names verified; Mon=1…Fri=5 verified; which year SchoolSoft means assumed |
 | `LunchDay.weekday` | `dayId` | verified (1–5); 6–7 assumed |
 | `LunchDay.dishes[].kind`, `description` | `dishes[].mealType`, `dishes[].description` | names verified; string (or number for `mealType`) assumed |
 | `Message.id` | inbox `id` | name verified; integer assumed |
@@ -117,12 +117,13 @@ Message `response_drift` (English and Swedish): the portal's answer for the oper
 
 | Input or condition | Required behaviour |
 | --- | --- |
-| Upstream renames, drops or retypes a required field | `response_drift` naming the operation; nothing returned, nothing cached, session kept |
+| Upstream renames, drops or retypes a required field | `response_drift` naming the operation; nothing returned, nothing cached, session kept. An older good entry for the same key stays cached until its TTL |
 | Upstream adds a field | Ignored |
 | Optional text field empty, null or absent | `null` |
 | Guardian profile drifts during login or restore | `response_drift` naming the operation that triggered it (`login`, or the read that restored the session); saved session kept |
 | Result fails the operation's own `output` schema | `response_drift` naming the operation |
-| Local time in the autumn DST fold or spring gap | Offset of the first valid instant; stable across calls |
+| Local time in the autumn DST fold | The earlier (summer-time, `+02:00`) instant; stable across calls |
+| Local time in the spring DST gap | The offset from before the change (`+01:00`); stable across calls |
 | Timestamp with an offset or `Z` | Converted to the Stockholm offset of the same instant |
 | `get_lunch_menu` week 53 in a year without one | `input` error |
 | MCP text longer than 25 000 characters | Text truncated, structured content complete |
@@ -139,7 +140,9 @@ Message `response_drift` (English and Swedish): the portal's answer for the oper
 - `src/providers/schoolsoft/portal/domain/`: raw schemas and mappers; `api/eva-api.ts`, `api/webview-api.ts` call them.
 - `src/mcp/server.ts`, `respond.ts`: `outputSchema`, structured content always for typed tools.
 - `src/http/runtime.ts`: `list_children` projection, lunch year.
-- `scripts/gen-docs.ts`: output tables.
+- `scripts/gen-docs.ts`: output tables; the exit-code line now lists all codes.
+- `test/fixtures/json/`, `test/helpers/portal-json.ts`: live-shaped synthetic answers and their drifted variants.
+- `AGENTS.md`, `docs/development/architecture.md`, `docs/reference/schoolsoft-api.md`, `skills/schoolsoft/SKILL.md`: the rule, the design, the calendar mapping, what an agent does on drift.
 
 ## Tasks & Acceptance
 

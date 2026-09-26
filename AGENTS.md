@@ -22,8 +22,16 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   operations, the session lifecycle and the BankID-in-own-browser mechanics.
   A new vendor = one provider directory + one registry line, passing
   `test/contract`. Deferred on purpose until a second vendor exists:
-  domain types for the raw JSON capabilities and renaming `SCHOOLSOFT_*`,
-  the `schoolsoft_` tool prefix and the `userType`/`clientId` config keys.
+  renaming `SCHOOLSOFT_*`, the `schoolsoft_` tool prefix and the
+  `userType`/`clientId` config keys.
+- **Typed outputs.** An operation with a domain result declares `output`
+  (built from `src/core/domain/`); `runOperation` validates every result.
+  The provider maps raw JSON in its `portal/domain/` (one module per
+  upstream shape, a Zod schema of the raw answer); core never sees the raw
+  shape. An answer that does not map is a `ResponseDriftError` naming the
+  operation, never passed on, never cached, and it never clears a saved
+  session (`keepsSession`). Five operations are typed so far; the rest is
+  E4.5 (see `docs/planning/specs/2026-09-26-typed-domain-model.md`).
 - **Portal routing is static.** A capability is served by the API when one
   exists, by the browser provider only when none does (`ROUTING` in
   `src/providers/schoolsoft/routing.ts`). Never add a browser path for something the API
