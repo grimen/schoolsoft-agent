@@ -39,6 +39,7 @@ Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state
 | `logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
 | `configure` | Write config.json (interactive school lookup or `--school/--org-id/--query`) | no login needed |
 | `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |
+| `doctor --verify` | Check that each typed read still parses against the live portal; prints statuses, never data (`--all-children` checks every child) | read-only, needs a saved session; exit 7 on drift |
 
 ## `schoolsoft-agent find-school`
 

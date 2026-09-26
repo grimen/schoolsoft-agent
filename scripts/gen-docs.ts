@@ -153,7 +153,9 @@ export function renderCommands(): string {
   md +=
     "| `configure` | Write config.json (interactive school lookup or `--school/--org-id/--query`) | no login needed |\n";
   md +=
-    "| `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |\n\n";
+    "| `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |\n";
+  md +=
+    "| `doctor --verify` | Check that each typed read still parses against the live portal; prints statuses, never data (`--all-children` checks every child) | read-only, needs a saved session; exit 7 on drift |\n\n";
   for (const op of operations) {
     md += `## \`schoolsoft-agent ${kebab(op.name)}\`\n\n${op.description.trim()}\n\n`;
     const specs = flagsFromSchema(op.input);

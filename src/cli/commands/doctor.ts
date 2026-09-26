@@ -1,12 +1,14 @@
 /**
  * `doctor`: environment, config, session and connectivity checks, with
- * `--fix` to migrate a legacy ~/.schoolsoft-mcp session store.
+ * `--fix` to migrate a legacy ~/.schoolsoft-mcp session store, and
+ * `--verify` for the live parse check of the typed operations (verify.ts).
  */
 import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   AgentError,
+  InputError,
   CONFIG_FORMAT,
   FileSessionHistoryStore,
   FileSessionStore,
@@ -28,6 +30,7 @@ import { configFileVersion, loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit, globalOverrides } from "../program.js";
 import { EXIT } from "../exit-codes.js";
+import { runVerify } from "./verify.js";
 
 export interface DoctorCheck {
   name: string;
@@ -199,7 +202,14 @@ export function registerDoctor(program: Command, deps: CliDeps, emit: (d: unknow
     .command("doctor")
     .description("Diagnose environment, config, session and connectivity")
     .option("--fix", "Apply safe fixes (migrate a legacy ~/.schoolsoft-mcp session)")
-    .action(async (opts: { fix?: boolean }) => {
+    .option(
+      "--verify",
+      "Check that each typed read still parses against the live portal (saved session only; prints no data)",
+    )
+    .option("--all-children", "With --verify: check every child, not only the one in focus")
+    .action(async (opts: { fix?: boolean; verify?: boolean; allChildren?: boolean }) => {
+      if (opts.allChildren && !opts.verify) throw new InputError("--all-children needs --verify");
+      if (opts.verify) return runVerify(deps, program.opts(), Boolean(opts.allChildren), emit);
       const result = await runDoctor(deps, program.opts(), Boolean(opts.fix), process.version);
       emit(result);
       if (!result.ok) throw new CliExit(EXIT.ERROR, "");

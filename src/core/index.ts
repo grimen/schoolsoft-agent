@@ -75,6 +75,20 @@ export { BUDGET_BOUNDS, DEFAULT_BREAKER_POLICY } from "./budget/policy.js";
 export type { BudgetLimits, BreakerPolicy } from "./budget/policy.js";
 export { parseRetryAfter } from "./budget/retry-after.js";
 export {
+  verifyOperations,
+  verifyExitCode,
+  isVerifiable,
+  VERIFY_EXCLUSIONS,
+} from "./operations/verify.js";
+export type {
+  VerifyOperationsOptions,
+  VerifyReport,
+  VerifyResult,
+  VerifyStatus,
+  VerifySkipReason,
+  VerifyDrift,
+} from "./operations/verify.js";
+export {
   MemorySessionHistoryStore,
   FileSessionHistoryStore,
   SessionHistoryRecorder,

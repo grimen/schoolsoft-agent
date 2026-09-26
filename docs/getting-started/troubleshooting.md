@@ -188,8 +188,26 @@ schoolsoft-agent configure --query "<school name>"
 npx -y schoolsoft-agent doctor
 ```
 
-Reports Node version, configuration, saved session, how long logins have lasted so far, the format version of each saved file, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
+Reports Node version, configuration, saved session, how long logins have lasted so far, the format version of each saved file, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place. `doctor --verify` is a different check: see [Check whether SchoolSoft changed something](#check-whether-schoolsoft-changed-something).
+
+## "The school portal's answer for … has changed shape"
+
+SchoolSoft answered, but not in the form this tool knows, so it returned nothing rather than show you something that might be wrong. It usually means SchoolSoft changed something on their side. Trying again will not help. Update schoolsoft-agent first, the same way as in the "written by a newer version" section above; a newer version may already understand the new form. If the newest version fails too, check which parts are affected, as described next.
+
+## Check whether SchoolSoft changed something
+
+When one thing stops working with the message above, you can check everything else in one go, using the login you already have:
+
+```bash
+npx -y schoolsoft-agent doctor --verify --pretty
+```
+
+It asks SchoolSoft once for each kind of information the tool understands in detail (children, schedule, calendar, lunch menu, messages), one after the other, the way you would by asking for them yourself, and reads each answer from SchoolSoft directly rather than from the short-lived memory. It shows only whether each answer still looks right: `ok`, `drift` (SchoolSoft changed its form), `skipped` (this setup cannot check it, for example without the hidden browser or the second login) or `error` (SchoolSoft or the connection failed; try again later). For `drift` it names which field changed, never what the field contained. The output has no names, messages, lessons or other school data, so it is safe to paste into an issue.
+
+It checks the child that is selected by default and names children by their position in your list ("child 1 of 2"), never by name. Add `--all-children` to check every child; the selected child stays selected afterwards. It never logs in, never opens BankID and never changes anything at SchoolSoft. Without a saved login it stops with "Not logged in" before asking SchoolSoft anything.
+
+The command ends with exit code 0 when nothing changed, 7 when something drifted, and otherwise the code of the first problem (4 for a connection failure, for example).
 
 ## Still stuck?
 
-Open an issue at <https://github.com/grimen/schoolsoft-agent/issues>. Paste the output of `doctor` (it contains no personal data) and the exact message you saw.
+Open an issue at <https://github.com/grimen/schoolsoft-agent/issues>. Paste the output of `doctor` (it contains no personal data) and the exact message you saw. If a message said an answer "has changed shape", paste the output of `doctor --verify` as well.

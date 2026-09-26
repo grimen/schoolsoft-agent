@@ -124,7 +124,14 @@ tracked in issue #25 (E2). Do them in this order, in one sitting:
    if one of them still looks personal; otherwise it moves them into
    `test/fixtures/`. Then read `git diff`, run `make format`, and commit only what
    you have read.
-5. The live items: `make e2e`, `make browser-verify`, the connector checks in
+5. `make verify-live`. With the same saved session it runs `doctor --verify`: each
+   typed read (children, schedule, calendar, lunch, messages) once, fresh, in
+   sequence, and prints `ok`, `drift`, `skipped` or `error` per operation, with
+   field paths and issue codes for drift and never a value. It never logs in and
+   never writes. Exit 7 means something drifted: fix the named mapper in
+   `src/providers/schoolsoft/portal/domain/` and its fixture. Put the summary counts
+   in the live-pass PR.
+6. The live items: `make e2e`, `make browser-verify`, the connector checks in
    [docs/deployment/connector.md](docs/deployment/connector.md#what-still-needs-a-real-acceptance-test),
    then `make fingerprints`.
 
