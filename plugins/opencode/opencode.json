@@ -3,10 +3,22 @@
   "mcp": {
     "schoolsoft": {
       "type": "local",
-      "command": ["npx", "-y", "-p", "schoolsoft-agent@0.2.0", "schoolsoft-agent-mcp"],
-      "environment": { "SCHOOLSOFT_SCHOOL": "taby" },
+      "command": [
+        "npx",
+        "-y",
+        "-p",
+        "schoolsoft-agent@0.3.0",
+        "schoolsoft-agent-mcp"
+      ],
+      "environment": {
+        "SCHOOLSOFT_SCHOOL": "taby"
+      },
       "enabled": true
     }
   },
-  "permission": { "skill": { "schoolsoft": "allow" } }
+  "permission": {
+    "skill": {
+      "schoolsoft": "allow"
+    }
+  }
 }

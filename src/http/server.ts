@@ -17,6 +17,7 @@ import { clientKey } from "./client-key.js";
 import { escapeHtml as esc, page, form, hidden, signInHistory } from "./pages.js";
 import { restApi } from "./rest.js";
 import { API_BASE } from "./routes.js";
+import { PACKAGE_VERSION } from "../shared/version.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
@@ -335,7 +336,7 @@ export function createConnectorApp({
       res.on("close", () => cancellation.abort());
       const auth = req.auth!;
       const grantId = String(auth.extra!.grantId);
-      const server = new McpServer({ name: "schoolsoft-agent", version: "0.2.0" });
+      const server = new McpServer({ name: "schoolsoft-agent", version: PACKAGE_VERSION });
       for (const op of operations.filter((candidate) => auth.scopes.includes(candidate.name)))
         server.registerTool(
           "schoolsoft_" + op.name,

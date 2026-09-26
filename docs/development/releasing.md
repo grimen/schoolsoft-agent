@@ -44,8 +44,39 @@ exact version from it.
    the Claude Desktop bundle and attaches it to the release. Verify then
    installs the published version and asserts the consumer contract.
 
-`package.json`'s version is maintained by release-please; nothing is edited
-by hand.
+`package.json`'s version is maintained by release-please, and so is every
+other file that carries it (below); nothing is edited by hand.
+
+## Files that carry the version
+
+release-please's `node` release type bumps only `package.json`,
+`package-lock.json` and `.release-please-manifest.json`. Every other file
+that pins the version is listed under `extra-files` in
+`release-please-config.json`, so the release PR bumps it in the same commit:
+
+| File                                                         | Field                                                |
+| ------------------------------------------------------------ | ---------------------------------------------------- |
+| `plugins/claude/.claude-plugin/marketplace.json`             | `metadata.version`, `plugins[*].version`             |
+| `plugins/claude/schoolsoft-mcp/.claude-plugin/plugin.json`   | `version`                                            |
+| `plugins/claude/schoolsoft-skill/.claude-plugin/plugin.json` | `version`                                            |
+| `plugins/claude/schoolsoft-mcp/.mcp.json`                    | `schoolsoft-agent@X.Y.Z` in `args`                   |
+| `plugins/mcpb/manifest.json`                                 | `version`                                            |
+| `plugins/opencode/opencode.json`                             | `schoolsoft-agent@X.Y.Z` in `mcp.schoolsoft.command` |
+
+Each entry is a `json` updater with a `jsonpath`. The updater replaces only
+the `X.Y.Z` inside the selected string, so `schoolsoft-agent@X.Y.Z` keeps
+its prefix. It then rewrites the whole file with `JSON.stringify`, which puts
+every array on its own lines; `.prettierrc` formats these files with the
+`json-stringify` parser so that output is already prettier-clean.
+`.release-please-manifest.json` is release-please's own file and is in
+`.prettierignore`, like `CHANGELOG.md`.
+
+`make plugin-validate` fails when any of these differs from `package.json`,
+and `test/packaging/release-sync.test.ts` replays a release bump from the
+config and runs that validator and prettier on the result. A new file that
+pins the version needs an `extra-files` entry and a validator check;
+without the entry that test fails. Code reads the version at runtime from
+`package.json` (`src/shared/version.ts`), never from a literal.
 
 ## How the version is chosen
 
@@ -89,8 +120,15 @@ touches CI is `ci:`, not `fix(ci):`.
    (`gh run rerun <id> --failed`); `release-retry.yml` re-runs the blocked
    Publish as soon as main is green. Nothing to re-tag.
 
-CI does not run on the release PR itself (same token rule); it only changes
-`CHANGELOG.md`, the manifest and `package.json`.
+The release PR changes `CHANGELOG.md`, `package.json`, `package-lock.json`,
+`.release-please-manifest.json` and the files in
+[Files that carry the version](#files-that-carry-the-version). GitHub does
+create a CI run for it, but because release-please pushes with the workflow
+token, that run waits for a maintainer's approval (**Approve and run** on
+the PR, status "action required") and never starts on its own. Approve it
+before merging: it is the only run that checks the release commit before it
+is tagged. Unapproved, the first failure shows up on `main` and in the
+release run, after the tag exists.
 
 ## Hand-cut prereleases (rc)
 
@@ -100,8 +138,9 @@ release-please ignores such tags.
 
 ## Setup that must exist once
 
-- **`NPM_TOKEN`** repository secret, only when `PUBLISH_REGISTRY` is `npm`:
-  an npm automation token for the `schoolsoft-agent` package. `GITHUB_TOKEN`
+- **`NPM_TOKEN`** repository secret, only for publishing to npm
+  (`PUBLISH_NPM: "auto"` publishes there as soon as it exists): an npm
+  automation token for the `schoolsoft-agent` package. `GITHUB_TOKEN`
   cannot publish to npmjs.com. GitHub Packages needs no secret.
 - Settings → Actions → General → "Allow GitHub Actions to create and approve
   pull requests" must be on, or release-please cannot open the release PR.
@@ -123,6 +162,10 @@ release-please ignores such tags.
   `vX.Y.Z` tags, pre-1.0 bump policy, PR title pattern (`release` is a
   commitlint scope), changelog sections.
 - `.release-please-manifest.json`: the last released version.
+- `extra-files` in `release-please-config.json`, the `json-stringify`
+  override in `.prettierrc`, `scripts/validate-plugins.ts` and
+  `test/packaging/release-sync.test.ts`: the version-carrying files
+  ([above](#files-that-carry-the-version)).
 - `.github/workflows/release-please.yml`: the workflow described above.
 - `scripts/release/resolve-version.sh`: what a CI run publishes
   (`make version` shows it for HEAD; `make version TAG=vX.Y.Z` for a tag).

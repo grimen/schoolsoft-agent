@@ -5,7 +5,7 @@
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
   "pull-request-title-pattern": "chore(release): ${version}",
-  "pull-request-header": ":robot: Merging this PR tags the version below, creates the GitHub Release with these notes, and publishes schoolsoft-agent to npm under `latest` (with the Claude Desktop bundle attached).",
+  "pull-request-header": ":robot: Merging this PR tags the version below, creates the GitHub Release with these notes, and publishes schoolsoft-agent under `latest` (GitHub Packages; npm once `NPM_TOKEN` is set) with the Claude Desktop bundle attached to the release.",
   "changelog-sections": [
     { "type": "feat", "section": "Features" },
     { "type": "fix", "section": "Bug Fixes" },
@@ -19,5 +19,41 @@
     { "type": "build", "section": "Build System", "hidden": true },
     { "type": "ci", "section": "Continuous Integration", "hidden": true }
   ],
-  "packages": { ".": {} }
+  "packages": {
+    ".": {
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "plugins/claude/.claude-plugin/marketplace.json",
+          "jsonpath": "$.metadata.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/claude/.claude-plugin/marketplace.json",
+          "jsonpath": "$.plugins[*].version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/claude/schoolsoft-mcp/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/claude/schoolsoft-skill/.claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "plugins/claude/schoolsoft-mcp/.mcp.json",
+          "jsonpath": "$.mcpServers.schoolsoft.args[2]"
+        },
+        { "type": "json", "path": "plugins/mcpb/manifest.json", "jsonpath": "$.version" },
+        {
+          "type": "json",
+          "path": "plugins/opencode/opencode.json",
+          "jsonpath": "$.mcp.schoolsoft.command[3]"
+        }
+      ]
+    }
+  }
 }
