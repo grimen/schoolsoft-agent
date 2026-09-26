@@ -101,6 +101,39 @@ export class UpstreamError extends AgentError {
   }
 }
 
+/**
+ * The request budget refused or stopped a request because the school portal
+ * pushed back (HTTP 429, 5xx or network failures). `slow_down`: one push-back
+ * asked for a pause (a 429 answer, or a pause too long to wait out). `paused`:
+ * the circuit breaker is open or testing the water. `retryAt` (epoch ms) is
+ * when requests may flow again; `sent` says whether this request reached the
+ * portal (only a 429 answer did). Transient: a saved session is never cleared.
+ */
+export class PortalPushbackError extends AgentError {
+  readonly reason: "slow_down" | "paused";
+  readonly retryAt: number;
+  readonly sent: boolean;
+  constructor(o: { reason: "slow_down" | "paused"; retryAt: number; now: number; sent: boolean }) {
+    super({
+      kind: "upstream",
+      key: o.reason === "paused" ? "portal_paused" : "portal_slow_down",
+      params: { seconds: Math.max(1, Math.ceil((o.retryAt - o.now) / 1000)) },
+      hint: "portal_pushback",
+      retryable: true,
+    });
+    this.reason = o.reason;
+    this.retryAt = o.retryAt;
+    this.sent = o.sent;
+  }
+}
+
+/** The caller gave up (its request was cancelled) while the request waited in the budget's queue. */
+export class RequestCancelledError extends AgentError {
+  constructor() {
+    super({ kind: "input", key: "request_cancelled" });
+  }
+}
+
 /** Bad arguments from the caller (agent or human). */
 export class InputError extends AgentError {
   constructor(detail: string) {

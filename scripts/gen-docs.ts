@@ -205,11 +205,13 @@ export function renderRestApi(): string {
     md += `| \`GET ${route.path}\` | \`${route.operation.name}\` | \`${route.operation.name}\` | ${route.query.map((q) => `\`${q.name}\``).join(", ") || "none"} |\n`;
   md += "\n## `GET /api/v1/session`\n\n";
   md +=
-    "What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`.\n\n" +
+    'What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`, unless `schoolsoft.portal.state` is not `ok`: then the school portal is pushing back, signing in again does not help, and the UI shows "try again at `retryAt`" instead.\n\n' +
     "| Field | Type | Description |\n|---|---|---|\n" +
     "| `schoolsoft.signedIn` | boolean | The connector's SchoolSoft session is present and valid |\n" +
     "| `schoolsoft.loginInProgress` | boolean | The parent started a sign-in that has not finished |\n" +
     "| `schoolsoft.webSession` | boolean | A gated web-login session is stored (the connector does not offer one; always false today) |\n" +
+    "| `schoolsoft.portal.state` | string | `ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again |\n" +
+    "| `schoolsoft.portal.retryAt` | string (date-time) or null | When requests flow again; null while they flow or a probe decides |\n" +
     "| `children[]` | object[] | The children this connection may read, `{ id, firstName }` as `/children` returns them; empty while signed out |\n" +
     "| `scopes` | string[] | The operations this token may call |\n" +
     "| `routes[]` | object[] | `{ operation, method, path }` for each route the scopes allow |\n" +
@@ -237,7 +239,7 @@ export function renderRestApi(): string {
   }
   md += "## Problems\n\n";
   md +=
-    `Every failure after the token check is \`application/problem+json\` (RFC 9457): \`type\` (\`${PROBLEM_TYPE_PREFIX}<name>\`), \`title\`, \`status\`, \`detail\` (the message), \`hint\` (what to do next), \`kind\` and \`retryable\` (as the MCP tools and CLI report them), \`ownerDashboard\` on SchoolSoft-session problems and \`error\` (\`invalid_token\` or \`insufficient_scope\`) on token problems. ` +
+    `Every failure after the token check is \`application/problem+json\` (RFC 9457): \`type\` (\`${PROBLEM_TYPE_PREFIX}<name>\`), \`title\`, \`status\`, \`detail\` (the message), \`hint\` (what to do next), \`kind\` and \`retryable\` (as the MCP tools and CLI report them), \`ownerDashboard\` on SchoolSoft-session problems, \`retryAt\` (with a \`Retry-After\` header) when the school portal is pushing back, and \`error\` (\`invalid_token\` or \`insufficient_scope\`) on token problems. ` +
     "`detail` and `hint` are in Swedish or English, chosen by `Accept-Language` (else the connector's `SCHOOLSOFT_LANG`, else English); `Content-Language` says which. " +
     "A missing, invalid or expired token is answered by the MCP SDK's bearer check with `401`, an RFC 6750 body and `WWW-Authenticate`, exactly as on `/mcp`.\n\n" +
     "**`401` is about the app's token; `409` is about the connector's SchoolSoft sign-in.** On `401`, refresh the token and connect again if that fails. On `409` the token is fine and retrying cannot help: send the parent to `ownerDashboard` to sign in with BankID.\n\n";

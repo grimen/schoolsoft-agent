@@ -37,6 +37,11 @@ export {
   createKeepalive,
   createApiPortal,
   createBrowserSession,
+  createRequestBudget,
+  requestBudgetOf,
+  probePortal,
+  asBackground,
+  type BudgetDeps,
   resolveProvider,
   getProvider,
   providerIds,
@@ -55,6 +60,20 @@ export type {
   Message,
 } from "./domain/schemas.js";
 export { DOMAIN_TIMEZONE, isoWeekDate } from "./domain/time.js";
+export { PortalBudget, portalHealth } from "./budget/budget.js";
+export type {
+  RequestBudget,
+  OutboundCall,
+  OutboundAnswer,
+  BudgetSnapshot,
+  BudgetTimer,
+  BreakerState,
+  PortalHealth,
+  PortalBudgetOptions,
+} from "./budget/budget.js";
+export { BUDGET_BOUNDS, DEFAULT_BREAKER_POLICY } from "./budget/policy.js";
+export type { BudgetLimits, BreakerPolicy } from "./budget/policy.js";
+export { parseRetryAfter } from "./budget/retry-after.js";
 export {
   MemorySessionHistoryStore,
   FileSessionHistoryStore,
@@ -98,6 +117,8 @@ export {
   NetworkError,
   UpstreamError,
   InputError,
+  PortalPushbackError,
+  RequestCancelledError,
   EXIT_CODE_BY_KIND,
   describeError,
   describeIssues,

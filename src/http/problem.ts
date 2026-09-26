@@ -4,7 +4,13 @@
  * `http` surface. Classification only; the router decides when to send one.
  */
 import { InvalidTokenError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
-import { AgentError, describeError, type ErrorKind, type Lang } from "../core/index.js";
+import {
+  AgentError,
+  PortalPushbackError,
+  describeError,
+  type ErrorKind,
+  type Lang,
+} from "../core/index.js";
 import { ConnectorRefusedError } from "./runtime.js";
 
 /**
@@ -87,6 +93,12 @@ export const PROBLEMS = {
     meaning:
       "Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set.",
   },
+  "portal-pushback": {
+    status: 503,
+    title: "School portal pushing back",
+    meaning:
+      "The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help.",
+  },
   "not-available": {
     status: 503,
     title: "Not available",
@@ -147,6 +159,7 @@ export function classify(error: unknown): Classified {
             error.reason === "unavailable" ? "connector_busy" : "connector_child_changed",
           ),
         };
+  if (error instanceof PortalPushbackError) return { name: "portal-pushback", error };
   if (!(error instanceof AgentError) || error.kind === "internal")
     return {
       name: "internal",
@@ -201,6 +214,8 @@ export interface ProblemBody {
   ownerDashboard?: string;
   /** RFC 6750 error code, so OAuth clients recognise token problems. */
   error?: "invalid_token" | "insufficient_scope";
+  /** When the connector sends requests to the school portal again (ISO-8601; `portal-pushback`). */
+  retryAt?: string;
 }
 
 /** The response body for a classified failure, in one language. */
@@ -224,7 +239,15 @@ export function problemBody(
       : {}),
     ...(name === "oauth-token" ? { error: "invalid_token" as const } : {}),
     ...(name === "scope-not-granted" ? { error: "insufficient_scope" as const } : {}),
+    ...(error instanceof PortalPushbackError
+      ? { retryAt: new Date(error.retryAt).toISOString() }
+      : {}),
   };
+}
+
+/** Seconds a client should wait before retrying (`Retry-After`), at least 1. */
+export function retryAfterSeconds(retryAt: number, now: number): string {
+  return String(Math.max(1, Math.ceil((retryAt - now) / 1000)));
 }
 
 /**

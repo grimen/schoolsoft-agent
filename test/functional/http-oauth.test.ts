@@ -48,6 +48,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
       status: async () => ({
         authenticated,
         loginInProgress: false,
+        portal: { state: "ok" as const, retryAt: null },
         children: authenticated
           ? [
               { id: 1, name: "Synthetic One" },

@@ -71,6 +71,9 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     keepaliveWebMinutes: undefined,
     keepaliveQuietHours: undefined,
     allowWrites: undefined,
+    requestsPerMinute: undefined,
+    requestBurst: undefined,
+    maxConcurrentRequests: undefined,
   });
 });
 
@@ -440,4 +443,42 @@ test("createSessionManager: the login URL is recorded in the pending marker and 
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(pending.read()?.state, "failed");
   assert.match(pending.read()?.error ?? "", /cancelled/);
+});
+
+test("request budget settings: whole numbers within the bounds from env or config.json, else config_value_invalid in both languages", async () => {
+  const { describeError } = await import("../../src/core/errors/index.js");
+  assert.deepEqual(
+    resolveConfig([{ school: "s" }], defaults).requestBudget,
+    {},
+    "provider defaults",
+  );
+  const env = envSource({
+    SCHOOLSOFT_REQUESTS_PER_MINUTE: "30",
+    SCHOOLSOFT_REQUEST_BURST: "5",
+    SCHOOLSOFT_MAX_CONCURRENT_REQUESTS: "1",
+  });
+  assert.deepEqual(
+    resolveConfig([{ school: "s" }, env, { requestsPerMinute: 60, requestBurst: 20 }], defaults)
+      .requestBudget,
+    { perMinute: 30, burst: 5, maxInFlight: 1 },
+    "env before config.json",
+  );
+  for (const [name, value, expected] of [
+    ["requestsPerMinute", "61", "a whole number from 1 to 60"],
+    ["requestsPerMinute", "0", "a whole number from 1 to 60"],
+    ["requestBurst", "2.5", "a whole number from 1 to 20"],
+    ["maxConcurrentRequests", "5", "a whole number from 1 to 4"],
+  ] as const) {
+    assert.throws(
+      () => resolveConfig([{ school: "s", [name]: value }], defaults),
+      (e: unknown) => {
+        assert.equal(
+          describeError(e, "en", "cli").message,
+          `The setting ${name} has the value "${value}", but it must be ${expected}.`,
+        );
+        assert.match(describeError(e, "sv", "cli").message, new RegExp(`Inställningen ${name}`));
+        return true;
+      },
+    );
+  }
 });

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { join } from "node:path";
 import { defineOperation } from "./types.js";
+import { requestBudgetOf } from "../wiring.js";
 
 export const findSchool = defineOperation({
   name: "find_school",
@@ -23,7 +24,10 @@ configuring this integration for a new school.`,
   portal: [],
   annotations: { readOnly: true, destructive: false, idempotent: true, requiresAuth: false },
   async run(ctx, { query, limit }) {
-    const dir = ctx.provider.createSchoolDirectory(join(ctx.config.configDir, "schools.json"));
+    const dir = ctx.provider.createSchoolDirectory(
+      join(ctx.config.configDir, "schools.json"),
+      requestBudgetOf(ctx.manager),
+    );
     const schools = await dir.find(query, limit ?? 10);
     return { query, schools };
   },

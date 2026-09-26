@@ -10,7 +10,10 @@ import {
   runOperation,
   resolveProvider,
   getOperation,
+  portalHealth,
+  requestBudgetOf,
   type Config,
+  type PortalHealth,
   type KeepaliveDeps,
   type Portal,
   type SessionHistorySummary,
@@ -204,14 +207,19 @@ export class ConnectorRuntime {
     webSession?: boolean;
     /** Observed SchoolSoft sign-in lifetimes: timestamps and counters only. */
     sessionHistory?: SessionHistorySummary | null;
+    /** Whether the school portal is pushing back (the request budget's breaker), and until when. */
+    portal: PortalHealth;
   }> {
-    if (this.pending) return { authenticated: false, loginInProgress: true, children: [] };
+    const portal = () => portalHealth(requestBudgetOf(this.manager).snapshot());
+    if (this.pending)
+      return { authenticated: false, loginInProgress: true, children: [], portal: portal() };
     return this.serialized(async () => {
       if (this.closed)
         return {
           authenticated: false,
           loginInProgress: false,
           children: [],
+          portal: portal(),
           ...(this.lastLoginError ? { loginError: this.lastLoginError } : {}),
         };
       try {
@@ -222,6 +230,7 @@ export class ConnectorRuntime {
           loginInProgress: false,
           webSession: this.manager.getWebSession() !== null,
           sessionHistory: this.manager.sessionHistory(),
+          portal: portal(),
           children: this.manager
             .guardian()
             .children.map((c) => ({ id: c.studentId, name: c.firstName })),
@@ -231,6 +240,7 @@ export class ConnectorRuntime {
           authenticated: false,
           loginInProgress: false,
           sessionHistory: this.manager.sessionHistory(),
+          portal: portal(),
           children: [],
           ...(this.lastLoginError ? { loginError: this.lastLoginError } : {}),
         };
@@ -324,6 +334,8 @@ export class ConnectorRuntime {
       // consent and child focus are rechecked before any cached value is served.
       const portals = createPortals(this.manager, {
         fetchImpl: this.options.deps?.fetchImpl,
+        // A request the caller abandoned while it waited in the budget's queue is never sent.
+        signal: authorization.signal,
         browser: null,
         beforeRead: validateFocus,
         beforeRecovery: check,

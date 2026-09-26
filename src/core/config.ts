@@ -16,6 +16,7 @@ import {
 import type { BrowserEngine } from "./browser/session.js";
 import type { QuietHours } from "./keepalive/scheduler.js";
 import { unchanged, type VersionedFormat } from "./versioned.js";
+import { BUDGET_BOUNDS, type BudgetLimits } from "./budget/policy.js";
 
 /** off: nothing in the background. app: refresh the API token. all: also touch the web session. */
 export const KEEPALIVE_MODES = ["off", "app", "all"] as const;
@@ -53,6 +54,8 @@ export interface Config {
   cache: boolean;
   /** Background session keepalive for long-lived processes (default off). */
   keepalive: KeepaliveConfig;
+  /** Overrides of the provider's request budget (rate, burst, parallelism); absent keys keep its defaults. */
+  requestBudget: Partial<BudgetLimits>;
 }
 
 /** A partial, untyped-ish config from one source (file, env, flags). */
@@ -72,6 +75,9 @@ export interface ConfigSource {
   keepalive?: string;
   keepaliveWebMinutes?: number | string;
   keepaliveQuietHours?: string;
+  requestsPerMinute?: number | string;
+  requestBurst?: number | string;
+  maxConcurrentRequests?: number | string;
 }
 
 /** config.json's format; the adapter that reads the file applies it. */
@@ -111,6 +117,9 @@ export const ENV = {
   keepalive: "SCHOOLSOFT_KEEPALIVE",
   keepaliveWebMinutes: "SCHOOLSOFT_KEEPALIVE_WEB_MINUTES",
   keepaliveQuietHours: "SCHOOLSOFT_KEEPALIVE_QUIET_HOURS",
+  requestsPerMinute: "SCHOOLSOFT_REQUESTS_PER_MINUTE",
+  requestBurst: "SCHOOLSOFT_REQUEST_BURST",
+  maxConcurrentRequests: "SCHOOLSOFT_MAX_CONCURRENT_REQUESTS",
 } as const;
 
 /** Map SCHOOLSOFT_* variables to a ConfigSource (empty strings ignored). */
@@ -132,6 +141,9 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
     keepalive: pick(ENV.keepalive),
     keepaliveWebMinutes: pick(ENV.keepaliveWebMinutes),
     keepaliveQuietHours: pick(ENV.keepaliveQuietHours),
+    requestsPerMinute: pick(ENV.requestsPerMinute),
+    requestBurst: pick(ENV.requestBurst),
+    maxConcurrentRequests: pick(ENV.maxConcurrentRequests),
   };
 }
 
@@ -211,6 +223,30 @@ function resolveKeepalive(sources: ConfigSource[]): KeepaliveConfig {
   };
 }
 
+const BUDGET_KEYS = {
+  requestsPerMinute: "perMinute",
+  requestBurst: "burst",
+  maxConcurrentRequests: "maxInFlight",
+} as const satisfies Record<string, keyof BudgetLimits>;
+
+/** Whole numbers within BUDGET_BOUNDS; a value outside them is an error, never clamped silently. */
+function resolveRequestBudget(sources: ConfigSource[]): Partial<BudgetLimits> {
+  const out: Partial<BudgetLimits> = {};
+  for (const [name, key] of Object.entries(BUDGET_KEYS) as [
+    keyof typeof BUDGET_KEYS,
+    keyof BudgetLimits,
+  ][]) {
+    const raw = first(sources, name);
+    if (raw === undefined) continue;
+    const value = Number(raw);
+    const { min, max } = BUDGET_BOUNDS[key];
+    if (!Number.isInteger(value) || value < min || value > max)
+      throw new ConfigValueError(name, raw, `a whole number from ${min} to ${max}`);
+    out[key] = value;
+  }
+  return out;
+}
+
 /**
  * Resolve a Config from sources ordered by precedence (first wins).
  * Throws NotConfiguredError when no school is given.
@@ -264,5 +300,6 @@ export function resolveConfig(
     allowWrites: parseSwitch(first(sources, "allowWrites"), "allowWrites"),
     cache: resolveCache(first(sources, "cache")),
     keepalive: resolveKeepalive(sources),
+    requestBudget: resolveRequestBudget(sources),
   };
 }

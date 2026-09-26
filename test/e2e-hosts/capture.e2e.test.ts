@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { browserStatus } from "../../src/core/browser/install.js";
 import { PlaywrightSession } from "../../src/core/browser/playwright.js";
+import { CountingBudget } from "../helpers/budget.js";
 import { HASHED_NAMES, runCapture } from "../../src/providers/schoolsoft/capture/capture.js";
 import { scanForPersonalData } from "../../src/providers/schoolsoft/capture/scan.js";
 
@@ -24,6 +25,7 @@ test(
   async () => {
     const files = new Map<string, string>();
     const browser = new PlaywrightSession({
+      budget: new CountingBudget(),
       school: "",
       cookieHeader: () => "x=1",
       // file:// ignores cookies; the gated page only needs web cookies to be present.
