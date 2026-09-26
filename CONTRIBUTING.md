@@ -126,7 +126,9 @@ Escape hatches: `git commit --no-verify` skips `pre-commit` and
 ## Live pass
 
 Some behaviour can only be confirmed with a real guardian login. The open items are
-tracked in issue #25 (E2). Do them in this order, in one sitting:
+tracked in issue #25 (E2). The full runbook, with preparation, every open question and
+where each answer goes, is [docs/development/live-session.md](docs/development/live-session.md).
+The short version, in one sitting:
 
 1. `make login`, then `make login-web` (both open your own browser; BankID is never
    automated).
@@ -150,9 +152,9 @@ tracked in issue #25 (E2). Do them in this order, in one sitting:
    never writes. Exit 7 means something drifted: fix the named mapper in
    `src/providers/schoolsoft/portal/domain/` and its fixture. Put the summary counts
    in the live-pass PR.
-6. The live items: `make e2e`, `make browser-verify`, the connector checks in
-   [docs/deployment/connector.md](docs/deployment/connector.md#what-still-needs-a-real-acceptance-test),
-   then `make fingerprints`.
+6. The live items: `make e2e`, `make browser-verify` and `make fingerprints` while the web
+   session is fresh, then the connector checks in
+   [docs/deployment/connector.md](docs/deployment/connector.md#what-still-needs-a-real-acceptance-test).
 
 ## Releases
 
