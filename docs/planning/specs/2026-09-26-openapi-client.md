@@ -122,6 +122,12 @@ The client never retries on its own except the single retry after a refresh. `re
 
 </frozen-after-approval>
 
+## Findings (as built)
+
+- **A lost refresh answer cannot be recovered by the client.** If the refresh request reaches the connector but its answer is lost (the network drops), the connector has already rotated. The client still holds the spent refresh token, and the next refresh presents it, which the connector's reuse detection treats as theft: the connection is revoked and the parent approves the app again. Only the connector can soften this, for example by accepting the previous refresh token once within a few seconds, which weakens reuse detection. It is left as it is and recorded for E11.5.
+- **Keep the new pair in memory before persisting it.** The spent refresh token must never be presented again, even when the app's store fails to save. The client updates its in-memory pair first and uses the new access token only after the save has resolved.
+- **Two clients sharing one store** (two tabs, or an app and its widget) each single-flight their own refreshes and can still race. The E11 app should create one client per stored connection.
+
 ## Code Map
 
 - `src/http/api-schemas.ts`: `SessionSchema`, `ConnectorChildrenSchema`; `rest.ts` validates the session answer with it.
@@ -129,15 +135,15 @@ The client never retries on its own except the single retry after a refresh. `re
 - `src/client/index.ts`: the client; `src/client/api.gen.ts`: generated schemas and types.
 - `scripts/gen-docs.ts`: `docs/reference/openapi.json`, `src/client/api.gen.ts`; `scripts/json-schema-ts.ts`: the type emitter.
 - `scripts/check-boundaries.ts`: the client's import rule and its exemption from the portal-outbound rule (it talks to the connector, never the school portal).
-- `package.json`: `"./client"` export; `scripts/pack-smoke.sh`: imports it from the installed tarball.
-- Tests: `test/unit/openapi.test.ts`, `test/unit/client.test.ts`, `test/functional/http-client.test.ts` (the client against the real connector), `test/boundary`.
+- `package.json`: `"./client"` export; `scripts/pack-smoke.sh` runs `scripts/client-probe.mjs`, which imports it from the installed tarball through the package's exports and fails if loading it reaches anything but the client's files and Zod.
+- Tests: `test/unit/openapi.test.ts` (the document against the Express router's own route stack), `test/unit/client.test.ts` (a scripted connector that rotates and detects reuse), `test/functional/http-client.test.ts` (the client against the real connector, real OAuth rotation), `test/boundary/imports.test.ts` (the client rule).
 
 ## Tasks & Acceptance
 
-- [ ] Given the route table, when `make docs` runs, then `docs/reference/openapi.json` describes every route, parameter, scope, response and problem, and CI refuses a stale copy.
-- [ ] Given concurrent `401`s, then the client sends exactly one refresh and retries each call once.
-- [ ] Given any answer, then the client returns a validated typed value or a `ConnectorError` with an existing kind.
-- [ ] Given the packed tarball, then `import("schoolsoft-agent/client")` works and pulls in nothing but Zod.
+- [x] Given the route table, when `make docs` runs, then `docs/reference/openapi.json` describes every route, parameter, scope, response and problem, and CI refuses a stale copy.
+- [x] Given concurrent `401`s, then the client sends exactly one refresh and retries each call once.
+- [x] Given any answer, then the client returns a validated typed value or a `ConnectorError` with an existing kind.
+- [x] Given the packed tarball, then `import("schoolsoft-agent/client")` works and pulls in nothing but Zod.
 - [ ] Live acceptance: the E11 app against a parent's deployment.
 
 ## Verification

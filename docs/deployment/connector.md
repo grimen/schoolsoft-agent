@@ -287,7 +287,12 @@ blank the timetable, and a part you did not approve for that app says so instead
 of being read. Asking again within the next half hour usually sends nothing to
 SchoolSoft, because the connector remembers recent answers for a while.
 
-The routes, fields and error types are in the [REST API reference](../reference/rest-api.md).
+The routes, fields and error types are in the [REST API reference](../reference/rest-api.md),
+also as an [OpenAPI document](../reference/openapi.json) for app developers, who can
+use the typed client `schoolsoft-agent/client` from this package instead of writing
+their own. Apps ask for their access with the resource name
+`https://<your connector>/mcp`, the same as the AI apps, even though they only use the
+REST API.
 Like the rest of the connector, this is tested offline against a synthetic portal;
 a real app against a real SchoolSoft sign-in is part of the acceptance test below.
 
