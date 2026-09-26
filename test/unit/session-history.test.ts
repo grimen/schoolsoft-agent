@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -18,6 +18,7 @@ import {
   type SessionHistory,
   type SessionHistoryStore,
 } from "../../src/core/index.js";
+import { openSealed, sealWithStateKey } from "../helpers/sealed.js";
 
 const MIN = 60_000;
 
@@ -164,23 +165,23 @@ test("recording is best effort: a store that cannot be written never breaks the 
   assert.deepEqual(r.read(), emptyHistory());
 });
 
-test("file store: 0600 json in the state dir; absent, corrupt or malformed-version files read as nothing", () => {
+test("file store: 0600 sealed file in the state dir; absent, corrupt or malformed-version files read as nothing", () => {
   const dir = mkdtempSync(join(tmpdir(), "ss-history-"));
   try {
     const store = new FileSessionHistoryStore(join(dir, "state"), "schoolsoft:taby");
     assert.equal(store.read(), null);
     const h = recorder(store);
     h.r.record({ type: "login" });
-    const file = join(dir, "state", "session-history.json");
+    const file = join(dir, "state", "session-history.enc");
     assert.equal(statSync(file).mode & 0o777, 0o600);
-    const stored = JSON.parse(readFileSync(file, "utf8")) as {
+    const stored = openSealed(join(dir, "state"), "session-history.enc") as unknown as {
       accounts: Record<string, SessionHistory>;
     };
     assert.equal(stored.accounts["schoolsoft:taby"].app?.activityCount, 0);
     assert.equal(store.read()?.events.length, 1);
     writeFileSync(file, "{broken");
     assert.equal(store.read(), null);
-    writeFileSync(file, JSON.stringify({ version: "2" }));
+    sealWithStateKey(join(dir, "state"), "session-history.enc", { version: "2" });
     assert.equal(store.read(), null);
   } finally {
     rmSync(dir, { recursive: true, force: true });

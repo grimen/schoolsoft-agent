@@ -6,7 +6,7 @@
  * ids. It survives logout on purpose (a lifetime is only known once the
  * session is gone); deleting the state directory removes it.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   loadVersioned,
@@ -16,6 +16,7 @@ import {
   type VersionedFormat,
 } from "../versioned.js";
 import { accountsOf, entryOf, withAccount, type AccountsDocument } from "../accounts.js";
+import { SealedStateFiles } from "./sealed.js";
 
 /** What the session manager and the portal observers report. */
 export type SessionEvent =
@@ -86,7 +87,7 @@ export function keepLegacyHistory(raw: SessionHistory & { version?: unknown }): 
   return { accounts: {}, legacy };
 }
 
-/** The history's format (local session-history.json and the connector's encrypted history). */
+/** The history's format (local session-history.enc and the connector's history.enc). */
 export const HISTORY_FORMAT: VersionedFormat = { migrations: [unchanged, keepLegacyHistory] };
 
 /** An account's history; an account without one sees the legacy record, if any. */
@@ -131,37 +132,63 @@ export function accountHistoryStore(
   };
 }
 
-/** `session-history.json` in the state directory (0600; contains no credentials), one history per account. */
+export const HISTORY_FILE = "session-history.enc";
+/** The plaintext file of builds before E10.4; migrated on the next write, then deleted. */
+export const LEGACY_HISTORY_FILE = "session-history.json";
+
+/**
+ * `session-history.enc` in the state directory, sealed with key.bin like
+ * session.enc (sealed.ts), one history per account. A plaintext
+ * `session-history.json` from an older build is read while no sealed file
+ * exists, and deleted once the sealed file has been written. See
+ * docs/planning/specs/2026-09-26-privacy-small-fixes.md.
+ */
 export class FileSessionHistoryStore implements SessionHistoryStore {
   private readonly entry: SessionHistoryStore;
+  private readonly sealed: SealedStateFiles;
   constructor(
     private readonly dir: string,
     /** The account this store reads and writes (accountKey). */
     readonly account: string,
   ) {
+    this.sealed = new SealedStateFiles(dir);
     this.entry = accountHistoryStore(
       { read: () => this.document(), write: (doc) => this.writeDocument(doc) },
       account,
     );
   }
   private get path(): string {
-    return join(this.dir, "session-history.json");
+    return join(this.dir, HISTORY_FILE);
+  }
+  private get legacyPath(): string {
+    return join(this.dir, LEGACY_HISTORY_FILE);
+  }
+  /** The file this store reads (the sealed one when present) and how to parse it; null when neither exists. */
+  private source(): { file: string; parse: () => unknown } | null {
+    if (existsSync(this.path))
+      return { file: this.path, parse: () => this.sealed.read(HISTORY_FILE) };
+    if (existsSync(this.legacyPath))
+      return {
+        file: this.legacyPath,
+        parse: () => JSON.parse(readFileSync(this.legacyPath, "utf8")),
+      };
+    return null;
   }
   /** Unreadable reads as nothing (the next event starts afresh); a newer file throws and is left alone. */
   private document(): HistoryDocument | null {
-    if (!existsSync(this.path)) return null;
+    const source = this.source();
+    if (!source) return null;
     return loadVersioned<HistoryDocument, null>(
       HISTORY_FORMAT,
-      this.path,
-      () => JSON.parse(readFileSync(this.path, "utf8")),
+      source.file,
+      source.parse,
       () => null,
     );
   }
+  /** Seal first; the plaintext file goes only once the sealed one is in place. */
   private writeDocument(doc: HistoryDocument): void {
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    writeFileSync(this.path, JSON.stringify(writeVersioned(HISTORY_FORMAT, doc)), {
-      mode: 0o600,
-    });
+    this.sealed.write(HISTORY_FILE, writeVersioned(HISTORY_FORMAT, doc));
+    rmSync(this.legacyPath, { force: true });
   }
   read(): SessionHistory | null {
     return this.entry.read();
@@ -175,9 +202,10 @@ export class FileSessionHistoryStore implements SessionHistoryStore {
   }
   /** The format version on disk (0 before versions existed); null when absent or unreadable. */
   storedVersion(): number | null {
-    if (!existsSync(this.path)) return null;
+    const source = this.source();
+    if (!source) return null;
     try {
-      return storedVersion(JSON.parse(readFileSync(this.path, "utf8")));
+      return storedVersion(source.parse());
     } catch {
       return null;
     }

@@ -43,7 +43,12 @@ export interface PendingConsent {
   state?: string;
   challenge: string;
   expiresAt: number;
-  /** Normalised caller address (client-key.ts); only used to share the pending cap fairly. */
+  /**
+   * Who asked, for sharing the pending cap fairly: a pseudonym of the caller's network
+   * (`requesterPseudonym`), never the address itself. Equal networks give equal
+   * pseudonyms within one process; its key is never stored, so nothing on disk leads back
+   * to an address.
+   */
   requester: string;
 }
 interface Code {
@@ -95,6 +100,8 @@ const hash = (value: string) => createHash("sha256").update(value).digest("hex")
 const DAY = 86_400_000;
 /** Registration time in seconds; registrations without one count as oldest. */
 const issuedAt = (client: OAuthClientInformationFull) => client.client_id_issued_at ?? 0;
+/** Marks a stored requester as a pseudonym; a value without it is a plain address from an older build. */
+const PSEUDONYM = "h:";
 
 /** Callback destinations are exact known vendor paths; never fetch client-supplied URLs. */
 export function approvedRedirect(value: string): boolean {
@@ -127,6 +134,8 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
   private readonly now: () => number;
   private readonly random: () => string;
   private readonly limits: typeof LIMITS;
+  /** Keys the requester pseudonyms; random per process and never written anywhere. */
+  private readonly requesterKey = randomBytes(32);
   constructor(private readonly options: Options) {
     this.now = options.now ?? Date.now;
     this.limits = { ...LIMITS, ...options.limits };
@@ -139,6 +148,7 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
       tokens: {},
       refresh: {},
     };
+    this.pseudonymizeRestored();
     this.clientsStore = {
       getClient: (id) =>
         Object.hasOwn(this.state.clients, id) ? structuredClone(this.state.clients[id]) : undefined,
@@ -174,6 +184,18 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
         return structuredClone(registered);
       },
     };
+  }
+  /** The pseudonym of a caller's network (clientKey: IPv4, or IPv6 by its /64). */
+  private requesterPseudonym(key: string): string {
+    return PSEUDONYM + createHmac("sha256", this.requesterKey).update(key).digest("base64url");
+  }
+  /** Pending requests stored by an older build hold the plain address: replace it and rewrite the file at once. */
+  private pseudonymizeRestored(): void {
+    const plain = Object.values(this.state.pending).filter(
+      (pending) => !pending.requester.startsWith(PSEUDONYM),
+    );
+    for (const pending of plain) pending.requester = this.requesterPseudonym(pending.requester);
+    if (plain.length) this.save();
   }
   private callbackAllowed(uri: string): boolean {
     return approvedRedirect(uri) || (this.options.ownCallbacks ?? []).includes(uri);
@@ -242,7 +264,8 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
       throw new InvalidRequestError("Invalid authorization request");
     this.prune();
     const scopes = this.scopes(params.scopes ?? this.options.scopes);
-    const requester = clientKey(res.req?.ip);
+    // The address is used here and not kept: only its pseudonym is stored.
+    const requester = this.requesterPseudonym(clientKey(res.req?.ip));
     this.admitPending(requester);
     const id = this.random();
     this.state.pending[id] = {

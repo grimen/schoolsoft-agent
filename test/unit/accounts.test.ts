@@ -43,6 +43,7 @@ import { connectorAccountState } from "../../src/http/start.js";
 import { connectorConfig } from "../../src/http/config.js";
 import { FakeAuth, fakeSession, serializeFake, testConfig } from "../helpers/fakes.js";
 import { assertNewer } from "../helpers/versioned.js";
+import { openSealed } from "../helpers/sealed.js";
 
 const tmp = (prefix: string) => mkdtempSync(join(tmpdir(), `ss-accounts-${prefix}-`));
 const fixture = (name: string) =>
@@ -208,13 +209,13 @@ test("session.enc from a newer build (v3): load, save and clear of any account r
   assert.deepEqual(readFileSync(file), blob);
 });
 
-// ---------- session-history.json ----------
+// ---------- session history (session-history.enc; a plaintext .json from an older build migrates) ----------
 
 function recorder(dir: string, account: string, at: () => number) {
   return new SessionHistoryRecorder(new FileSessionHistoryStore(dir, account), at);
 }
 
-test("session-history.json: two accounts side by side; a login, loss or logout of one leaves the other's spans", () => {
+test("session history: two accounts side by side; a login, loss or logout of one leaves the other's spans", () => {
   const dir = tmp("hist-two");
   let now = 1000;
   const taby = recorder(dir, TABY, () => now);
@@ -245,7 +246,7 @@ test("session-history.json: two accounts side by side; a login, loss or logout o
   );
   assert.equal(taby.idleMs("app"), 2000);
   assert.equal(vallentuna.idleMs("app"), null);
-  const file = JSON.parse(readFileSync(join(dir, "session-history.json"), "utf8"));
+  const file = openSealed(dir, "session-history.enc") as { version: number; accounts: object };
   assert.equal(file.version, 2);
   assert.deepEqual(Object.keys(file.accounts), [TABY, VALLENTUNA]);
   assert.deepEqual(new FileSessionHistoryStore(dir, TABY).accounts(), [TABY, VALLENTUNA]);
@@ -269,7 +270,8 @@ for (const [name, version] of [
     assert.deepEqual(tabyStore.accounts(), []);
 
     recorder(dir, TABY, () => 1767229500000).record({ type: "refresh" });
-    const written = JSON.parse(readFileSync(file, "utf8"));
+    assert.equal(existsSync(file), false, "the plaintext file goes once sealed");
+    const written = openSealed(dir, "session-history.enc") as { version: number; accounts: object };
     assert.equal(written.version, 2);
     assert.equal("legacy" in written, false);
     assert.deepEqual(Object.keys(written.accounts), [TABY]);
@@ -281,7 +283,7 @@ for (const [name, version] of [
   });
 }
 
-test("session-history.json: an account that already has an entry does not claim the old record", () => {
+test("session history: an account that already has an entry does not claim the old record", () => {
   const dir = tmp("hist-legacy-kept");
   const file = join(dir, "session-history.json");
   writeFileSync(
@@ -289,12 +291,12 @@ test("session-history.json: an account that already has an entry does not claim 
     JSON.stringify({ version: 2, accounts: { [TABY]: emptyHistory() }, legacy: emptyHistory() }),
   );
   recorder(dir, TABY, () => 5).record({ type: "login" });
-  assert.ok("legacy" in JSON.parse(readFileSync(file, "utf8")));
+  assert.ok("legacy" in openSealed(dir, "session-history.enc"));
   recorder(dir, VALLENTUNA, () => 6).record({ type: "login" });
-  assert.equal("legacy" in JSON.parse(readFileSync(file, "utf8")), false);
+  assert.equal("legacy" in openSealed(dir, "session-history.enc"), false);
 });
 
-test("session-history.json from a newer build (v3): reads refuse, nothing is recorded over it", () => {
+test("a plaintext session-history.json from a newer build (v3): reads refuse, nothing is recorded over it", () => {
   const dir = tmp("hist-v3");
   const file = join(dir, "session-history.json");
   const original = JSON.stringify({ version: 3, accounts: {} });

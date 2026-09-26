@@ -3,7 +3,7 @@
  * Lives outside core because it touches the filesystem layout of the
  * config file and process-level inputs.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   type AccountSelection,
@@ -17,6 +17,7 @@ import {
   loadVersioned,
   storedVersion,
   writeVersioned,
+  writePrivateFile,
   createPortals,
   createSessionManager,
   resolveProvider,
@@ -70,12 +71,11 @@ export function readConfigFile(configDir: string): ConfigDocument {
   return readConfigDocument(file);
 }
 
-/** Write config.json (0600) in the current format and return its path. */
+/** Write config.json (0600, in a 0700 directory) in the current format and return its path. */
 export function writeConfigFile(configDir: string, config: ConfigDocument): string {
-  mkdirSync(configDir, { recursive: true, mode: 0o700 });
   const file = join(configDir, CONFIG_FILE);
   const doc = writeVersioned(CONFIG_FORMAT, foldAccountSettings(config));
-  writeFileSync(file, JSON.stringify(doc, null, 2) + "\n", { mode: 0o600 });
+  writePrivateFile(file, JSON.stringify(doc, null, 2) + "\n");
   return file;
 }
 

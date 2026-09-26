@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
+import { mkdtempSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { ConnectorRuntime, type ConnectorRuntimeOptions } from "../../src/http/runtime.js";
 import {
   MemorySessionStore,
@@ -341,6 +344,29 @@ test("deadline and cancellation terminate pending login and reject late callback
   await f.runtime.beginLogin();
   await f.runtime.close();
   assert.equal((await f.runtime.status()).loginError, "cancelled");
+});
+
+test("the connector keeps its login in progress in memory: nothing is written to the data disk", async () => {
+  const stateDir = mkdtempSync(join(tmpdir(), "connector-pending-"));
+  const f = fixture();
+  // The production default: no pending store injected.
+  const { pending: _injected, ...deps } = f.runtimeOptions.deps!;
+  const runtime = new ConnectorRuntime({
+    ...f.runtimeOptions,
+    config: resolveConfig([{ school: "taby", stateDir }], { home: "/unused", platform: "linux" }),
+    deps,
+  });
+  await runtime.beginLogin();
+  let during: string[];
+  try {
+    assert.equal((await runtime.status()).loginInProgress, true);
+    during = readdirSync(stateDir);
+  } finally {
+    await runtime.close();
+  }
+  assert.deepEqual(during, []);
+  assert.equal((await runtime.status()).loginError, "cancelled");
+  assert.deepEqual(readdirSync(stateDir), []);
 });
 
 test("cancel queued login before it starts and close after callback cannot persist credentials", async () => {

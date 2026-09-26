@@ -248,6 +248,78 @@ test("pending consent makes room by displacing the largest requester, so a flood
   assert.ok(alive(parent) && alive(newcomer));
   assert.equal(Object.keys(s.state().pending).length, 4);
 });
+test("pending consent keeps a per-process pseudonym of the caller's network, never the address", async () => {
+  const s = setup();
+  const c = await client(s.provider);
+  const first = await consent(s.provider, c, {}, "203.0.113.5");
+  const sameNetwork = await consent(s.provider, c, {}, "2001:db8:9:9::1");
+  const sameNetworkAgain = await consent(s.provider, c, {}, "2001:db8:9:9::2");
+  const noAddress = await consent(s.provider, c);
+  const stored = s.state();
+  const text = JSON.stringify(stored);
+  for (const address of ["203.0.113.5", "2001:db8:9:9", "unknown"])
+    assert.equal(text.includes(address), false, address);
+  const requester = (id: string) => stored.pending[id].requester;
+  assert.match(requester(first), /^h:[A-Za-z0-9_-]{43}$/);
+  assert.equal(requester(sameNetwork), requester(sameNetworkAgain));
+  assert.notEqual(requester(first), requester(sameNetwork));
+  assert.notEqual(requester(noAddress), requester(first));
+  // Another process has another key: the same address cannot be linked across restarts.
+  const other = setup();
+  const again = await consent(other.provider, await client(other.provider), {}, "203.0.113.5");
+  assert.notEqual(other.state().pending[again].requester, requester(first));
+  // The pseudonym goes with its request when it is answered.
+  s.provider.deny(first);
+  s.provider.approve(sameNetwork, undefined, [1]);
+  assert.deepEqual(Object.keys(s.state().pending).sort(), [noAddress, sameNetworkAgain].sort());
+});
+
+test("pending requests an older build stored with a plain address get a pseudonym on start", async () => {
+  const s = setup();
+  const c = await client(s.provider);
+  const kept = await consent(s.provider, c, {}, "198.51.100.7");
+  const legacy = s.state();
+  const restored = legacy.pending[kept].requester;
+  for (const [id, address] of [
+    ["old-v4", "203.0.113.5"],
+    ["old-v6", "2001:db8:9:9::/64"],
+    ["old-none", "unknown"],
+  ])
+    legacy.pending[id] = { ...legacy.pending[kept], id, requester: address };
+  let writes = 0;
+  const saved: OAuthState[] = [];
+  const provider = new ConnectorOAuthProvider({
+    resourceUrl: resource.href,
+    scopes,
+    repository: {
+      read: () => structuredClone(legacy),
+      write: (value) => {
+        writes++;
+        saved.push(value);
+      },
+    },
+    now: () => 1_000_000,
+  });
+  assert.equal(writes, 1, "rewritten at once, before any request");
+  const text = JSON.stringify(saved[0]);
+  for (const address of ["203.0.113.5", "2001:db8:9:9", "unknown"])
+    assert.equal(text.includes(address), false, address);
+  assert.equal(saved[0].pending[kept].requester, restored, "a pseudonym is left as it is");
+  assert.match(saved[0].pending["old-v4"].requester, /^h:/);
+  // The restored request still counts for its network: a new request from it shares the group.
+  const fresh = await consent(provider, c, {}, "203.0.113.5");
+  assert.equal(saved.at(-1)!.pending[fresh].requester, saved[0].pending["old-v4"].requester);
+  // A state without plain addresses is not rewritten on start.
+  let quiet = 0;
+  const reloaded = new ConnectorOAuthProvider({
+    resourceUrl: resource.href,
+    scopes,
+    repository: { read: () => structuredClone(saved.at(-1)), write: () => void quiet++ },
+  });
+  assert.equal(quiet, 0);
+  assert.equal(reloaded.listGrants().length, 0);
+});
+
 test("codes are one-use, short-lived, PKCE/client/callback/resource bound and stored hashed", async () => {
   const s = setup();
   const c = await client(s.provider);

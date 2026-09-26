@@ -124,7 +124,7 @@ directly. What is promised is the upgrade path:
   `NewerFormatError` (exit 5, "update schoolsoft-agent") and leaves the file
   untouched. Going back means updating again or deleting the named file.
 - Dropping a migration (so that an old file no longer upgrades) is breaking.
-- Unversioned files (`login-pending.json`, `schools.json`, `key.bin`) are
+- Unversioned files (`login-pending.enc`, `schools.json`, `key.bin`) are
   internal.
 
 ### Parent-hosted connector

@@ -27,7 +27,7 @@ test("file store: absent → null, roundtrip, corrupt file → null, clear", () 
   assert.equal(store.read(), null);
   store.write({ state: "running", startedAt: 1, pid: 7 });
   assert.deepEqual(store.read(), { state: "running", startedAt: 1, pid: 7 });
-  writeFileSync(join(dir, "login-pending.json"), "{not json");
+  writeFileSync(join(dir, "login-pending.enc"), "{not sealed");
   assert.equal(store.read(), null);
   store.clear();
   store.clear();
