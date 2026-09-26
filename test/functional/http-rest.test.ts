@@ -575,7 +575,15 @@ test("a full runtime queue answers 503 with Retry-After", async (t) => {
   assert.equal(busy.headers.get("retry-after"), "1");
   assert.equal(body.retryable, true);
   release();
-  for (const reply of await Promise.all(queued)) assert.equal(reply.status, 200);
+  // While the week reads are held nothing finishes, so exactly the runtime's 16
+  // outstanding requests were accepted; every other one was refused, however
+  // late its refusal arrived (a slow 503 can miss the 25 ms probe window above).
+  const replies = await Promise.all(queued);
+  assert.equal(replies.filter((reply) => reply.status === 200).length, 16);
+  for (const reply of replies.filter((r) => r.status !== 200)) {
+    assertProblem(reply, 503, "connector-busy");
+    assert.equal(reply.headers.get("retry-after"), "1");
+  }
 });
 
 test("owner pages keep their CSP; foreign origins, unknown routes and other methods are refused", async (t) => {
