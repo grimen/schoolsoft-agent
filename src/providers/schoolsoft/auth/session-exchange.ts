@@ -5,26 +5,24 @@
  * Verified live (Täby, 2026-09-06): `/eva-apps/auth/login/parent` only
  * returns cookies when the request names the guardian's userId, the
  * school orgId and the child in focus (`childInFocus`). Without those it
- * 303s to `...?error=other` with no cookies. ssp-node's equivalent
- * (`mobileGetSession`) hardcodes the student path and none of these
- * headers, so it can never work for guardians. Header names follow
- * sebdanielsson/better-schoolsoft.
+ * 303s to `...?error=other` with no cookies. The student client
+ * libraries use the student path and none of these headers, so they can
+ * never work for guardians. Header names follow
+ * sebdanielsson/better-schoolsoft. The cookies come with the 303 itself,
+ * so this request never follows it.
  */
-import { ssUrl, extractCookie, type SchoolsoftClient } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
 import { AgentError, guardNetwork } from "../../../core/errors/index.js";
+import type { FetchOptions } from "../net.js";
+import type { SessionTokens } from "../tokens.js";
+import { portalUrl } from "../web-login.js";
 
 /** Minimal shape of the provider's HTTP helper (net.ts, budgeted), injectable for tests. */
 export type ExchangeFetch = (
   url: string,
   school: string,
-  options: {
-    method?: string;
-    headers?: Record<string, string>;
-    followRedirects?: boolean;
-    responseType?: "json" | "text" | "buffer";
-  },
-  userAgent?: string,
+  options: FetchOptions,
+  userAgent: string,
 ) => Promise<{
   status: number;
   data: unknown;
@@ -43,8 +41,14 @@ export interface ExchangeOptions {
 
 const APP_UA = "SchoolSoftPlus-Mobile/1.0";
 
+/** The value of the named cookie in a list of `Set-Cookie` headers (the first one), or null. */
+function cookieValue(setCookies: string[], name: string): string | null {
+  const line = setCookies.map((c) => c.trim()).find((c) => c.startsWith(`${name}=`));
+  return line === undefined ? null : line.slice(name.length + 1).split(";")[0];
+}
+
 export async function exchangeTokenForCookies(
-  client: SchoolsoftClient,
+  client: SessionTokens,
   options: ExchangeOptions,
 ): Promise<void> {
   const token = client.accessToken;
@@ -74,16 +78,16 @@ export async function exchangeTokenForCookies(
 
   const result = await guardNetwork(() =>
     fetchImpl(
-      ssUrl(school, `/eva-apps/auth/login/${userType}`),
+      portalUrl(school, `/eva-apps/auth/login/${userType}`),
       school,
-      { method: "GET", headers, followRedirects: false, responseType: "text" },
+      { method: "GET", headers, redirect: "manual", responseType: "text" },
       APP_UA,
     ),
   );
 
-  const jsessionid = extractCookie(result.setCookies, "JSESSIONID");
-  const hash = extractCookie(result.setCookies, "hash");
-  const usertype = extractCookie(result.setCookies, "usertype") ?? "1";
+  const jsessionid = cookieValue(result.setCookies, "JSESSIONID");
+  const hash = cookieValue(result.setCookies, "hash");
+  const usertype = cookieValue(result.setCookies, "usertype") ?? "1";
   if (!jsessionid || !hash) {
     throw new AgentError({
       kind: "not_authenticated",

@@ -33,7 +33,7 @@ export async function runBrowserLogin(options: {
    * SchoolSoft login route: "parent" | "student" | "teacher". Every login
    * page (password, SAML, BankID) lives under `#/login/<userType>/…` and
    * the backend resolves the authenticated identity *as that user type*.
-   * ssp-node hardcodes "student"; guardians must use "parent" or they get
+   * Student clients use "student"; guardians must use "parent" or they get
    * "Användaren … är inte aktiv på den här skolan" after a successful
    * BankID. Defaults to "parent".
    */

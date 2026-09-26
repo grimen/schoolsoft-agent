@@ -111,4 +111,4 @@ SchoolSoft is a trademark of SchoolSoft AB. This is an independent, MIT-licensed
 
 ## License
 
-MIT © Jonas Grimfelt. Runtime dependency on [elias4044/ssp-node](https://github.com/elias4044/ssp-node) (MIT) for HTTP helpers. The unofficial API knowledge and its sources are documented in [docs/reference/schoolsoft-api.md](docs/reference/schoolsoft-api.md).
+MIT © Jonas Grimfelt. No SchoolSoft client library is bundled: the HTTP code is this project's own. Thanks to the community clients whose published observations helped map the unofficial API, among them [elias4044/ssp-node](https://github.com/elias4044/ssp-node) (MIT), a runtime dependency until E6.3, and [sebdanielsson/better-schoolsoft](https://github.com/sebdanielsson/better-schoolsoft). The API knowledge and its sources are documented in [docs/reference/schoolsoft-api.md](docs/reference/schoolsoft-api.md).

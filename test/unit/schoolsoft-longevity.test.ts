@@ -29,7 +29,7 @@ function strategy(sim: SchoolsoftSim) {
   const session = new SchoolsoftSession("taby", noRequests);
   const s = new BankIdBrowserStrategy({
     fetchImpl: sim.fetch,
-    onRefresh: () => rotations.push(String(session.client.refreshToken)),
+    onRefresh: () => rotations.push(String(session.tokens.refreshToken)),
   });
   return { s, session, rotations };
 }
@@ -55,7 +55,7 @@ test("renew: a token that outlives the lead time is adopted as it is (another pr
   const saved = savedSession(T0, 900);
   const r = await s.renew(session, saved, { now: T0, leadMs: LEAD });
   assert.equal(r.expiresAt, (Math.floor(T0 / 1000) + 900) * 1000);
-  assert.equal(session.client.accessToken, saved.data.accessToken);
+  assert.equal(session.tokens.accessToken, saved.data.accessToken);
   assert.deepEqual([sim.requests, rotations], [[], []]);
 });
 

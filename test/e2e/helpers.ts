@@ -76,7 +76,7 @@ export function forceExpireAccessToken(): boolean {
   const store = e2eStore();
   const saved = store.load();
   if (!saved || !creds(saved).refreshToken) return false;
-  // Unix seconds, like ssp-node.
+  // Unix seconds, as the session stores it.
   store.save({
     ...saved,
     data: { ...saved.data, accessTokenExpiresAt: Math.floor(Date.now() / 1000) - 60 },

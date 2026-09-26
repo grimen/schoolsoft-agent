@@ -8,9 +8,9 @@
  *     adapters never import a provider; providers import core modules directly, never core/index.ts
  *     or core/wiring.ts (that would be a cycle)
  *   - outbound requests (the request budget, docs/planning/specs/2026-09-26-request-budget.md):
- *     only a provider's net.ts imports ssp-node's `schoolsoftFetch`/`rawRequest` or calls `fetch`;
- *     nothing imports ssp-node's other request helpers or calls a SchoolsoftClient method that sends
- *     (`verifySession`, `getNews`, ...); only the inbound servers import node:http(s)/net/tls/undici
+ *     only a provider's net.ts calls `fetch`; nothing imports `@elias4044/ssp-node`, whose helpers
+ *     sent requests around the budget (docs/planning/specs/2026-09-26-drop-ssp-node.md); only the
+ *     inbound servers import node:http(s)/net/tls/undici
  *   - src/client/** (the typed client, a package export for apps) imports only zod and its own
  *     files, and nothing else in src imports it
  */
@@ -36,32 +36,9 @@ function walk(dir: string, out: string[] = []): string[] {
 const TRANSPORT = /^providers\/[^/]+\/net\.ts$/;
 /** Inbound servers only: the OAuth callback listener and the connector's own HTTP server. */
 const NETWORK_MODULE_ALLOWED = new Set(["core/auth/callback-server.ts"]);
-/** ssp-node exports that send a request themselves, bypassing any injected transport. */
-const SSP_REQUEST_HELPERS = new Set([
-  "simpleLogin",
-  "startMobileFlow",
-  "mobileLogin",
-  "completeMobileFlow",
-  "mobileRefreshToken",
-  "mobileGetSession",
-  "fetchMobileSession",
-  "verifySession",
-  "exchangeCodeForToken",
-  "getSession",
-  "getSchools",
-  "getLunch",
-  "getSchedule",
-  "getAssignmentsForWeek",
-  "getAssignment",
-  "getSubjects",
-  "getSubject",
-  "getNews",
-  "getStartpage",
-  "getClassStudents",
-]);
-/** SchoolsoftClient methods that send a request with ssp-node's own HTTP. */
-const CLIENT_SENDS =
-  /\bclient\s*\.\s*(login|startMobileFlow|completeMobileFlow|mobileLogin|mobileRefresh|mobileExchangeSession|fetchMobileSessionInfo|getSchools|getSession|getLunch|getSchedule|getAssignmentsForWeek|getAssignment|getSubjects|getSubject|getNews|getStartpage|getClassStudents)\s*\(/;
+/** The student client this project used to depend on; its helpers sent around the budget. */
+const DROPPED =
+  /\bfrom\s*["']@elias4044\/ssp-node["']|\bimport\s*\(\s*["']@elias4044\/ssp-node["']\s*\)/g;
 
 /** The outbound rules for one file (whole text, so multi-line imports count too). */
 function checkOutbound(rel: string, text: string): Violation[] {
@@ -72,36 +49,12 @@ function checkOutbound(rel: string, text: string): Violation[] {
   const lineOf = (index: number) => text.slice(0, index).split("\n").length;
   const add = (index: number, message: string) =>
     out.push({ file: rel, line: lineOf(index), message });
-  for (const m of text.matchAll(
-    /import\s+(type\s+)?\{([^}]*)\}\s*from\s*["']@elias4044\/ssp-node["']/g,
-  )) {
-    if (m[1]) continue; // types send nothing
-    const names = m[2]
-      .split(",")
-      .map(
-        (n) =>
-          n
-            .trim()
-            .replace(/^type\s+/, "")
-            .split(/\s+as\s+/)[0],
-      )
-      .filter(Boolean);
-    for (const name of names) {
-      if ((name === "schoolsoftFetch" || name === "rawRequest") && !TRANSPORT.test(rel))
-        add(m.index, `${name} is imported outside the provider's budgeted transport (net.ts)`);
-      if (SSP_REQUEST_HELPERS.has(name))
-        add(m.index, `ssp-node's ${name} sends requests around the request budget`);
-    }
+  for (const m of text.matchAll(DROPPED)) {
+    add(m.index, "@elias4044/ssp-node is not a dependency; requests go through net.ts");
   }
   for (const m of text.matchAll(/(^|[^\w.$])fetch\(|globalThis\.fetch\b/g)) {
     if (!TRANSPORT.test(rel))
       add(m.index, "fetch is called outside the provider's budgeted transport (net.ts)");
-  }
-  for (const m of text.matchAll(new RegExp(CLIENT_SENDS, "g"))) {
-    add(m.index, `SchoolsoftClient.${m[1]} sends requests around the request budget`);
-  }
-  for (const m of text.matchAll(/\.verifySession\s*\(/g)) {
-    add(m.index, "verifySession sends requests around the request budget");
   }
   for (const m of text.matchAll(/from\s*["'](node:)?(http|https|http2|net|tls|undici)["']/g)) {
     if (!NETWORK_MODULE_ALLOWED.has(rel) && !rel.startsWith("http/"))

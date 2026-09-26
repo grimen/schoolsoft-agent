@@ -1,28 +1,20 @@
 /**
  * HTTP transport shared by the API backends: one place for the base URL,
- * the mobile user agent, JSON handling and the status → error mapping.
- * The fetch function is required: in production it is the budgeted one
- * from net.ts (the provider's entry points build it), in unit tests a fake.
+ * the mobile user agent, JSON handling, the redirect rule of each kind of
+ * request and the status → error mapping. The fetch function is required:
+ * in production it is the budgeted one from net.ts (the provider's entry
+ * points build it), in unit tests a fake.
  */
-import { ssUrl } from "@elias4044/ssp-node";
 import { guardNetwork, UpstreamError } from "../../../../core/errors/index.js";
+import type { FetchOptions } from "../../net.js";
+import { portalUrl } from "../../web-login.js";
 
 /** Minimal shape of the provider's HTTP helper (net.ts `SchoolsoftFetch`), injectable for tests. */
 export type ApiFetch = (
   url: string,
   school: string,
-  options: {
-    method?: string;
-    headers?: Record<string, string>;
-    body?: string;
-    followRedirects?: boolean;
-    responseType?: "json" | "text" | "buffer";
-    /** The host request's cancellation, for the budget's queue. */
-    signal?: AbortSignal;
-    /** Marks the one kind of request that changes data, for the budget. */
-    write?: boolean;
-  },
-  userAgent?: string,
+  options: FetchOptions,
+  userAgent: string,
 ) => Promise<{ status: number; data: unknown }>;
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
@@ -35,16 +27,21 @@ export class SchoolsoftHttp {
     private readonly signal?: AbortSignal,
   ) {}
 
-  /** JSON GET; 401/403 and other non-200 statuses become errors naming the path. */
+  /**
+   * JSON GET; 401/403 and other non-200 statuses become errors naming the
+   * path. It follows redirects: a dead web session lands on the login page,
+   * whose answer is not the JSON the caller expects.
+   */
   async get<T>(path: string, headers: Record<string, string>): Promise<T> {
     this.beforeRead?.();
     const r = await guardNetwork(() =>
       this.fetchImpl(
-        ssUrl(this.school, path),
+        portalUrl(this.school, path),
         this.school,
         {
           headers: { ...headers, Accept: "application/json" },
           responseType: "json",
+          redirect: "follow",
           signal: this.signal,
         },
         MOBILE_UA,
@@ -59,18 +56,18 @@ export class SchoolsoftHttp {
   }
 
   /**
-   * JSON POST that changes data. Sends once; any 2xx is success (the write
-   * endpoints' success status is not verified), anything else an UpstreamError.
-   * Callers decide what a failure means for a request that may have arrived.
+   * JSON POST that changes data. Sends once and never follows a redirect
+   * (net.ts enforces it for every write); any 2xx is success (the write
+   * endpoints' success status is not verified), anything else, a 3xx
+   * included, an UpstreamError. Callers decide what a failure means for a
+   * request that may have arrived.
    */
   async postWrite(
     path: string,
     cookie: string,
     body: unknown,
   ): Promise<{ status: number; data: unknown }> {
-    // The HTTP helper re-issues a POST when it follows a 301/302/307/308;
-    // a write must reach the network once, so redirects are not followed.
-    const r = await this.post(path, cookie, body, { followRedirects: false, write: true });
+    const r = await this.post(path, cookie, body, { redirect: "manual", write: true });
     if (r.status < 200 || r.status > 299) throw new UpstreamError(r.status, path);
     return r;
   }
@@ -79,11 +76,11 @@ export class SchoolsoftHttp {
     path: string,
     cookie: string,
     body: unknown,
-    extra: { followRedirects?: false; write?: true } = {},
+    extra: { redirect: "manual"; write: true } | { redirect: "follow" } = { redirect: "follow" },
   ) {
     return guardNetwork(() =>
       this.fetchImpl(
-        ssUrl(this.school, path),
+        portalUrl(this.school, path),
         this.school,
         {
           method: "POST",
@@ -102,16 +99,21 @@ export class SchoolsoftHttp {
     );
   }
 
-  /** Body-less PUT with cookies; returns the status for the caller to judge. */
+  /**
+   * Body-less PUT with cookies (the web session's child focus: session
+   * state, not school data); returns the status for the caller to judge.
+   * It follows redirects as it always has.
+   */
   async put(path: string, cookie: string): Promise<number> {
     const r = await guardNetwork(() =>
       this.fetchImpl(
-        ssUrl(this.school, path),
+        portalUrl(this.school, path),
         this.school,
         {
           method: "PUT",
           headers: { Cookie: cookie, Accept: "application/json" },
           responseType: "text",
+          redirect: "follow",
           signal: this.signal,
         },
         MOBILE_UA,

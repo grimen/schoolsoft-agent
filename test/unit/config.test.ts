@@ -389,7 +389,7 @@ test("createPortal recovers a mid-session 401 by re-establishing the session and
     fetchImpl: fetchImpl as never,
     openBrowser: () => {},
   });
-  // the ssp-node client verifies the session via /rest-api/session; stub it to avoid a real request
+  // the session verifies itself via /rest-api/session; stub it to keep this test to the recovery
   const session = manager.getSession() as unknown as { verify: () => Promise<boolean> };
   session.verify = async () => true;
   await manager.ensureSession();

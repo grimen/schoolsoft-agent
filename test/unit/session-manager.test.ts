@@ -1,6 +1,6 @@
 /**
  * Unit tests for SessionManager using injected fakes — no disk, no
- * network, no real SchoolsoftClient. Run: npm test
+ * network, no real SchoolSoft session. Run: npm test
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";

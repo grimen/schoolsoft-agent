@@ -51,8 +51,9 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 - **Every request to the portal goes through the request budget.** One
   `RequestBudget` per process (`src/core/budget/`, built in `wiring.ts`)
   limits rate and parallelism, backs off on 429/5xx and opens a breaker on
-  repeated push-back; it never retries. Only a provider's `net.ts` imports
-  the HTTP helper or calls `fetch`; a new request path takes the budget from
+  repeated push-back; it never retries. Only a provider's `net.ts` calls
+  `fetch`, and each request says whether it follows a redirect (a write
+  never does); a new request path takes the budget from
   the port, never a default. Keepalive runs as background work and never
   probes. `make boundaries` enforces it; see
   `docs/planning/specs/2026-09-26-request-budget.md`.
@@ -146,7 +147,9 @@ it is the smaller evil; do not let it pass silently.
   `childInFocus` headers; cookies are bound to one child.
 - Access token 15 min (JWT `exp`, persisted); refresh rotates; refresh
   lifetime unknown (E2E D3 snapshots track it).
-- `@elias4044/ssp-node` is student-only: HTTP helpers and token holder only.
+- No SchoolSoft client library: the provider's `net.ts` sends every request, says per request
+  whether a redirect is followed, and never follows one for a write (`@elias4044/ssp-node`,
+  student-only, was dropped in E6.3).
 
 ## Commands
 

@@ -54,7 +54,7 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
   createApiPortal: (session, ctx) =>
     new ApiPortal({
       school: session.school,
-      accessToken: () => session.client.accessToken,
+      accessToken: () => session.tokens.accessToken,
       cookieHeader: () => session.cookieHeader(),
       beforeRead: ctx.beforeRead,
       webCookieHeader: ctx.webCookieHeader,

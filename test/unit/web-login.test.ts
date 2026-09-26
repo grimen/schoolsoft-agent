@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { webLogin } from "../../src/core/browser/web-login.js";
-import { isPortalUrl, webLoginSpec } from "../../src/providers/schoolsoft/web-login.js";
+import { isPortalUrl, portalUrl, webLoginSpec } from "../../src/providers/schoolsoft/web-login.js";
 import type { PlaywrightLike } from "../../src/core/browser/playwright.js";
 import { SessionManager, MemorySessionStore } from "../../src/core/index.js";
 import { FakeAuth, fakeSession, serializeFake } from "../helpers/fakes.js";
@@ -178,4 +178,12 @@ test("cdp engine connects instead of launching; default poll interval is used wh
   });
   assert.equal(session.cookies.length, 1);
   assert.equal(state.launched.length, 0, "no launch with a CDP engine");
+});
+
+test("portalUrl: the portal origin, the school slug and the path, as given", () => {
+  assert.equal(
+    portalUrl("taby", "/rest-api/session"),
+    "https://sms.schoolsoft.se/taby/rest-api/session",
+  );
+  assert.equal(portalUrl("taby", "?x=1"), "https://sms.schoolsoft.se/taby?x=1");
 });

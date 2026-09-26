@@ -3,22 +3,16 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   exchangeTokenForCookies,
   type ExchangeFetch,
 } from "../../src/providers/schoolsoft/auth/session-exchange.js";
+import { SessionTokens } from "../../src/providers/schoolsoft/tokens.js";
 
 function fakeClient() {
-  const calls: unknown[][] = [];
-  const client = {
-    school: "testskola",
-    accessToken: "ACCESS",
-    setSessionCookies: (...args: unknown[]) => {
-      calls.push(args);
-    },
-  } as unknown as SchoolsoftClient;
-  return { client, calls };
+  const client = new SessionTokens("testskola");
+  client.setAccessToken("ACCESS");
+  return { client };
 }
 
 const COOKIES = [
@@ -29,9 +23,10 @@ const COOKIES = [
 ];
 
 test("hits the parent eva-apps endpoint with user/org/child ids and installs cookies", async () => {
-  const { client, calls } = fakeClient();
+  const { client } = fakeClient();
   const seen: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl: ExchangeFetch = async (url, _school, options) => {
+    assert.equal(options.redirect, "manual", "the cookies come with the 303 itself");
     seen.push({ url, headers: options.headers as Record<string, string> });
     return { status: 303, data: "", headers: {}, setCookies: COOKIES };
   };
@@ -49,7 +44,19 @@ test("hits the parent eva-apps endpoint with user/org/child ids and installs coo
   assert.equal(seen[0].headers.orgId, "20");
   assert.equal(seen[0].headers.childInFocus, "777");
   assert.match(seen[0].headers.redirecturl, /\/react\/#\/parent\//);
-  assert.deepEqual(calls, [["JS1", "H1", "2"]]);
+  assert.equal(client.cookieHeader, "JSESSIONID=JS1; hash=H1; usertype=2");
+});
+
+test("cookie values: up to the first ';', '=' kept inside, leading space ignored, usertype 1 by default", async () => {
+  const { client } = fakeClient();
+  const fetchImpl: ExchangeFetch = async () => ({
+    status: 303,
+    data: "",
+    headers: {},
+    setCookies: ["xJSESSIONID=nope", " JSESSIONID=a=b==; Path=/", "hash=H", "hash=second"],
+  });
+  await exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl });
+  assert.equal(client.cookieHeader, "JSESSIONID=a=b==; hash=H; usertype=1");
 });
 
 test("student user type uses the student endpoint and no childInFocus", async () => {
@@ -81,7 +88,7 @@ test("missing cookies fail with an actionable error", async () => {
 });
 
 test("refuses to run without an access token", async () => {
-  const client = { school: "s", accessToken: null } as unknown as SchoolsoftClient;
+  const client = new SessionTokens("s");
   await assert.rejects(
     exchangeTokenForCookies(client, {
       userType: "parent",
