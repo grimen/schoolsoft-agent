@@ -29,6 +29,8 @@ export class SchoolsoftSim {
   refreshStatus = 200;
   /** Status of the guardian profile lookup. */
   parentStatus = 200;
+  /** Status of the session check after a restore (GET /rest-api/session with the app cookies). */
+  sessionStatus = 200;
   /** What the web-session header GET answers. */
   webHeader: { status: number; data: unknown } = {
     status: 200,
@@ -36,6 +38,8 @@ export class SchoolsoftSim {
   };
   /** Throw this instead of answering (a network failure). */
   failWith: Error | null = null;
+  /** Answer data reads (and the absence POST) with this instead: a 429 or 5xx is SchoolSoft pushing back. */
+  readAnswer: { status: number; headers?: Record<string, string> } | null = null;
   /** Called on every data read, before it answers. */
   onRead: (() => void | Promise<void>) | null = null;
   /** Answers a path (profile or data read) with other JSON, e.g. a drifted shape; undefined = default. */
@@ -88,11 +92,19 @@ export class SchoolsoftSim {
       const child = request.headers!.childInFocus;
       return answer(303, "", [`JSESSIONID=${child}; Path=/`, "hash=h; Path=/"]);
     }
+    if (pathname.endsWith("/rest-api/session")) return answer(this.sessionStatus, {});
     if (pathname.endsWith("/rest-api/parent/header/parent")) {
       return answer(this.webHeader.status, this.webHeader.data);
     }
     this.reads.push(`${pathname}${search}`);
     await this.onRead?.();
+    if (this.readAnswer)
+      return {
+        status: this.readAnswer.status,
+        data: null,
+        headers: this.readAnswer.headers ?? {},
+        setCookies: [],
+      };
     // Typed shapes carry the marker in a text field (lesson note, dish, preview); others echo it.
     const marker = `${request.headers?.Cookie ?? "bearer"} #${this.requests.length}`;
     return answer(200, marked(pathname, marker) ?? [marker]);

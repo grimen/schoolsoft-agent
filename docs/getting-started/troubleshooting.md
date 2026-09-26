@@ -40,6 +40,18 @@ Your computer could not connect: no internet, a VPN or proxy in the way, or Scho
 
 SchoolSoft had a problem serving the request. This is usually temporary; try again in a moment.
 
+## "SchoolSoft is asking for fewer requests…" or "SchoolSoft has pushed back several times in a row…"
+
+This means SchoolSoft is asking us to slow down. It either said so directly (too many requests), kept answering with errors, or did not answer at all. schoolsoft-agent then stops sending it anything for a while: first a few seconds, and after three such answers within two minutes, five minutes (longer if it keeps happening, at most an hour). The message says how long.
+
+What to do: wait, then ask again. Asking again sooner does not reach SchoolSoft at all; the tool refuses on its own, so you cannot make it worse, but it will not work either. Logging in again does not help either: your login is fine and is kept. Nothing you asked to change was sent while it was paused; if you reported an absence just as SchoolSoft said "too many requests", check in SchoolSoft whether it arrived before trying again.
+
+Why the tool does this: it uses SchoolSoft in a way SchoolSoft has not approved, and every person using it shares that. If SchoolSoft decided the tool was a nuisance and blocked it, it would stop working for everyone. So it keeps its own pace slow on purpose (by default at most 20 requests a minute, 10 at once after a pause, 2 at the same time), well above what a person needs, and backs off as soon as SchoolSoft complains.
+
+`auth-status` in a running assistant shows `portal` (`ok`, `backing_off`, `paused` or `probing`) and `retryAt`, when it will try again. After the wait, the first thing you ask is sent as a test; if SchoolSoft answers normally everything is back to normal, and if not the pause starts again, longer. Background keepalive stays quiet the whole time and never does that test on its own. Each running copy of the tool (every assistant window, every command) keeps its own count.
+
+The pace can be changed within limits, for example if a family dashboard needs more: `SCHOOLSOFT_REQUESTS_PER_MINUTE` (1 to 60, default 20), `SCHOOLSOFT_REQUEST_BURST` (1 to 20, default 10) and `SCHOOLSOFT_MAX_CONCURRENT_REQUESTS` (1 to 4, default 2), or the same names without the prefix in `config.json` (`requestsPerMinute`, `requestBurst`, `maxConcurrentRequests`). How long it pauses after SchoolSoft pushes back cannot be changed. SchoolSoft's real limits are not known; if you see these messages during normal use, please report it.
+
 ## The browser did not open
 
 Some assistants run in a sandbox that cannot open windows. The login URL is always printed as well; the assistant shows it to you. Open it yourself in any browser on the same computer and complete BankID. The tool notices when SchoolSoft redirects back.
@@ -114,7 +126,7 @@ What to know before turning it on:
 - It only works while the program is running and your computer is awake. It cannot beat a hard time limit on SchoolSoft's side, and whether it lengthens the web login at all is not yet measured; your `sessionHistory` will show it.
 - It never logs in for you and never touches BankID. If SchoolSoft ends a login, the background work for that login stops until you log in again yourself.
 - It reads one small piece of information the web page itself asks for on every page view. It never changes anything at SchoolSoft.
-- If SchoolSoft is unreachable or struggling it waits longer between attempts (up to an hour).
+- If SchoolSoft is unreachable or struggling it waits longer between attempts (up to an hour), and while SchoolSoft is pushing back it sends nothing at all (see "SchoolSoft is asking for fewer requests" above).
 - This project is independent. SchoolSoft AB has not approved or been asked about background requests. Turning this on means your computer contacts SchoolSoft when you are not asking for anything; leave it off if you are unsure. The command-line tool on its own never does this, because it only runs while a command runs.
 
 ### The assistant shows an older version of something I just changed
@@ -176,8 +188,26 @@ schoolsoft-agent configure --query "<school name>"
 npx -y schoolsoft-agent doctor
 ```
 
-Reports Node version, configuration, saved session, how long logins have lasted so far, the format version of each saved file, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place.
+Reports Node version, configuration, saved session, how long logins have lasted so far, the format version of each saved file, network reachability, the hidden browser and how the login window is opened. Each line says what to do if it is not OK. `doctor --fix` moves a session saved by an older version into place. `doctor --verify` is a different check: see [Check whether SchoolSoft changed something](#check-whether-schoolsoft-changed-something).
+
+## "The school portal's answer for … has changed shape"
+
+SchoolSoft answered, but not in the form this tool knows, so it returned nothing rather than show you something that might be wrong. It usually means SchoolSoft changed something on their side. Trying again will not help. Update schoolsoft-agent first, the same way as in the "written by a newer version" section above; a newer version may already understand the new form. If the newest version fails too, check which parts are affected, as described next.
+
+## Check whether SchoolSoft changed something
+
+When one thing stops working with the message above, you can check everything else in one go, using the login you already have:
+
+```bash
+npx -y schoolsoft-agent doctor --verify --pretty
+```
+
+It asks SchoolSoft once for each kind of information the tool understands in detail (children, schedule, calendar, lunch menu, messages), one after the other, the way you would by asking for them yourself, and reads each answer from SchoolSoft directly rather than from the short-lived memory. It shows only whether each answer still looks right: `ok`, `drift` (SchoolSoft changed its form), `skipped` (this setup cannot check it, for example without the hidden browser or the second login) or `error` (SchoolSoft or the connection failed; try again later). For `drift` it names which field changed, never what the field contained. The output has no names, messages, lessons or other school data, so it is safe to paste into an issue.
+
+It checks the child that is selected by default and names children by their position in your list ("child 1 of 2"), never by name. Add `--all-children` to check every child; the selected child stays selected afterwards. It never logs in, never opens BankID and never changes anything at SchoolSoft. Without a saved login it stops with "Not logged in" before asking SchoolSoft anything.
+
+The command ends with exit code 0 when nothing changed, 7 when something drifted, and otherwise the code of the first problem (4 for a connection failure, for example).
 
 ## Still stuck?
 
-Open an issue at <https://github.com/grimen/schoolsoft-agent/issues>. Paste the output of `doctor` (it contains no personal data) and the exact message you saw.
+Open an issue at <https://github.com/grimen/schoolsoft-agent/issues>. Paste the output of `doctor` (it contains no personal data) and the exact message you saw. If a message said an answer "has changed shape", paste the output of `doctor --verify` as well.

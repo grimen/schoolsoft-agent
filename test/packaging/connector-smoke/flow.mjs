@@ -329,7 +329,12 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   const session = await api("/session");
   assert.equal(session.status, 200);
   const about = json(session);
-  assert.deepEqual(about.schoolsoft, { signedIn: true, loginInProgress: false, webSession: false });
+  assert.deepEqual(about.schoolsoft, {
+    signedIn: true,
+    loginInProgress: false,
+    webSession: false,
+    portal: { state: "ok", retryAt: null },
+  });
   assert.deepEqual(about.children, [{ id: ALLOWED.studentId, firstName: ALLOWED.firstName }]);
   assert.deepEqual(about.scopes, limitedScopes);
   assert.equal(about.ownerDashboard, origin + "/owner");

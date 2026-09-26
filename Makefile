@@ -118,6 +118,9 @@ capture: ## Record redacted form structures, the Översikt page and a school-eve
 capture-promote: ## Move reviewed captures into test/fixtures/; refuses everything if any file still looks personal
 	$(TSX) scripts/capture-promote.ts
 
+verify-live: build ## Check that every typed read still parses against the live portal, from an EXISTING session (live, local; prints statuses, never data; exit 7 on drift)
+	node dist/cli/index.js doctor --verify --pretty
+
 # ---------- Generated artifacts ----------
 
 docs: ## Regenerate command/tool reference docs from the operation registry
@@ -189,6 +192,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact connector-smoke e2e login login-web status logout configure doctor browser browser-verify fingerprints capture capture-promote docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact connector-smoke e2e login login-web status logout configure doctor browser browser-verify fingerprints capture verify-live capture-promote docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

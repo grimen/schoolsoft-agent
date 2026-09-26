@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { operations } from "../src/core/index.js";
 import { flagsFromSchema, kebab } from "../src/cli/flags.js";
+import { textRenderer, TEXT_RENDERERS } from "../src/cli/text/registry.js";
 import { TOOL_PREFIX } from "../src/mcp/server.js";
 import { restRoutes } from "../src/http/routes.js";
 import { PROBLEMS, PROBLEM_TYPE_PREFIX } from "../src/http/problem.js";
@@ -135,18 +136,26 @@ export function renderTools(): string {
 export function renderCommands(): string {
   let md =
     HEADER +
-    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are one line on stderr.\n\n";
+    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are two lines on stderr (the problem, then what to do next).\n\n";
   md +=
     "Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not configured (run `configure`) · `4` network · `5` not available · `6` input · `7` upstream (including `response_drift`: the portal's answer changed shape).\n\n";
   md +=
-    "Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`.\n\n";
+    "Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`, `--format <json|text>`.\n\n";
+  md +=
+    "`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for " +
+    Object.keys(TEXT_RENDERERS)
+      .map((name) => `\`${kebab(name)}\``)
+      .join(", ") +
+    "; any other command prints pretty JSON and a one-line note on stderr.\n\n";
   md += "| Command | Purpose | Annotations |\n|---|---|---|\n";
   for (const op of operations)
     md += `| \`${kebab(op.name)}\` | ${op.title} | ${annotationBadges(op)} |\n`;
   md +=
     "| `configure` | Write config.json (interactive school lookup or `--school/--org-id/--query`) | no login needed |\n";
   md +=
-    "| `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |\n\n";
+    "| `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |\n";
+  md +=
+    "| `doctor --verify` | Check that each typed read still parses against the live portal; prints statuses, never data (`--all-children` checks every child) | read-only, needs a saved session; exit 7 on drift |\n\n";
   for (const op of operations) {
     md += `## \`schoolsoft-agent ${kebab(op.name)}\`\n\n${op.description.trim()}\n\n`;
     const specs = flagsFromSchema(op.input);
@@ -157,6 +166,8 @@ export function renderCommands(): string {
       md += "\n";
     }
     md += renderOutput(op);
+    if (textRenderer(op.name))
+      md += "`--format text` prints a view of this result for people instead of JSON.\n\n";
     const ex = exampleArgs(op);
     const flags = Object.entries(ex)
       .map(([k, v]) =>
@@ -196,11 +207,13 @@ export function renderRestApi(): string {
     md += `| \`GET ${route.path}\` | \`${route.operation.name}\` | \`${route.operation.name}\` | ${route.query.map((q) => `\`${q.name}\``).join(", ") || "none"} |\n`;
   md += "\n## `GET /api/v1/session`\n\n";
   md +=
-    "What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`.\n\n" +
+    'What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`, unless `schoolsoft.portal.state` is not `ok`: then the school portal is pushing back, signing in again does not help, and the UI shows "try again at `retryAt`" instead.\n\n' +
     "| Field | Type | Description |\n|---|---|---|\n" +
     "| `schoolsoft.signedIn` | boolean | The connector's SchoolSoft session is present and valid |\n" +
     "| `schoolsoft.loginInProgress` | boolean | The parent started a sign-in that has not finished |\n" +
     "| `schoolsoft.webSession` | boolean | A gated web-login session is stored (the connector does not offer one; always false today) |\n" +
+    "| `schoolsoft.portal.state` | string | `ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again |\n" +
+    "| `schoolsoft.portal.retryAt` | string (date-time) or null | When requests flow again; null while they flow or a probe decides |\n" +
     "| `children[]` | object[] | The children this connection may read, `{ id, firstName }` as `/children` returns them; empty while signed out |\n" +
     "| `scopes` | string[] | The operations this token may call |\n" +
     "| `routes[]` | object[] | `{ operation, method, path }` for each route the scopes allow |\n" +
@@ -228,7 +241,7 @@ export function renderRestApi(): string {
   }
   md += "## Problems\n\n";
   md +=
-    `Every failure after the token check is \`application/problem+json\` (RFC 9457): \`type\` (\`${PROBLEM_TYPE_PREFIX}<name>\`), \`title\`, \`status\`, \`detail\` (the message), \`hint\` (what to do next), \`kind\` and \`retryable\` (as the MCP tools and CLI report them), \`ownerDashboard\` on SchoolSoft-session problems and \`error\` (\`invalid_token\` or \`insufficient_scope\`) on token problems. ` +
+    `Every failure after the token check is \`application/problem+json\` (RFC 9457): \`type\` (\`${PROBLEM_TYPE_PREFIX}<name>\`), \`title\`, \`status\`, \`detail\` (the message), \`hint\` (what to do next), \`kind\` and \`retryable\` (as the MCP tools and CLI report them), \`ownerDashboard\` on SchoolSoft-session problems, \`retryAt\` (with a \`Retry-After\` header) when the school portal is pushing back, and \`error\` (\`invalid_token\` or \`insufficient_scope\`) on token problems. ` +
     "`detail` and `hint` are in Swedish or English, chosen by `Accept-Language` (else the connector's `SCHOOLSOFT_LANG`, else English); `Content-Language` says which. " +
     "A missing, invalid or expired token is answered by the MCP SDK's bearer check with `401`, an RFC 6750 body and `WWW-Authenticate`, exactly as on `/mcp`.\n\n" +
     "**`401` is about the app's token; `409` is about the connector's SchoolSoft sign-in.** On `401`, refresh the token and connect again if that fails. On `409` the token is fine and retrying cannot help: send the parent to `ownerDashboard` to sign in with BankID.\n\n";

@@ -126,19 +126,27 @@ test("SchoolDirectory: corrupt or mis-shaped cache is ignored; an empty upstream
   await assert.rejects(d2.list(), /school list came back empty/);
 });
 
-test("defaultFetch: JSON on success, error on non-2xx", async () => {
-  const { defaultFetch } = await import("../../src/providers/schoolsoft/schools.js");
+test("budgetedJson: through the budget, with the default fetch; JSON on success, error on non-2xx", async () => {
+  const { budgetedJson } = await import("../../src/providers/schoolsoft/net.js");
+  const { CountingBudget } = await import("../helpers/budget.js");
   const { createServer } = await import("node:http");
   const server = createServer((req, res) => {
     if (req.url === "/ok") {
       res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify([{ a: 1 }]));
-    } else res.writeHead(503).end();
+    } else res.writeHead(503, { "retry-after": "7" }).end();
   });
   await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
   const { port } = server.address() as { port: number };
+  const budget = new CountingBudget();
+  const get = budgetedJson(budget);
   try {
-    assert.deepEqual(await defaultFetch(`http://127.0.0.1:${port}/ok`), [{ a: 1 }]);
-    await assert.rejects(defaultFetch(`http://127.0.0.1:${port}/down`), /HTTP 503/);
+    assert.deepEqual(await get(`http://127.0.0.1:${port}/ok`), [{ a: 1 }]);
+    await assert.rejects(get(`http://127.0.0.1:${port}/down`), /HTTP 503/);
+    assert.equal(budget.calls.length, 2, "both went through the budget");
+    assert.deepEqual(budget.answers, [
+      { status: 200, retryAfter: null },
+      { status: 503, retryAfter: "7" },
+    ]);
   } finally {
     server.close();
   }

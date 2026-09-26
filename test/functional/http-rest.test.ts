@@ -14,8 +14,11 @@ import {
   MemorySessionStore,
   getOperation,
   resolveConfig,
+  createRequestBudget,
   type Lang,
+  type RequestBudget,
 } from "../../src/core/index.js";
+import { CountingBudget, FakeClock } from "../helpers/budget.js";
 import type { ConnectorConfig } from "../../src/http/config.js";
 import { ConnectorOAuthProvider, type OAuthState } from "../../src/http/oauth.js";
 import { CONNECTOR_OPERATIONS, ConnectorRuntime } from "../../src/http/runtime.js";
@@ -47,7 +50,10 @@ interface Reply {
 }
 type UpstreamReply = { status: number; data: unknown; headers: object; setCookies: string[] };
 
-async function fixture(t: TestContext, options: { lang?: Lang; proxyHops?: number } = {}) {
+async function fixture(
+  t: TestContext,
+  options: { lang?: Lang; proxyHops?: number; budget?: RequestBudget; now?: () => number } = {},
+) {
   let clock = Date.now();
   const upstream = fakeUpstream();
   /** Runs before every upstream request; may answer instead of the fake portal. */
@@ -87,6 +93,8 @@ async function fixture(t: TestContext, options: { lang?: Lang; proxyHops?: numbe
     deps: {
       pending: new MemoryPendingLoginStore(),
       history: new MemorySessionHistoryStore(),
+      // The real budget where a test asks for it; elsewhere nothing throttles the many reads here.
+      budget: options.budget ?? new CountingBudget(),
       fetchImpl: async (
         url: string,
         school: string,
@@ -98,7 +106,7 @@ async function fixture(t: TestContext, options: { lang?: Lang; proxyHops?: numbe
       },
     },
   });
-  const app = createConnectorApp({ config, oauth, runtime, lang: options.lang });
+  const app = createConnectorApp({ config, oauth, runtime, lang: options.lang, now: options.now });
   const server = app.listen(0, "127.0.0.1");
   await once(server, "listening");
   t.after(async () => {
@@ -462,7 +470,12 @@ test("GET /api/v1/session tells a UI what it may show, signed in or out, without
   const body = signedIn.json();
   const expires = f.oauth.listGrants()[0].expiresAt;
   assert.deepEqual(body, {
-    schoolsoft: { signedIn: true, loginInProgress: false, webSession: false },
+    schoolsoft: {
+      signedIn: true,
+      loginInProgress: false,
+      webSession: false,
+      portal: { state: "ok", retryAt: null },
+    },
     children: [{ id: ALVA, firstName: "Synthetic Alva" }],
     scopes: ["list_children", "get_schedule"],
     routes: [
@@ -494,6 +507,7 @@ test("GET /api/v1/session tells a UI what it may show, signed in or out, without
     signedIn: false,
     loginInProgress: false,
     webSession: false,
+    portal: { state: "ok", retryAt: null },
   });
   assert.deepEqual(signedOut.json().children, []);
   assert.deepEqual(f.upstream.calls.slice(calls), [], "no login and no upstream request");
@@ -561,7 +575,15 @@ test("a full runtime queue answers 503 with Retry-After", async (t) => {
   assert.equal(busy.headers.get("retry-after"), "1");
   assert.equal(body.retryable, true);
   release();
-  for (const reply of await Promise.all(queued)) assert.equal(reply.status, 200);
+  // While the week reads are held nothing finishes, so exactly the runtime's 16
+  // outstanding requests were accepted; every other one was refused, however
+  // late its refusal arrived (a slow 503 can miss the 25 ms probe window above).
+  const replies = await Promise.all(queued);
+  assert.equal(replies.filter((reply) => reply.status === 200).length, 16);
+  for (const reply of replies.filter((r) => r.status !== 200)) {
+    assertProblem(reply, 503, "connector-busy");
+    assert.equal(reply.headers.get("retry-after"), "1");
+  }
 });
 
 test("owner pages keep their CSP; foreign origins, unknown routes and other methods are refused", async (t) => {
@@ -591,4 +613,77 @@ test("the REST limit is per caller, answers 429 problem+json and counts bad toke
   assertProblem(limited, 429, "rate-limited");
   assert.ok(Number(limited.headers.get("retry-after")) > 0);
   assert.match(limited.headers.get("ratelimit-policy")!, /60/);
+});
+
+test("the school portal pushing back is 503 portal-pushback with Retry-After, in Swedish and English; /session says until when", async (t) => {
+  const clock = new FakeClock(Date.now());
+  const budget = createRequestBudget(
+    { provider: "schoolsoft", requestBudget: {} },
+    { now: clock.now, timer: clock },
+  );
+  const f = await fixture(t, { budget, now: clock.now });
+  const { access } = await f.connect();
+  let sent = 0;
+  let answer = { status: 429, data: null, headers: { "retry-after": "60" }, setCookies: [] };
+  f.intercept(async (path) => {
+    if (!path.includes("/lessons/week/")) return undefined;
+    sent++;
+    return answer;
+  });
+  const slowed = await f.api(`/children/${ALVA}/schedule?week=37`, access, {
+    "Accept-Language": "sv",
+  });
+  const body = assertProblem(slowed, 503, "portal-pushback");
+  assert.equal(slowed.headers.get("retry-after"), "60");
+  assert.equal(body.retryAt, new Date(clock.now() + 60_000).toISOString());
+  assert.equal(body.kind, "upstream");
+  assert.equal(body.retryable, true);
+  assert.match(String(body.detail), /SchoolSoft ber om färre förfrågningar.*ungefär 1 minut\./);
+  assert.match(String(body.hint), /försök igen efter Retry-After/);
+  assert.equal(sent, 1);
+
+  clock.t += 30_000;
+  const refused = await f.api(`/children/${ALVA}/schedule?week=37`, access, {
+    "Accept-Language": "en",
+  });
+  const refusedBody = assertProblem(refused, 503, "portal-pushback");
+  assert.equal(refused.headers.get("retry-after"), "30");
+  assert.match(String(refusedBody.detail), /pausing requests to it for 30 seconds/);
+  assert.match(String(refusedBody.hint), /Signing in again does not help/);
+  assert.equal(sent, 1, "refused by the budget: nothing was sent");
+  const about = (await f.api("/session", access)).json() as {
+    schoolsoft: { signedIn: boolean; portal: unknown };
+  };
+  assert.equal(about.schoolsoft.signedIn, true, "the session is kept");
+  assert.deepEqual(about.schoolsoft.portal, {
+    state: "backing_off",
+    retryAt: new Date(clock.now() + 30_000).toISOString(),
+  });
+
+  // Two more push-backs within two minutes, each after its pause: the breaker opens for five minutes.
+  answer = { status: 503, data: null, headers: { "retry-after": "1" }, setCookies: [] };
+  await clock.advance(30_000);
+  assertProblem(await f.api(`/children/${ALVA}/schedule?week=37`, access), 502, "upstream");
+  await clock.advance(1_000);
+  assertProblem(await f.api(`/children/${ALVA}/schedule?week=37`, access), 502, "upstream");
+  assert.equal(sent, 3);
+  const paused = await f.api(`/children/${ALVA}/schedule?week=37`, access);
+  const pausedBody = assertProblem(paused, 503, "portal-pushback");
+  assert.equal(paused.headers.get("retry-after"), "300");
+  assert.match(String(pausedBody.detail), /pushed back several times in a row.*Nothing was sent/);
+  assert.equal(sent, 3);
+  assert.equal(
+    ((await f.api("/session", access)).json() as { schoolsoft: { portal: { state: string } } })
+      .schoolsoft.portal.state,
+    "paused",
+  );
+  // After the cool-down one request tests the water, gets an answer, and everything flows again.
+  f.intercept(undefined);
+  await clock.advance(300_000);
+  assert.equal((await f.api(`/children/${ALVA}/schedule?week=37`, access)).status, 200);
+  assert.equal(
+    ((await f.api("/session", access)).json() as { schoolsoft: { portal: { state: string } } })
+      .schoolsoft.portal.state,
+    "ok",
+  );
 });

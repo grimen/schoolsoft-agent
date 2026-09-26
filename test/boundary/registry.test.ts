@@ -7,11 +7,14 @@ import {
   operations,
   getOperation,
   runOperation,
+  isVerifiable,
+  VERIFY_EXCLUSIONS,
   CAPABILITIES,
   type OperationContext,
 } from "../../src/core/index.js";
 import { ResponseDriftError } from "../../src/core/errors/index.js";
 import { BROWSER_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
+import { TEXT_RENDERERS } from "../../src/cli/text/registry.js";
 
 test("operation names are unique snake_case", () => {
   const names = operations.map((o) => o.name);
@@ -140,6 +143,31 @@ test("every operation that declares an output schema is validated by runOperatio
   assert.equal(await runOperation({ ...untyped, run: async () => raw }, ctx, {}), raw);
 });
 
+test("doctor --verify can call every typed read operation with safe defaults, or it is excluded with a reason", () => {
+  const verifiable = operations.filter(isVerifiable);
+  assert.ok(verifiable.length >= 5, "the five typed reads at least");
+  for (const op of verifiable) {
+    const reason = VERIFY_EXCLUSIONS[op.name];
+    if (reason !== undefined) {
+      assert.ok(reason.trim().length > 0, `${op.name}: an exclusion needs a reason`);
+      continue;
+    }
+    // The engine passes {} plus fresh: true where declared (and child_id only with --all-children).
+    const args = "fresh" in op.input ? { fresh: true } : {};
+    assert.ok(
+      z.object(op.input).safeParse(args).success,
+      `${op.name} needs an input doctor --verify cannot choose safely: give it a default or add it to VERIFY_EXCLUSIONS with a reason`,
+    );
+  }
+  for (const name of Object.keys(VERIFY_EXCLUSIONS))
+    assert.ok(
+      verifiable.some((op) => op.name === name),
+      `VERIFY_EXCLUSIONS names ${name}, which is not a verifiable operation`,
+    );
+  for (const op of operations.filter((o) => !o.annotations.readOnly || o.annotations.destructive))
+    assert.ok(!isVerifiable(op), `${op.name} writes and must never be verified`);
+});
+
 test("runOperation returns the parsed result: undeclared keys never leave a typed operation", async () => {
   const op = getOperation("get_messages")!;
   const result = await runOperation(
@@ -148,4 +176,9 @@ test("runOperation returns the parsed result: undeclared keys never leave a type
     {},
   );
   assert.deepEqual(result, { messages: [] });
+});
+
+test("every typed operation has a CLI text view, and every view names a typed operation", () => {
+  const typed = operations.filter((o) => o.output !== undefined).map((o) => o.name);
+  assert.deepEqual(Object.keys(TEXT_RENDERERS).sort(), [...typed].sort());
 });

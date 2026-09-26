@@ -1,4 +1,3 @@
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
@@ -10,6 +9,7 @@ import {
   resolveConfig,
 } from "../../src/core/index.js";
 import { FakeTimer } from "../helpers/fake-timer.js";
+import { CountingBudget } from "../helpers/budget.js";
 import { ResponseDriftError } from "../../src/core/errors/index.js";
 import {
   DRIFT_FIELDS,
@@ -74,12 +74,17 @@ function fixture(
     deps: {
       pending: new MemoryPendingLoginStore(),
       history,
+      // Not about the budget: these tests send more than a burst; its limits are tested elsewhere.
+      budget: new CountingBudget(),
       fetchImpl: async (
         url: string,
         _school: string,
         request: { headers?: Record<string, string> },
       ) => {
         if (failed) throw new Error("upstream unavailable");
+        // The session check after a restore (budgeted like every request); not a data read.
+        if (url.endsWith("/rest-api/session"))
+          return { status: 200, data: {}, headers: {}, setCookies: [] };
         const replaced = override?.(url);
         if (replaced !== undefined)
           return { status: 200, data: replaced, headers: {}, setCookies: [] };
@@ -201,6 +206,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     authenticated: false,
     loginInProgress: false,
     sessionHistory: { recordedSince: null, app: null, web: null, losses: [] },
+    portal: { state: "ok", retryAt: null },
     children: [],
   });
   const { url } = await f.runtime.beginLogin();
@@ -227,6 +233,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
       loginInProgress: false,
       webSession: false,
       sessionHistory: undefined,
+      portal: { state: "ok", retryAt: null },
       children: [
         { id: 100, name: "Child 100" },
         { id: 101, name: "Child 101" },
@@ -359,8 +366,7 @@ test("failed upstream login clears any partial tokens", async () => {
   await f.runtime.close();
 });
 
-test("restart restores the encrypted-store session and enforces identity pin on restore", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("restart restores the encrypted-store session and enforces identity pin on restore", async () => {
   const f = fixture();
   await login(f.runtime);
   await f.runtime.close();
@@ -374,8 +380,7 @@ test("restart restores the encrypted-store session and enforces identity pin on 
   await changed.close();
 });
 
-test("recovery cannot retry a read against an unapproved fallback sibling", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("recovery cannot retry a read against an unapproved fallback sibling", async () => {
   const f = fixture();
   await login(f.runtime);
   f.events.length = 0;
@@ -388,8 +393,7 @@ test("recovery cannot retry a read against an unapproved fallback sibling", asyn
   await f.runtime.close();
 });
 
-test("recovery revalidates the guardian and succeeds only for the original child", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("recovery revalidates the guardian and succeeds only for the original child", async () => {
   const f = fixture();
   await login(f.runtime);
   f.rejectNextRead();
@@ -440,8 +444,7 @@ test("queued revoked and aborted operations never read; interrupted results are 
   await f.runtime.close();
 });
 
-test("permission guard runs after restore, during recovery and before releasing child lists", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("permission guard runs after restore, during recovery and before releasing child lists", async () => {
   const f = fixture();
   await login(f.runtime);
   let checks = 0;
@@ -569,8 +572,7 @@ test("calendar revocation, abort and focus changes stop the second read and with
   }
 });
 
-test("calendar recovery restarts both sources for the same permitted child", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("calendar recovery restarts both sources for the same permitted child", async () => {
   for (const failAt of [1, 2]) {
     const f = fixture();
     await login(f.runtime);
@@ -588,8 +590,7 @@ test("calendar recovery restarts both sources for the same permitted child", asy
   }
 });
 
-test("calendar recovery refuses a fallback sibling or different guardian", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("calendar recovery refuses a fallback sibling or different guardian", async () => {
   for (const mode of ["child", "guardian", "revoked"]) {
     const f = fixture();
     await login(f.runtime);

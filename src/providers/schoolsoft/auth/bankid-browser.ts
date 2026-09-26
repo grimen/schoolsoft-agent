@@ -33,8 +33,8 @@ export interface BankIdBrowserOptions {
   userType?: SchoolsoftUserType;
   clientId?: string;
   callbackPort?: number;
-  /** Test seams — production uses ssp-node's schoolsoftFetch. */
-  fetchImpl?: ExchangeFetch & TokenFetch & ApiFetch;
+  /** The budgeted HTTP helper (net.ts) in production, a fake in tests. */
+  fetchImpl: ExchangeFetch & TokenFetch & ApiFetch;
   openBrowser?: (url: string) => void;
   browserAuthorization?: BrowserAuthorization;
   redirectUri?: string;
@@ -46,7 +46,7 @@ export class BankIdBrowserStrategy implements AuthStrategy<SchoolsoftSession> {
   readonly id = "bankid-browser";
   context?: GuardianContext;
 
-  constructor(private readonly options: BankIdBrowserOptions = {}) {}
+  constructor(private readonly options: BankIdBrowserOptions) {}
 
   private get userType(): SchoolsoftUserType {
     return this.options.userType ?? DEFAULT_USER_TYPE;

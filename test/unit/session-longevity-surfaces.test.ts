@@ -11,7 +11,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer, type AddressInfo } from "node:net";
 import { once } from "node:events";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   ConfigValueError,
   DEFAULT_CACHE_TTL_MS,
@@ -105,7 +104,6 @@ function wired(
   t: { mock: { method: typeof import("node:test").mock.method } },
   o: { cache?: ReadCache | null; configCache?: string; web?: boolean } = {},
 ) {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
   let now = 1_900_000_000_000;
   const sim = new SchoolsoftSim(() => now);
   const store = new MemorySessionStore();
@@ -415,8 +413,7 @@ test("owner page: sign-in history in plain words, escaped, and absent until some
   );
 });
 
-test("connector start: keepalive and cache settings come from the deployment environment; the history is encrypted at rest", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("connector start: keepalive and cache settings come from the deployment environment; the history is encrypted at rest", async () => {
   const dir = mkdtempSync(join(tmpdir(), "ss-connector-"));
   const probe = createServer().listen(0, "127.0.0.1");
   await once(probe, "listening");

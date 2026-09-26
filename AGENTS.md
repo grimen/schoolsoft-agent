@@ -48,6 +48,14 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   session loss, and is started only by long-lived hosts, never the CLI. The
   session history holds timestamps and counters only. A transient failure
   (`isTransient`) must never clear a saved session.
+- **Every request to the portal goes through the request budget.** One
+  `RequestBudget` per process (`src/core/budget/`, built in `wiring.ts`)
+  limits rate and parallelism, backs off on 429/5xx and opens a breaker on
+  repeated push-back; it never retries. Only a provider's `net.ts` imports
+  the HTTP helper or calls `fetch`; a new request path takes the budget from
+  the port, never a default. Keepalive runs as background work and never
+  probes. `make boundaries` enforces it; see
+  `docs/planning/specs/2026-09-26-request-budget.md`.
 - **Browser pages are declared, not scattered.** A page the browser reads
   lives in the provider's `portal/pages.ts` (path, gate, anchors) with its
   extractor in `portal/extractors.ts` and a fixture in `test/fixtures/jsp/`. After a SchoolSoft

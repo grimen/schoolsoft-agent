@@ -1,12 +1,14 @@
 /**
  * `doctor`: environment, config, session and connectivity checks, with
- * `--fix` to migrate a legacy ~/.schoolsoft-mcp session store.
+ * `--fix` to migrate a legacy ~/.schoolsoft-mcp session store, and
+ * `--verify` for the live parse check of the typed operations (verify.ts).
  */
 import type { Command } from "commander";
 import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   AgentError,
+  InputError,
   CONFIG_FORMAT,
   FileSessionHistoryStore,
   FileSessionStore,
@@ -17,6 +19,9 @@ import {
   emptyHistory,
   summarizeHistory,
   browserStatus,
+  createRequestBudget,
+  portalHealth,
+  probePortal,
   type Config,
   type SessionHistory,
   type PersistedSession,
@@ -25,6 +30,7 @@ import { configFileVersion, loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit, globalOverrides } from "../program.js";
 import { EXIT } from "../exit-codes.js";
+import { runVerify } from "./verify.js";
 
 export interface DoctorCheck {
   name: string;
@@ -141,23 +147,33 @@ export async function runDoctor(
     checks.push(historyCheck(config, deps.now?.() ?? Date.now()));
   }
 
-  // Default goes through globalThis.fetch so tests can stub it without network.
-  const fetchImpl =
-    deps.fetchImpl ?? ((url: string, init?: { method?: string }) => globalThis.fetch(url, init));
+  // Through a request budget like every request to the portal (the provider's HTTP; tests inject fetchImpl).
+  const budgetConfig = config ?? { provider: "schoolsoft", requestBudget: {} };
+  const budget = createRequestBudget(budgetConfig);
   try {
-    const r = await fetchImpl("https://sms.schoolsoft.se/", { method: "HEAD" });
+    const status = await probePortal(budgetConfig, { budget, fetchImpl: deps.fetchImpl });
     checks.push({
       name: "network",
-      ok: r.status < 500,
-      detail: `sms.schoolsoft.se HTTP ${r.status}`,
+      ok: status < 500,
+      detail: `school portal HTTP ${status}`,
     });
   } catch (e) {
     checks.push({
       name: "network",
       ok: false,
-      detail: `sms.schoolsoft.se unreachable: ${e instanceof Error ? e.message : e}`,
+      detail: `school portal unreachable: ${e instanceof Error ? e.message : e}`,
     });
   }
+  const { limits } = budget.snapshot();
+  const health = portalHealth(budget.snapshot());
+  checks.push({
+    name: "request-budget",
+    ok: true, // informational: this process starts fresh; a running server reports its own in auth-status
+    detail:
+      `${limits.perMinute}/min, burst ${limits.burst}, ${limits.maxInFlight} in flight (per process); ` +
+      `portal ${health.state}${health.retryAt ? ` until ${health.retryAt}` : ""}` +
+      "; a running MCP server or connector reports its own state in auth-status / the owner dashboard",
+  });
   const bs = await browserStatus(
     config?.browser ?? { kind: "chromium", headless: true },
     deps.browserProbes,
@@ -186,7 +202,14 @@ export function registerDoctor(program: Command, deps: CliDeps, emit: (d: unknow
     .command("doctor")
     .description("Diagnose environment, config, session and connectivity")
     .option("--fix", "Apply safe fixes (migrate a legacy ~/.schoolsoft-mcp session)")
-    .action(async (opts: { fix?: boolean }) => {
+    .option(
+      "--verify",
+      "Check that each typed read still parses against the live portal (saved session only; prints no data)",
+    )
+    .option("--all-children", "With --verify: check every child, not only the one in focus")
+    .action(async (opts: { fix?: boolean; verify?: boolean; allChildren?: boolean }) => {
+      if (opts.allChildren && !opts.verify) throw new InputError("--all-children needs --verify");
+      if (opts.verify) return runVerify(deps, program.opts(), Boolean(opts.allChildren), emit);
       const result = await runDoctor(deps, program.opts(), Boolean(opts.fix), process.version);
       emit(result);
       if (!result.ok) throw new CliExit(EXIT.ERROR, "");

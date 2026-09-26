@@ -7,7 +7,7 @@ import { connectorConfig } from "../../src/http/config.js";
 import { ConnectorOAuthProvider } from "../../src/http/oauth.js";
 import { createConnectorApp } from "../../src/http/server.js";
 import { OwnerSessions } from "../../src/http/owner-session.js";
-import { InputError } from "../../src/core/index.js";
+import { InputError, type PortalHealth } from "../../src/core/index.js";
 const config = connectorConfig({
   SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
   SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
@@ -18,6 +18,7 @@ const config = connectorConfig({
 });
 test("owner console enforces host, password, session, origin and CSRF and completes manual login routes", async () => {
   let loginError: "expired" | undefined;
+  let portal: PortalHealth = { state: "ok", retryAt: null };
   let authenticated = false,
     pending = false,
     broken = false,
@@ -41,6 +42,7 @@ test("owner console enforces host, password, session, origin and CSRF and comple
           loginInProgress: pending,
           loginError,
           children: [{ id: 1, name: "<Child>" }],
+          portal,
         };
       },
       beginLogin: async () => {
@@ -150,6 +152,19 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     loginError = "expired";
     assert.match(await (await request("/owner")).text(), /sign-in link expired/);
     loginError = undefined;
+    // The request budget's breaker: one line while the portal pushes back, nothing otherwise.
+    assert.doesNotMatch(await (await request("/owner")).text(), /pushing back/);
+    portal = { state: "paused", retryAt: "2026-09-26T12:05:00.000Z" };
+    assert.match(
+      await (await request("/owner")).text(),
+      /SchoolSoft is pushing back \(paused\): the connector sends it nothing until 2026-09-26T12:05:00\.000Z \(UTC\)\. Signing in again does not help/,
+    );
+    portal = { state: "probing", retryAt: null };
+    assert.match(
+      await (await request("/owner")).text(),
+      /nothing until one request has tested whether it answers again/,
+    );
+    portal = { state: "ok", retryAt: null };
     // Endpoint middleware bounds both password and upstream login attempts per caller.
     for (let i = 0; i < 20; i++)
       assert.equal(
@@ -337,7 +352,12 @@ test("without a declared proxy, forwarding headers are ignored and the operator 
         repository: { read: () => undefined, write: () => {} },
       }),
       runtime: {
-        status: async () => ({ authenticated: false, loginInProgress: false, children: [] }),
+        status: async () => ({
+          authenticated: false,
+          loginInProgress: false,
+          children: [],
+          portal: { state: "ok" as const, retryAt: null },
+        }),
         beginLogin: async () => ({ url: "https://school.example/login" }),
         callback: () => false,
         logout: async () => {},

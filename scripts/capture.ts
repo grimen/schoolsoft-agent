@@ -13,9 +13,15 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadContext } from "../src/shared/bootstrap.js";
-import { createApiPortal, createBrowserSession, detectLang } from "../src/core/index.js";
+import {
+  createApiPortal,
+  createBrowserSession,
+  detectLang,
+  requestBudgetOf,
+} from "../src/core/index.js";
 import { stockholmToday } from "../src/core/operations/_calendar-range.js";
 import { SchoolsoftHttp } from "../src/providers/schoolsoft/portal/api/transport.js";
+import { budgetedFetch } from "../src/providers/schoolsoft/net.js";
 import { captureMain } from "../src/providers/schoolsoft/capture/capture.js";
 
 const dir = resolve(process.env.SCHOOLSOFT_CAPTURE_DIR ?? ".captures");
@@ -38,7 +44,8 @@ const code = await captureMain(
       syncWebChild: () => createApiPortal(m).syncWebChild(),
       openBrowser: () => createBrowserSession(m, { engine: ctx.config.browser }),
       getJson: (path) =>
-        new SchoolsoftHttp(ctx.config.school).get(path, {
+        // Through the session's request budget, like every other request to the portal.
+        new SchoolsoftHttp(ctx.config.school, budgetedFetch(requestBudgetOf(m))).get(path, {
           Cookie: m.getSession().cookieHeader() ?? "",
         }),
       today: () => stockholmToday(),

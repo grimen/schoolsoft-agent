@@ -5,9 +5,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import { BankIdBrowserStrategy } from "../../src/providers/schoolsoft/auth/bankid-browser.js";
 import { SchoolsoftSession } from "../../src/providers/schoolsoft/session.js";
+import { FakeClock, noRequests } from "../helpers/budget.js";
 import { ApiPortal } from "../../src/providers/schoolsoft/portal/api-portal.js";
 import {
   MemorySessionHistoryStore,
@@ -16,6 +16,7 @@ import {
   UpstreamError,
   WebLoginRequiredError,
   createSessionManager,
+  createRequestBudget,
   resolveConfig,
 } from "../../src/core/index.js";
 import { SchoolsoftSim, jwt, savedSession } from "../helpers/schoolsoft-sim.js";
@@ -25,7 +26,7 @@ const LEAD = 3 * 60_000;
 
 function strategy(sim: SchoolsoftSim) {
   const rotations: string[] = [];
-  const session = new SchoolsoftSession("taby");
+  const session = new SchoolsoftSession("taby", noRequests);
   const s = new BankIdBrowserStrategy({
     fetchImpl: sim.fetch,
     onRefresh: () => rotations.push(String(session.client.refreshToken)),
@@ -74,7 +75,7 @@ test("renew: unknown expiry refreshes; an opaque new token has no known expiry; 
     }),
   });
   assert.deepEqual(
-    await opaque.renew(new SchoolsoftSession("taby"), savedSession(T0, 1), {
+    await opaque.renew(new SchoolsoftSession("taby", noRequests), savedSession(T0, 1), {
       now: T0,
       leadMs: LEAD,
     }),
@@ -84,7 +85,7 @@ test("renew: unknown expiry refreshes; an opaque new token has no known expiry; 
   const before = sim.requests.length;
   await assert.rejects(
     s.renew(
-      new SchoolsoftSession("taby"),
+      new SchoolsoftSession("taby", noRequests),
       { ...savedSession(T0), data: {} },
       { now: T0, leadMs: LEAD },
     ),
@@ -92,7 +93,7 @@ test("renew: unknown expiry refreshes; an opaque new token has no known expiry; 
   );
   await assert.rejects(
     s.renew(
-      new SchoolsoftSession("taby"),
+      new SchoolsoftSession("taby", noRequests),
       { ...savedSession(T0), data: { accessToken: jwt(1) } },
       { now: T0, leadMs: LEAD },
     ),
@@ -114,8 +115,7 @@ test("renew: a rejected refresh is a login problem; a failing server is retryabl
   assert.deepEqual(rotations, []);
 });
 
-test("wiring: a refresh followed by a failing profile lookup leaves the ROTATED token on disk, and the session in place", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("wiring: a refresh followed by a failing profile lookup leaves the ROTATED token on disk, and the session in place", async () => {
   const sim = new SchoolsoftSim(() => T0);
   const store = new MemorySessionStore();
   const history = new MemorySessionHistoryStore();
@@ -127,10 +127,12 @@ test("wiring: a refresh followed by a failing profile lookup leaves the ROTATED 
     home: "/unused",
     platform: "linux",
   });
+  const clock = new FakeClock(T0);
   const manager = createSessionManager(config, {
     store,
     history,
     now: () => T0,
+    budget: createRequestBudget(config, { now: clock.now, timer: clock }),
     fetchImpl: sim.fetch,
   });
   sim.parentStatus = 503;
@@ -142,8 +144,18 @@ test("wiring: a refresh followed by a failing profile lookup leaves the ROTATED 
   );
   assert.equal(history.read()!.app!.activityCount, 1);
   sim.parentStatus = 200;
-  await manager.ensureSession(); // next call: no login, the rotated token works
-  assert.match(sim.requests.at(-1)!, /eva-apps\/auth/);
+  // next call: no login, the rotated token works (after the budget's 2 s pause for the 503)
+  const next = manager.ensureSession();
+  await clock.advance(2_000);
+  await next;
+  assert.deepEqual(
+    sim.requests.slice(-3).map((r) => r.replace(/\?.*/, "")),
+    [
+      "GET /taby/eva/api/v1/parent",
+      "GET /taby/eva-apps/auth/login/parent",
+      "GET /taby/rest-api/session",
+    ],
+  );
   assert.equal(manager.guardian().userId, 21);
 });
 

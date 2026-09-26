@@ -229,6 +229,7 @@ export const testConfig: Config = {
   browser: { kind: "chromium", headless: true },
   cache: true,
   keepalive: { mode: "off", webIntervalMs: 600_000, quietHours: null },
+  requestBudget: {},
   allowWrites: false,
 };
 
