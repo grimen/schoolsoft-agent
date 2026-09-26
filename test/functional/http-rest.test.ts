@@ -592,7 +592,9 @@ test("owner pages keep their CSP; foreign origins, unknown routes and other meth
   const owner = await f.request("/owner/login");
   assert.equal(owner.headers.get("content-security-policy"), CSP);
   assert.equal(owner.headers.get("strict-transport-security"), "max-age=31536000");
-  assert.equal(owner.headers.get("referrer-policy"), "no-referrer");
+  // same-origin, not no-referrer: browsers then send the real Origin on the owner's
+  // form posts (no-referrer makes it "null", which the Origin check refuses).
+  assert.equal(owner.headers.get("referrer-policy"), "same-origin");
   const foreign = await f.api("/children", access, { Origin: "https://evil.example" });
   assertProblem(foreign, 403, "foreign-origin");
   assert.equal((await f.api("/children", access, { Origin: origin })).status, 200);
