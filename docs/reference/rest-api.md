@@ -16,13 +16,15 @@ Responses are the operations' validated domain objects, unchanged, as `applicati
 
 ## `GET /api/v1/session`
 
-What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`.
+What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID; it only restores the saved session silently, as the owner dashboard does. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`, unless `schoolsoft.portal.state` is not `ok`: then the school portal is pushing back, signing in again does not help, and the UI shows "try again at `retryAt`" instead.
 
 | Field | Type | Description |
 |---|---|---|
 | `schoolsoft.signedIn` | boolean | The connector's SchoolSoft session is present and valid |
 | `schoolsoft.loginInProgress` | boolean | The parent started a sign-in that has not finished |
 | `schoolsoft.webSession` | boolean | A gated web-login session is stored (the connector does not offer one; always false today) |
+| `schoolsoft.portal.state` | string | `ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again |
+| `schoolsoft.portal.retryAt` | string (date-time) or null | When requests flow again; null while they flow or a probe decides |
 | `children[]` | object[] | The children this connection may read, `{ id, firstName }` as `/children` returns them; empty while signed out |
 | `scopes` | string[] | The operations this token may call |
 | `routes[]` | object[] | `{ operation, method, path }` for each route the scopes allow |
@@ -129,7 +131,7 @@ Output (validated; an answer that does not fit is a `502` `response-drift`):
 
 ## Problems
 
-Every failure after the token check is `application/problem+json` (RFC 9457): `type` (`urn:schoolsoft-agent:problem:<name>`), `title`, `status`, `detail` (the message), `hint` (what to do next), `kind` and `retryable` (as the MCP tools and CLI report them), `ownerDashboard` on SchoolSoft-session problems and `error` (`invalid_token` or `insufficient_scope`) on token problems. `detail` and `hint` are in Swedish or English, chosen by `Accept-Language` (else the connector's `SCHOOLSOFT_LANG`, else English); `Content-Language` says which. A missing, invalid or expired token is answered by the MCP SDK's bearer check with `401`, an RFC 6750 body and `WWW-Authenticate`, exactly as on `/mcp`.
+Every failure after the token check is `application/problem+json` (RFC 9457): `type` (`urn:schoolsoft-agent:problem:<name>`), `title`, `status`, `detail` (the message), `hint` (what to do next), `kind` and `retryable` (as the MCP tools and CLI report them), `ownerDashboard` on SchoolSoft-session problems, `retryAt` (with a `Retry-After` header) when the school portal is pushing back, and `error` (`invalid_token` or `insufficient_scope`) on token problems. `detail` and `hint` are in Swedish or English, chosen by `Accept-Language` (else the connector's `SCHOOLSOFT_LANG`, else English); `Content-Language` says which. A missing, invalid or expired token is answered by the MCP SDK's bearer check with `401`, an RFC 6750 body and `WWW-Authenticate`, exactly as on `/mcp`.
 
 **`401` is about the app's token; `409` is about the connector's SchoolSoft sign-in.** On `401`, refresh the token and connect again if that fails. On `409` the token is fine and retrying cannot help: send the parent to `ownerDashboard` to sign in with BankID.
 
@@ -149,5 +151,6 @@ Every failure after the token check is `application/problem+json` (RFC 9457): `t
 | 502 | `response-drift` | School portal answer changed | The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. |
 | 502 | `upstream` | School portal error | The portal answered with an error. Usually temporary. |
 | 503 | `connector-busy` | Connector busy | Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. |
+| 503 | `portal-pushback` | School portal pushing back | The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. |
 | 503 | `not-available` | Not available | The connector cannot serve this now (for example its stored state is from a newer version). |
 | 504 | `network` | School portal unreachable | The connector could not reach the portal (DNS, TCP, TLS or timeout). |

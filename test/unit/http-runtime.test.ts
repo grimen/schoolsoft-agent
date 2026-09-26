@@ -206,6 +206,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     authenticated: false,
     loginInProgress: false,
     sessionHistory: { recordedSince: null, app: null, web: null, losses: [] },
+    portal: { state: "ok", retryAt: null },
     children: [],
   });
   const { url } = await f.runtime.beginLogin();
@@ -232,6 +233,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
       loginInProgress: false,
       webSession: false,
       sessionHistory: undefined,
+      portal: { state: "ok", retryAt: null },
       children: [
         { id: 100, name: "Child 100" },
         { id: 101, name: "Child 101" },

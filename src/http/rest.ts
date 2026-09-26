@@ -9,10 +9,17 @@ import { Router, type Request, type RequestHandler, type Response } from "expres
 import type { Options as RateLimitOptions } from "express-rate-limit";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
-import type { Lang } from "../core/index.js";
+import { PortalPushbackError, type Lang } from "../core/index.js";
 import type { ConnectorGrant } from "./oauth.js";
 import type { ConnectorRuntime } from "./runtime.js";
-import { classify, negotiateLang, problemBody, refusals, type Classified } from "./problem.js";
+import {
+  classify,
+  negotiateLang,
+  problemBody,
+  refusals,
+  retryAfterSeconds,
+  type Classified,
+} from "./problem.js";
 import { parseChildId, parseQuery, restRoutes } from "./routes.js";
 
 /** Requests per minute per caller (clientKey) across the whole REST surface. */
@@ -26,9 +33,18 @@ export interface RestOptions {
   lang: Lang;
   /** The connector's per-caller limiter factory (server.ts), so REST shares its keying. */
   limit: (extra: Partial<RateLimitOptions>) => RequestHandler;
+  /** Clock for Retry-After (tests). */
+  now?: () => number;
 }
 
-export function restApi({ publicUrl, oauth, runtime, lang, limit }: RestOptions): Router {
+export function restApi({
+  publicUrl,
+  oauth,
+  runtime,
+  lang,
+  limit,
+  now = Date.now,
+}: RestOptions): Router {
   const resourceMetadataUrl = publicUrl + "/.well-known/oauth-protected-resource/mcp";
   const routes = restRoutes();
   const send = (req: Request, res: Response, problem: Classified) => {
@@ -45,6 +61,8 @@ export function restApi({ publicUrl, oauth, runtime, lang, limit }: RestOptions)
         `Bearer error="insufficient_scope", scope="${problem.error.params.operation}", resource_metadata="${resourceMetadataUrl}"`,
       );
     if (problem.name === "connector-busy") res.set("Retry-After", "1");
+    if (problem.error instanceof PortalPushbackError)
+      res.set("Retry-After", retryAfterSeconds(problem.error.retryAt, now()));
     res
       .status(body.status)
       .set({ "Content-Language": chosen, Vary: "Accept-Language" })
@@ -79,6 +97,8 @@ export function restApi({ publicUrl, oauth, runtime, lang, limit }: RestOptions)
           signedIn: status.authenticated,
           loginInProgress: status.loginInProgress,
           webSession: status.webSession === true,
+          // Not "ok": the portal is pushing back; show "try again at retryAt", not the dashboard link.
+          portal: status.portal,
         },
         children: status.children
           .filter((child) => grant.childIds.includes(child.id))
