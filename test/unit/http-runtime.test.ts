@@ -225,6 +225,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     {
       authenticated: true,
       loginInProgress: false,
+      webSession: false,
       sessionHistory: undefined,
       children: [
         { id: 100, name: "Child 100" },
@@ -722,9 +723,10 @@ test("cache: an app without permission for a child cannot obtain that child's ca
   const narrowed = [100];
   await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, narrowed);
   narrowed.length = 0;
+  // A named child outside the grant is refused before the session is even consulted.
   await assert.rejects(
     f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, narrowed),
-    /No permitted/,
+    /not permitted/,
   );
   await f.runtime.close();
 });
