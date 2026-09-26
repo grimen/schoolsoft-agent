@@ -20,6 +20,7 @@ import {
   rawLunch,
 } from "../helpers/portal-json.js";
 import { lunchYear } from "../../src/core/operations/get-lunch-menu.js";
+import { weekOf } from "../../src/core/operations/_week.js";
 import { isoWeekDate } from "../../src/core/domain/time.js";
 
 /** The one lesson the fake portal answers, titled with the cookie that read it. */
@@ -287,12 +288,12 @@ test("concurrent reads keep focus and request atomic; logout waits for an active
   const logout = f.runtime.logout();
   const [first, second] = await Promise.all([a, b]);
   assert.deepEqual(first, {
-    week: 2,
+    ...weekOf(2),
     child: { id: 101, firstName: "Child 101" },
     lessons: lessonsFor("JSESSIONID=101; hash=h; usertype=1"),
   });
   assert.deepEqual(second, {
-    week: 3,
+    ...weekOf(3),
     child: { id: 100, firstName: "Child 100" },
     lessons: lessonsFor("JSESSIONID=100; hash=h; usertype=1"),
   });
@@ -399,7 +400,7 @@ test("recovery revalidates the guardian and succeeds only for the original child
   f.rejectNextRead();
   const result = await f.runtime.execute("get_schedule", { child_id: 101, week: 2 }, [101]);
   assert.deepEqual(result, {
-    week: 2,
+    ...weekOf(2),
     child: { id: 101, firstName: "Child 101" },
     lessons: lessonsFor("JSESSIONID=101; hash=h; usertype=1"),
   });

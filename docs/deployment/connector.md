@@ -279,6 +279,14 @@ connector's own address for now), and each visitor may make 60 requests a minute
 Error messages come in Swedish or English, following the app's language, or
 `SCHOOLSOFT_LANG` (`sv` or `en`) in the environment settings.
 
+A dashboard's first screen for one child is one request:
+`GET /api/v1/children/{childId}/overview` answers the week's lessons, the week's
+lunch and the next school event together, with the week named by its dates. Each
+part says on its own whether it worked, so a hiccup reading the lunch menu does not
+blank the timetable, and a part you did not approve for that app says so instead
+of being read. Asking again within the next half hour usually sends nothing to
+SchoolSoft, because the connector remembers recent answers for a while.
+
 The routes, fields and error types are in the [REST API reference](../reference/rest-api.md).
 Like the rest of the connector, this is tested offline against a synthetic portal;
 a real app against a real SchoolSoft sign-in is part of the acceptance test below.
@@ -357,8 +365,8 @@ daemon it prints a skip notice and exits successfully; set
 2. `test/packaging/connector-flow-container.mjs` replays a parent's whole journey
    inside the image: OAuth discovery, client registration, S256-only PKCE, owner
    login and consent for chosen children and tools, code exchange, MCP
-   `tools/list` and tool calls, the REST API (session, children, a schedule, and a
-   refused child, scope and token), refresh-token rotation and replay rejection, the
+   `tools/list` and tool calls, the REST API (session, children, a schedule, the
+   overview, and a refused child, scope and token), refresh-token rotation and replay rejection, the
    calendar scope limit, per-child denial, revoking an app from the dashboard and
    the owner-login rate limit. The school portal is a synthetic stand-in
    (`test/packaging/connector-smoke/fake-upstream.mjs`) mounted read-only beside a

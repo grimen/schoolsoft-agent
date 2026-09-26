@@ -54,6 +54,7 @@ test("owner console enforces host, password, session, origin and CSRF and comple
         loggedOut = true;
       },
       execute: async () => ({}),
+      executeForChild: () => Promise.reject(new Error("the overview is not under test here")),
     },
   });
   const server = app.listen(0, "127.0.0.1");
@@ -362,6 +363,7 @@ test("without a declared proxy, forwarding headers are ignored and the operator 
         callback: () => false,
         logout: async () => {},
         execute: async () => ({}),
+        executeForChild: () => Promise.reject(new Error("the overview is not under test here")),
       },
     });
     const server = app.listen(0, "127.0.0.1");

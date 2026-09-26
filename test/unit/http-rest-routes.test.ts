@@ -94,6 +94,8 @@ test("the table refuses writes, untyped operations and inputs a query string can
   const bare = { ...typed, input: { word: z.string() } };
   assert.equal(restRoutes([bare], ["get_things"])[0].query[0].description, "");
   assert.equal(restRoutes([bare], ["get_things"])[0].path, "/api/v1/things");
+  const shadowing = { ...typed, name: "get_overview", input: { child_id: typed.input.child_id } };
+  assert.throws(() => restRoutes([shadowing], ["get_overview"]), /shadow a composite route/);
 });
 
 test("query strings convert by kind, once each, and are checked by the operation's schema", () => {

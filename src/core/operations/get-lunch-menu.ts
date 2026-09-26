@@ -1,16 +1,12 @@
 import { z } from "zod";
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, WeekSchema, isoWeek, withChild, FreshSchema } from "./_shared.js";
-import { stockholmToday } from "./_calendar-range.js";
+import { ChildSchema, WeekSchema, withChild, FreshSchema } from "./_shared.js";
+import { weekOf } from "./_week.js";
 import { ChildRefSchema, LunchDaySchema } from "../domain/schemas.js";
-import { nearestWeekYear } from "../domain/time.js";
-import { InputError } from "../errors/index.js";
 
 /** The ISO week-year whose week `week` starts nearest today in Stockholm. */
 export function lunchYear(week: number, now = new Date()): number {
-  const year = nearestWeekYear(week, stockholmToday(now));
-  if (year === null) throw new InputError(`week ${week} does not exist in this or a nearby year`);
-  return year;
+  return weekOf(week, now).year;
 }
 
 export const getLunchMenu = defineOperation({
@@ -37,8 +33,7 @@ Use when: "vad är det till lunch", "vad serveras på onsdag".`,
   portal: ["getLunchWeek"],
   annotations: READ_ONLY,
   async run(ctx, { week, child_id }) {
-    const w = week ?? isoWeek();
-    const year = lunchYear(w);
+    const { year, week: w } = weekOf(week);
     const { orgId, childRef } = await withChild(ctx, child_id);
     const days = await ctx.portal.getLunchWeek(orgId, w, year);
     return { year, week: w, child: childRef, days };

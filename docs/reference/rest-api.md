@@ -13,6 +13,7 @@ Responses are the operations' validated domain objects, unchanged, as `applicati
 | `GET /api/v1/children/{childId}/schedule` | `get_schedule` | `get_schedule` | `week`, `fresh` |
 | `GET /api/v1/children/{childId}/calendar` | `get_calendar` | `get_calendar` | `start_date`, `end_date`, `fresh` |
 | `GET /api/v1/children/{childId}/lunch-menu` | `get_lunch_menu` | `get_lunch_menu` | `week`, `fresh` |
+| `GET /api/v1/children/{childId}/overview` | (composite) | any of `get_schedule`, `get_lunch_menu`, `get_calendar` | `date`, `fresh` |
 
 ## `GET /api/v1/session`
 
@@ -57,7 +58,10 @@ Output (validated; an answer that does not fit is a `502` `response-drift`):
 
 | Field | Type | Description |
 |---|---|---|
+| `year` | integer | ISO week-year: the year in which this week starts nearest today |
 | `week` | integer |  |
+| `startDate` | string (date) | Monday of the week, YYYY-MM-DD in Europe/Stockholm |
+| `endDate` | string (date) | Sunday of the week, YYYY-MM-DD in Europe/Stockholm |
 | `child` | object | The child the result is for |
 | `child.id` | integer | Child id; pass it as child_id |
 | `child.firstName` | string |  |
@@ -128,6 +132,65 @@ Output (validated; an answer that does not fit is a `502` `response-drift`):
 | `days[].dishes` | object[] |  |
 | `days[].dishes[].kind` | string or null | Kind of meal, as the school names it; null when not given |
 | `days[].dishes[].description` | string |  |
+
+## `GET /api/v1/children/{childId}/overview`
+
+A dashboard's first paint for one child in one request: the week's lessons and lunch and the next school event. The sections are the operations above, read in one turn of the connector's queue (one grant check, at most one child switch upstream, the read cache as usual), so a warm overview sends nothing to the school portal. No scope of its own: each section needs its operation's scope, and a token with none of `get_schedule`, `get_lunch_menu`, `get_calendar` is refused with `403`. `{childId}` is an `id` from `/children`; a child outside the connection's approval is refused with `403` before anything is read. Design: [composite overview spec](../planning/specs/2026-09-26-composite-overview.md).
+
+| Query parameter | Type | Description |
+|---|---|---|
+| `date` | string | Any day of the week to show, YYYY-MM-DD, within about half a year of today. Defaults to today in Europe/Stockholm. |
+| `fresh` | boolean | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+**The week.** Weeks are ISO weeks named by dates in Europe/Stockholm. The school portal is asked for a week number only, so its year is the one in which that week starts nearest today; a `date` whose week is further than about half a year from today would be read for another year and is refused with `400`.
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child in the path |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `child.schoolName` | string or null | School name; null when not given |
+| `child.className` | string or null | Class name; null when not given |
+| `week` | object |  |
+| `week.year` | integer | ISO week-year |
+| `week.week` | integer | ISO week number |
+| `week.startDate` | string (date) | Monday of the week |
+| `week.endDate` | string (date) | Sunday of the week |
+| `week.today` | string (date) | Today in Europe/Stockholm, the start of nextEvent's search |
+| `week.timezone` | `"Europe/Stockholm"` |  |
+
+**Sections.** `schedule`, `lunch` and `nextEvent` are each one of:
+
+| `status` | Other field | Meaning |
+|---|---|---|
+| `ok` | `data` | The section's validated data |
+| `not-granted` | `scope` | The token lacks this scope; nothing was read for the section |
+| `error` | `problem` | The problem details body the single route would have answered (see [Problems](#problems)), in the negotiated language |
+
+| Section | Operation | `data` |
+|---|---|---|
+| `schedule` | `get_schedule` for the week | as `GET /api/v1/children/{childId}/schedule` answers it |
+| `lunch` | `get_lunch_menu` for the week | as `GET /api/v1/children/{childId}/lunch-menu` answers it |
+| `nextEvent` | `get_calendar` from today, 30 days | below |
+
+| Field | Type | Description |
+|---|---|---|
+| `event` | object or null | The first school event (kind "event") that has not ended, by start; null when there is none |
+| `event.id` | string | Stable id of this calendar entry |
+| `event.kind` | `"lesson"` \| `"event"` | A timetable entry or a school event |
+| `event.title` | string |  |
+| `event.allDay` | boolean |  |
+| `event.start` | string (date) or string (date-time) | Date for date-only entries |
+| `event.end` | string (date) or string (date-time) | Date for date-only entries |
+| `event.location` | string or null | Room or place; null when not given |
+| `event.teacher` | string or null | Teacher; null when not given |
+| `event.group` | string or null | Teaching group; null when not given |
+| `event.category` | string or null | Portal category, e.g. lesson or lunch; null when not given |
+| `event.note` | string or null | Description; null when not given |
+| `from` | string (date) | First day searched: today in Europe/Stockholm |
+| `until` | string (date) | Last day searched: 29 days after today |
+
+**Partial failure.** A section keeps its own failure when it concerns that read (`response-drift`, `upstream`, `network`, `portal-pushback`, `not-implemented`, `not-available`, `web-session`, `internal`); the others are still served and the status is `200`. When the school portal pushes back on one section, the request budget refuses the remaining ones without sending them, and they say `portal-pushback` with `retryAt`. Everything about the request as a whole fails it with the single routes' status and releases no section: the token or grant (`401`), the child (`403`), the connector's SchoolSoft session (`409`), a busy connector (`503`) and invalid input (`400`).
 
 ## Problems
 

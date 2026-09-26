@@ -20,7 +20,10 @@ import { API_BASE } from "./routes.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
-  runtime: Pick<ConnectorRuntime, "beginLogin" | "callback" | "status" | "execute" | "logout">;
+  runtime: Pick<
+    ConnectorRuntime,
+    "beginLogin" | "callback" | "status" | "execute" | "executeForChild" | "logout"
+  >;
   sessions?: OwnerSessions;
   /** Operator-facing notices; never receives request data. Default: stderr. */
   warn?: (message: string) => void;
@@ -383,10 +386,7 @@ export function createConnectorApp({
     },
   );
   // Read-only REST for custom UIs: same tokens, scopes, grants and runtime as /mcp.
-  app.use(
-    API_BASE,
-    restApi({ publicUrl: config.publicUrl, oauth, runtime, lang, limit: perMinute, now }),
-  );
+  app.use(API_BASE, restApi({ publicUrl: config.publicUrl, oauth, runtime, lang, perCaller, now }));
   app.use((_req, res) => {
     res.status(404).send(page("Page not found", '<p><a href="/owner">Open your connector</a></p>'));
   });
