@@ -4,7 +4,14 @@
  * portal provider. This is the one core module allowed to import
  * src/providers; everything external is a dependency with a default here
  * and an injection point for tests.
+ *
+ * It also installs the request budget: one per session manager (so one per
+ * process in every host), handed to the provider's session, auth
+ * strategies, API portal, browser session and school directory, which wrap
+ * every request in it. Keepalive runs as background work, which the budget
+ * never lets wait in line or test the water.
  */
+import { AsyncLocalStorage } from "node:async_hooks";
 import type { Config } from "./config.js";
 import { RENEW_LEAD_MS, SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
@@ -33,6 +40,7 @@ import {
   type KeepaliveTask,
   type KeepaliveTimer,
 } from "./keepalive/scheduler.js";
+import { PortalBudget, type BudgetTimer, type RequestBudget } from "./budget/budget.js";
 import { getProvider } from "../providers/index.js";
 
 export { getProvider, providerIds } from "../providers/index.js";
@@ -42,8 +50,71 @@ export function resolveProvider(config: Pick<Config, "provider">): SchoolProvide
   return getProvider(config.provider);
 }
 
+/** Real timers for the budget: a request waiting for a token must keep a one-shot CLI alive. */
+const budgetTimer: BudgetTimer = {
+  set: (run, ms) => setTimeout(run, ms),
+  clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
+
+/** Set while keepalive work runs, so the budget treats its requests as background. */
+const BACKGROUND = new AsyncLocalStorage<true>();
+
+export interface BudgetDeps {
+  now?: () => number;
+  timer?: BudgetTimer;
+}
+
+/**
+ * A request budget for a Config: the provider's limits with the config's
+ * overrides. Hosts get one per session manager from createSessionManager;
+ * this is for callers without a session (configure, doctor).
+ */
+export function createRequestBudget(
+  config: Pick<Config, "provider" | "requestBudget">,
+  deps: BudgetDeps = {},
+): RequestBudget {
+  const provider = resolveProvider(config);
+  return new PortalBudget({
+    limits: { ...provider.requestBudget, ...config.requestBudget },
+    now: deps.now ?? Date.now,
+    timer: deps.timer ?? budgetTimer,
+    isBackground: () => BACKGROUND.getStore() === true,
+  });
+}
+
+/** Run `work` as background work (keepalive): its requests never wait in line and never probe. */
+export function asBackground<T>(work: () => Promise<T>): Promise<T> {
+  return BACKGROUND.run(true, work);
+}
+
+/** The budget of each manager built here; everything built for that manager finds it again. */
+const BUDGETS = new WeakMap<SessionManager, RequestBudget>();
+
+/** The request budget every request made for this manager goes through (created with defaults if missing). */
+export function requestBudgetOf(manager: SessionManager): RequestBudget {
+  let budget = BUDGETS.get(manager);
+  if (!budget) {
+    budget = createRequestBudget({ provider: manager.providerId, requestBudget: {} });
+    BUDGETS.set(manager, budget);
+  }
+  return budget;
+}
+
+/** `doctor`: one HEAD of the provider's portal through a budget; resolves with the HTTP status. */
+export function probePortal(
+  config: Pick<Config, "provider" | "requestBudget">,
+  deps: { budget?: RequestBudget; fetchImpl?: unknown } = {},
+): Promise<number> {
+  return resolveProvider(config).probeReachability(
+    deps.budget ?? createRequestBudget(config),
+    deps.fetchImpl,
+  );
+}
+
 export interface SessionDeps {
   store?: SessionStore;
+  /** The process's request budget; default one built from the config (real clock and timers). */
+  budget?: RequestBudget;
   /** Injected HTTP for the provider's auth calls (tests). */
   fetchImpl?: unknown;
   openBrowser?: (url: string) => void;
@@ -75,6 +146,7 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
   const now = deps.now ?? Date.now;
   const cache =
     deps.cache === undefined ? (config.cache ? new MemoryReadCache(now) : null) : deps.cache;
+  const budget = deps.budget ?? createRequestBudget(config);
   manager = new SessionManager({
     school: config.school,
     provider: provider.id,
@@ -100,9 +172,11 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
         return false;
       }
     },
-    createSession: (school) => provider.createSession(school),
+    createSession: (school) =>
+      provider.createSession(school, { budget, fetchImpl: deps.fetchImpl }),
     serialize: (s) => provider.serializeSession(s),
     strategies: provider.createAuthStrategies(config, {
+      budget,
       fetchImpl: deps.fetchImpl,
       browserAuthorization: deps.browserAuthorization,
       redirectUri: deps.redirectUri,
@@ -127,6 +201,7 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
         })),
   });
   if (cache) CACHES.set(manager, cache);
+  BUDGETS.set(manager, budget);
   return manager;
 }
 
@@ -144,8 +219,10 @@ export interface PortalDeps {
   /** Engine for the default PlaywrightSession; defaults to config.browser. */
   engine?: BrowserEngine;
   playwrightLoader?: PlaywrightLoader;
-  /** Injected HTTP for the API provider (tests). */
+  /** Injected HTTP for the API provider (tests); still wrapped in the manager's budget. */
   fetchImpl?: unknown;
+  /** The host request's cancellation: requests still queued in the budget are then never sent. */
+  signal?: AbortSignal;
 }
 
 /** The cached portal, and the same portal with the cache bypassed and refreshed (`fresh: true`). */
@@ -163,6 +240,7 @@ export function createBrowserSession(
   const session = manager.getSession();
   return new PlaywrightSession({
     school: session.school,
+    budget: requestBudgetOf(manager),
     origin: provider.webLogin.origin,
     cookieHeader: () => session.cookieHeader(),
     webCookies: () => manager.getWebSession()?.cookies ?? null,
@@ -173,12 +251,13 @@ export function createBrowserSession(
 
 function apiContext(
   manager: SessionManager,
-  fetchImpl?: unknown,
-  beforeRead?: () => void,
+  deps: Pick<PortalDeps, "fetchImpl" | "beforeRead" | "signal">,
 ): ApiPortalContext {
   return {
-    fetchImpl,
-    beforeRead,
+    budget: requestBudgetOf(manager),
+    fetchImpl: deps.fetchImpl,
+    beforeRead: deps.beforeRead,
+    signal: deps.signal,
     webCookieHeader: () => {
       const w = manager.getWebSession();
       return w ? w.cookies.map((c) => `${c.name}=${c.value}`).join("; ") : null;
@@ -197,11 +276,11 @@ function apiContext(
 /** API provider bound to the manager's live session, app cookies and web-login cookies. */
 export function createApiPortal(
   manager: SessionManager,
-  deps: Pick<PortalDeps, "fetchImpl" | "beforeRead"> = {},
+  deps: Pick<PortalDeps, "fetchImpl" | "beforeRead" | "signal"> = {},
 ) {
   return getProvider(manager.providerId).createApiPortal(
     manager.getSession(),
-    apiContext(manager, deps.fetchImpl, deps.beforeRead),
+    apiContext(manager, deps),
   );
 }
 
@@ -297,7 +376,10 @@ export function createKeepalive(
   const { mode, webIntervalMs, quietHours } = config.keepalive;
   if (mode === "off") return null;
   const now = deps.now ?? Date.now;
-  const wrap = deps.wrap ?? (<T>(run: () => Promise<T>) => run());
+  const budget = requestBudgetOf(manager);
+  // Every tick is background work: the budget never lets it wait in line or test the water.
+  const hostWrap = deps.wrap ?? (<T>(run: () => Promise<T>) => run());
+  const wrap = <T>(run: () => Promise<T>) => asBackground(() => hostWrap(run));
   const tasks: KeepaliveTask[] = [
     {
       name: "app",
@@ -337,6 +419,10 @@ export function createKeepalive(
     quietHours,
     hourOf: deps.hourOf,
     log: deps.log,
+    pausedUntil: () => {
+      const s = budget.snapshot();
+      return s.breaker === "closed" && s.retryAt === null ? null : (s.retryAt ?? now());
+    },
   });
   manager.subscribe((event) => {
     if (event.type === "login") scheduler.resume("app");

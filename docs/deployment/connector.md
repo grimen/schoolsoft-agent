@@ -214,6 +214,15 @@ replicas or let another container share this volume.
   on disk. Ask the AI for "the latest", or set `SCHOOLSOFT_CACHE=off`. A
   disconnected app, or an app without permission for a child, is refused before
   anything remembered is looked at.
+- **"SchoolSoft is pushing back" on the owner page:** SchoolSoft asked for fewer
+  requests or kept failing, so the connector sends it nothing until the time shown
+  (UTC), then lets one request through to test. Your sign-in is kept; signing in
+  again does not help. AI apps and your own app get the same message, and a
+  custom app gets `503` with `Retry-After`. All apps share one pace: by default
+  at most 20 requests a minute to SchoolSoft (`SCHOOLSOFT_REQUESTS_PER_MINUTE`,
+  1 to 60), 10 at once (`SCHOOLSOFT_REQUEST_BURST`, 1 to 20) and 2 at the same
+  time (`SCHOOLSOFT_MAX_CONCURRENT_REQUESTS`, 1 to 4). See
+  [troubleshooting](../getting-started/troubleshooting.md#schoolsoft-is-asking-for-fewer-requests-or-schoolsoft-has-pushed-back-several-times-in-a-row).
 - **Remove one AI app:** revoke its permission on the owner page, then remove the
   connector in that app. Verify that it can no longer retrieve school data. The
   other app should retain its own permission.
@@ -259,9 +268,12 @@ ChatGPT's addresses, so no other app can finish connecting yet. A small page ser
 by the connector itself is planned as the first app that can.
 
 `GET /api/v1/session` tells the app whether the connector is signed in to
-SchoolSoft and which children it may show. When the SchoolSoft sign-in has
-expired, every data request answers `409` with a link to your owner page, so the
-app can ask you to sign in again rather than showing an error it cannot explain.
+SchoolSoft, which children it may show and whether SchoolSoft is currently pushing
+back (`schoolsoft.portal`, with the time requests resume). When the SchoolSoft
+sign-in has expired, every data request answers `409` with a link to your owner
+page, so the app can ask you to sign in again rather than showing an error it
+cannot explain. While SchoolSoft is pushing back, data requests answer `503` with
+`Retry-After` instead; the app should wait, not send you to sign in.
 Requests from other websites are refused (the API only serves pages on the
 connector's own address for now), and each visitor may make 60 requests a minute.
 Error messages come in Swedish or English, following the app's language, or

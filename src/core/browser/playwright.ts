@@ -8,12 +8,17 @@
  *    the URL matches an explicit read-only allowlist;
  *  - a navigation that lands on the login page or SchoolSoft's "log in
  *    again" gate throws SessionLostError / PortalGatedError instead of
- *    being followed (loading Login.jsp invalidates the cookie session).
+ *    being followed (loading Login.jsp invalidates the cookie session);
+ *  - every navigation is one request of the process's RequestBudget: it
+ *    waits for a token, fails fast while the portal is pushing back, and its
+ *    answer's status feeds the breaker. The page's own sub-requests are the
+ *    portal's page at work and are not counted separately.
  */
 import type { Browser, BrowserContext, Page, Route } from "playwright";
 import { PortalGatedError, SessionLostError } from "../portal/types.js";
 import type { BrowserEngine, BrowserSession, PortalPage, WithPageOptions } from "./session.js";
 import type { WebCookie } from "./web-login.js";
+import type { RequestBudget } from "../budget/budget.js";
 
 import { loadPlaywright, type PlaywrightLike } from "./optional-playwright.js";
 
@@ -24,6 +29,8 @@ export const defaultLoader: PlaywrightLoader = loadPlaywright;
 
 export interface PlaywrightSessionOptions {
   school: string;
+  /** The process's request budget; every navigation goes through it. */
+  budget: RequestBudget;
   /** Fresh cookie header on every page: the session may have been refreshed. */
   cookieHeader: () => string | null;
   /** Cookies from a real web login; when present they are used instead of cookieHeader. */
@@ -118,7 +125,14 @@ export class PlaywrightSession implements BrowserSession {
     const base = `${this.origin}/${this.o.school}`;
     return {
       goto: async (path: string) => {
-        await page.goto(base + path, { waitUntil: "load", timeout: 30_000 });
+        await this.o.budget.run(
+          {},
+          () => page.goto(base + path, { waitUntil: "load", timeout: 30_000 }),
+          (response) => ({
+            status: response?.status() ?? 200,
+            retryAfter: response?.headers()["retry-after"] ?? null,
+          }),
+        );
         const landed = page.url();
         if (/\/jsp\/Login\.jsp/.test(landed))
           throw new SessionLostError(path, Boolean(web?.length));

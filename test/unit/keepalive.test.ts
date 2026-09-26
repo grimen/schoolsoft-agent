@@ -6,7 +6,6 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SchoolsoftClient } from "@elias4044/ssp-node";
 import {
   AgentError,
   InputError,
@@ -21,6 +20,7 @@ import {
   NotConfiguredError,
   UpstreamError,
   createKeepalive,
+  createRequestBudget,
   createSessionManager,
   inQuietHours,
   resolveConfig,
@@ -31,6 +31,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { startMcpKeepalive } from "../../src/mcp/keepalive.js";
 import { FakeTimer } from "../helpers/fake-timer.js";
+import { idleTimer } from "../helpers/budget.js";
 import { SchoolsoftSim, savedSession } from "../helpers/schoolsoft-sim.js";
 import { makeContext } from "../helpers/fakes.js";
 
@@ -246,7 +247,6 @@ function wired(
   t: { mock: { method: typeof import("node:test").mock.method } },
   o: { mode: "off" | "app" | "all"; quietHours?: string; web?: boolean; ttlSeconds?: number },
 ) {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
   const timer = new FakeTimer();
   const sim = new SchoolsoftSim(timer.now);
   const store = new MemorySessionStore();
@@ -277,6 +277,8 @@ function wired(
     store,
     history,
     now: timer.now,
+    // The budget on the same fake clock; keepalive requests are background and never wait on its timer.
+    budget: createRequestBudget(config, { now: timer.now, timer: idleTimer }),
     fetchImpl: sim.fetch,
     pending: new MemoryPendingLoginStore(),
     openBrowser: () => {
@@ -464,8 +466,7 @@ test("logout stops everything; nothing saved stops the app task; quiet hours fro
   assert.deepEqual(quiet.sim.requests, []);
 });
 
-test("production defaults: an unref'd real timer and Math.random, started and stopped without a request", (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("production defaults: an unref'd real timer and Math.random, started and stopped without a request", () => {
   const config = resolveConfig([{ school: "taby", keepalive: "all" }], {
     home: "/unused",
     platform: "linux",
@@ -482,8 +483,7 @@ test("production defaults: an unref'd real timer and Math.random, started and st
   assert.deepEqual(keepalive.status(), { app: "stopped", web: "stopped" });
 });
 
-test("a host queue wraps every tick (the connector serialises keepalive with its reads)", async (t) => {
-  t.mock.method(SchoolsoftClient.prototype, "verifySession", async () => true);
+test("a host queue wraps every tick (the connector serialises keepalive with its reads)", async () => {
   const timer = new FakeTimer();
   const sim = new SchoolsoftSim(timer.now);
   const store = new MemorySessionStore();

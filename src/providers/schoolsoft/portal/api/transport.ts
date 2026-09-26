@@ -1,12 +1,13 @@
 /**
  * HTTP transport shared by the API backends: one place for the base URL,
  * the mobile user agent, JSON handling and the status → error mapping.
- * The fetch function is injectable, so every backend is unit-testable.
+ * The fetch function is required: in production it is the budgeted one
+ * from net.ts (the provider's entry points build it), in unit tests a fake.
  */
-import { schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
+import { ssUrl } from "@elias4044/ssp-node";
 import { guardNetwork, UpstreamError } from "../../../../core/errors/index.js";
 
-/** Minimal shape of ssp-node's schoolsoftFetch, injectable for tests. */
+/** Minimal shape of the provider's HTTP helper (net.ts `SchoolsoftFetch`), injectable for tests. */
 export type ApiFetch = (
   url: string,
   school: string,
@@ -16,6 +17,10 @@ export type ApiFetch = (
     body?: string;
     followRedirects?: boolean;
     responseType?: "json" | "text" | "buffer";
+    /** The host request's cancellation, for the budget's queue. */
+    signal?: AbortSignal;
+    /** Marks the one kind of request that changes data, for the budget. */
+    write?: boolean;
   },
   userAgent?: string,
 ) => Promise<{ status: number; data: unknown }>;
@@ -23,14 +28,12 @@ export type ApiFetch = (
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 
 export class SchoolsoftHttp {
-  private readonly fetchImpl: ApiFetch;
   constructor(
     readonly school: string,
-    fetchImpl?: ApiFetch,
+    private readonly fetchImpl: ApiFetch,
     private readonly beforeRead?: () => void,
-  ) {
-    this.fetchImpl = fetchImpl ?? (schoolsoftFetch as ApiFetch);
-  }
+    private readonly signal?: AbortSignal,
+  ) {}
 
   /** JSON GET; 401/403 and other non-200 statuses become errors naming the path. */
   async get<T>(path: string, headers: Record<string, string>): Promise<T> {
@@ -39,7 +42,11 @@ export class SchoolsoftHttp {
       this.fetchImpl(
         ssUrl(this.school, path),
         this.school,
-        { headers: { ...headers, Accept: "application/json" }, responseType: "json" },
+        {
+          headers: { ...headers, Accept: "application/json" },
+          responseType: "json",
+          signal: this.signal,
+        },
         MOBILE_UA,
       ),
     );
@@ -63,7 +70,7 @@ export class SchoolsoftHttp {
   ): Promise<{ status: number; data: unknown }> {
     // The HTTP helper re-issues a POST when it follows a 301/302/307/308;
     // a write must reach the network once, so redirects are not followed.
-    const r = await this.post(path, cookie, body, { followRedirects: false });
+    const r = await this.post(path, cookie, body, { followRedirects: false, write: true });
     if (r.status < 200 || r.status > 299) throw new UpstreamError(r.status, path);
     return r;
   }
@@ -72,7 +79,7 @@ export class SchoolsoftHttp {
     path: string,
     cookie: string,
     body: unknown,
-    extra: { followRedirects?: false } = {},
+    extra: { followRedirects?: false; write?: true } = {},
   ) {
     return guardNetwork(() =>
       this.fetchImpl(
@@ -87,6 +94,7 @@ export class SchoolsoftHttp {
           },
           body: JSON.stringify(body),
           responseType: "json",
+          signal: this.signal,
           ...extra,
         },
         MOBILE_UA,
@@ -104,7 +112,8 @@ export class SchoolsoftHttp {
           method: "PUT",
           headers: { Cookie: cookie, Accept: "application/json" },
           responseType: "text",
-        } as never,
+          signal: this.signal,
+        },
         MOBILE_UA,
       ),
     );

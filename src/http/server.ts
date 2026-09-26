@@ -8,7 +8,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
-import { AgentError, operations, type Lang } from "../core/index.js";
+import { AgentError, operations, type Lang, type PortalHealth } from "../core/index.js";
 import type { ConnectorConfig } from "./config.js";
 import type { ConnectorOAuthProvider } from "./oauth.js";
 import { CONNECTOR_OPERATIONS, type ConnectorRuntime } from "./runtime.js";
@@ -26,6 +26,8 @@ export interface ServerOptions {
   warn?: (message: string) => void;
   /** Language of REST problem details when the caller names neither sv nor en. */
   lang?: Lang;
+  /** Clock for REST's Retry-After (tests). */
+  now?: () => number;
 }
 function sameToken(received: unknown, expected: string): boolean {
   if (typeof received !== "string") return false;
@@ -41,6 +43,7 @@ export function createConnectorApp({
   sessions = new OwnerSessions(config.adminPassword),
   warn = (message) => void process.stderr.write(message + "\n"),
   lang = "en",
+  now,
 }: ServerOptions) {
   const app = express();
   app.disable("x-powered-by");
@@ -164,6 +167,11 @@ export function createConnectorApp({
     }
     next();
   });
+  /** One line, only while the school portal is pushing back: nothing for the parent to fix, just wait. */
+  const portalNotice = (portal: PortalHealth) =>
+    portal.state === "ok"
+      ? ""
+      : `<p>SchoolSoft is pushing back (${esc(portal.state.replace("_", " "))}): the connector sends it nothing ${portal.retryAt ? `until ${esc(portal.retryAt)} (UTC)` : "until one request has tested whether it answers again"}. Signing in again does not help; try later.</p>`;
   app.get("/owner", async (req, res) => {
     const status = await runtime.status();
     const csrf = res.locals.csrf as string;
@@ -180,7 +188,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Your SchoolSoft connector",
-        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
+        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${portalNotice(status.portal)}${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
           .listGrants()
           .map(
             (g) =>
@@ -377,7 +385,7 @@ export function createConnectorApp({
   // Read-only REST for custom UIs: same tokens, scopes, grants and runtime as /mcp.
   app.use(
     API_BASE,
-    restApi({ publicUrl: config.publicUrl, oauth, runtime, lang, limit: perMinute }),
+    restApi({ publicUrl: config.publicUrl, oauth, runtime, lang, limit: perMinute, now }),
   );
   app.use((_req, res) => {
     res.status(404).send(page("Page not found", '<p><a href="/owner">Open your connector</a></p>'));

@@ -16,6 +16,7 @@ import {
   MemoryPendingLoginStore,
 } from "../../src/core/index.js";
 import { SchoolsoftSession } from "../../src/providers/schoolsoft/session.js";
+import { noRequests } from "../helpers/budget.js";
 
 function jwt(payload: Record<string, unknown>): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -102,7 +103,7 @@ function strategyWithFakes(
 
 test("login: code → token (vApp) → parent profile → cookies bound to first child", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftSession("taby");
+  const client = new SchoolsoftSession("taby", noRequests);
   const info = await strategy.login(client);
 
   assert.equal(info.name, "Förälder Test");
@@ -129,7 +130,7 @@ test("login: code → token (vApp) → parent profile → cookies bound to first
 
 test("restore: expired token refreshes with vApp and re-binds the remembered child", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftSession("taby");
+  const client = new SchoolsoftSession("taby", noRequests);
   await strategy.restore(client, {
     school: "taby",
     data: { accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 }, // long expired
@@ -145,7 +146,7 @@ test("restore: expired token refreshes with vApp and re-binds the remembered chi
 
 test("focusChild re-exchanges cookies for the other child and rejects unknown ids", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftSession("taby");
+  const client = new SchoolsoftSession("taby", noRequests);
   await strategy.login(client);
   await strategy.focusChild(client, 101);
   assert.equal(client.client.cookieHeader, "JSESSIONID=js-101; hash=h; usertype=2");
@@ -156,7 +157,7 @@ test("focusChild re-exchanges cookies for the other child and rejects unknown id
 
 test("restore: unknown expiry refreshes up front", async () => {
   const { strategy, log } = strategyWithFakes();
-  const client = new SchoolsoftSession("taby");
+  const client = new SchoolsoftSession("taby", noRequests);
   await strategy.restore(client, {
     school: "taby",
     data: { accessToken: "old", refreshToken: "R1" },
@@ -182,7 +183,7 @@ test("restore: a 401 on the profile call triggers one refresh-and-retry", async 
     return inner(url, school, options);
   };
   const strategy = new BankIdBrowserStrategy({ fetchImpl });
-  const client = new SchoolsoftSession("taby");
+  const client = new SchoolsoftSession("taby", noRequests);
   await strategy.restore(client, {
     school: "taby",
     data: { accessToken: "stale", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 }, // looks valid, but server says 401
@@ -239,21 +240,21 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
 
   // login with an opaque token: no refresh token, no expiry
   const opaque = variant({ tokenData: { access_token: "opaque" } });
-  const c1 = new SchoolsoftSession("taby");
+  const c1 = new SchoolsoftSession("taby", noRequests);
   await opaque.login(c1);
   assert.equal(c1.client.refreshToken, null);
 
   // restore guards
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
-      new SchoolsoftSession("taby"),
+      new SchoolsoftSession("taby", noRequests),
       saved({ data: {} }) as never,
     ),
     /no access token/,
   );
   await assert.rejects(
     new BankIdBrowserStrategy({ fetchImpl: inner }).restore(
-      new SchoolsoftSession("taby"),
+      new SchoolsoftSession("taby", noRequests),
       saved({ data: { accessToken: "old", accessTokenExpiresAt: 1 } }) as never,
     ),
     /no refresh token saved/,
@@ -261,7 +262,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
   // profile 500: not a 401, rethrown without refresh
   await assert.rejects(
     variant({ parentStatus: 500 }).restore(
-      new SchoolsoftSession("taby"),
+      new SchoolsoftSession("taby", noRequests),
       saved({
         data: { accessToken: "t", refreshToken: "R1", accessTokenExpiresAt: 9_999_999_999 },
       }) as never,
@@ -269,7 +270,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
     /HTTP 500/,
   );
   // profile 401 but no refresh token: rethrown
-  const c2 = new SchoolsoftSession("taby");
+  const c2 = new SchoolsoftSession("taby", noRequests);
   await assert.rejects(
     variant({ parentStatus: 401 }).restore(
       c2,
@@ -279,7 +280,7 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
   );
   // refresh response without rotation keeps the old refresh token
   const keep = variant({ tokenData: { access_token: "fresh" } });
-  const c3 = new SchoolsoftSession("taby");
+  const c3 = new SchoolsoftSession("taby", noRequests);
   await keep.restore(
     c3,
     saved({ data: { accessToken: "old", refreshToken: "R1", accessTokenExpiresAt: 1 } }) as never,
@@ -287,19 +288,24 @@ test("edge cases: tokens without refresh/expiry, restore guards, no children, ch
   assert.equal(c3.client.refreshToken, "R1");
   // focusChild before any login
   await assert.rejects(
-    new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(new SchoolsoftSession("taby"), 100),
+    new BankIdBrowserStrategy({ fetchImpl: inner }).focusChild(
+      new SchoolsoftSession("taby", noRequests),
+      100,
+    ),
     /Not logged in/,
   );
   // no children
   await assert.rejects(
-    variant({ parent: { ...PARENT, children: [] } }).login(new SchoolsoftSession("taby")),
+    variant({ parent: { ...PARENT, children: [] } }).login(
+      new SchoolsoftSession("taby", noRequests),
+    ),
     /no children/,
   );
   // child without school: schoolName null (and the exchange has no orgId)
   const noSchool = variant({
     parent: { ...PARENT, children: [{ ...PARENT.children[0], schools: [] }] },
   });
-  await assert.rejects(noSchool.login(new SchoolsoftSession("taby")), /has no school/);
+  await assert.rejects(noSchool.login(new SchoolsoftSession("taby", noRequests)), /has no school/);
 });
 
 test("session wiring forwards remote authorization through the provider and preserves PKCE at token exchange", async () => {

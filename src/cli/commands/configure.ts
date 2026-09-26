@@ -5,7 +5,7 @@
  */
 import type { Command } from "commander";
 import { join } from "node:path";
-import { defaultConfigDir, envSource, getProvider } from "../../core/index.js";
+import { createRequestBudget, defaultConfigDir, envSource, getProvider } from "../../core/index.js";
 import { writeConfigFile, readConfigFile } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit } from "../program.js";
@@ -42,7 +42,11 @@ export function registerConfigure(
         }
         // The provider is known before the school is: env/flag, else the default.
         const provider = getProvider(g.provider ?? envSource(deps.env).provider ?? "schoolsoft");
-        const dir = provider.createSchoolDirectory(join(configDir, "schools.json"));
+        // No session yet: a budget of the provider's defaults for this one command.
+        const dir = provider.createSchoolDirectory(
+          join(configDir, "schools.json"),
+          createRequestBudget({ provider: provider.id, requestBudget: {} }),
+        );
         const hits = await dir.find(query, 5);
         if (hits.length === 0) throw new CliExit(EXIT.ERROR, `No school matched "${query}".`);
         let pick = hits[0];

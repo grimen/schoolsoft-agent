@@ -10,6 +10,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { browserStatus } from "../../src/core/browser/install.js";
 import { PlaywrightSession } from "../../src/core/browser/playwright.js";
+import { CountingBudget } from "../helpers/budget.js";
 import {
   extractBookings,
   extractContacts,
@@ -28,6 +29,7 @@ const skip = status.ready ? false : `headless browser not installed (${status.hi
 // file:// origin: cookies are not applicable, so the session gets a dummy header.
 function session() {
   return new PlaywrightSession({
+    budget: new CountingBudget(),
     school: "",
     cookieHeader: () => "x=1",
     origin: pathToFileURL(fixtures).toString().replace(/\/$/, ""),
