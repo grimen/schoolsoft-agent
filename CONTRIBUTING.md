@@ -67,6 +67,25 @@ The type decides the changelog section and the version bump
 patch, everything else → no release. A fix that only touches CI is `ci:`,
 not `fix(ci):`.
 
+### Is my change breaking?
+
+The [stability policy](docs/development/stability.md) decides; in short:
+
+- A tool, command, flag, input, REST route or setting is renamed or removed,
+  or a call that worked before now fails (new required input, narrower range,
+  stricter setting).
+- A typed output loses, renames or retypes a field, or gains a nullable field
+  or a new enum value.
+- An error changes kind or exit code (unless it was exit 1, a bug, before), or
+  an observable default changes.
+
+Any of these is breaking: deprecate first where the policy's notice period
+applies, then put `!` in the PR title (`feat(cli)!: …`) and a
+`BREAKING CHANGE: <what changed, what to do>` footer in a commit. Wording,
+descriptions, untyped (raw) output, `--format text` output and the library
+export are not contracts. A persisted-format change ships its migration and
+says so in the commit body.
+
 **Where it is enforced:** the `commit-msg` hook runs commitlint on every
 local commit, and the `Checks / Commits` job re-checks the PR's commits and
 its **title** on every push and title edit. Squash merges use the title as

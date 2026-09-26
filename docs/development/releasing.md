@@ -61,6 +61,11 @@ release-please reads the commits since the last `v*` tag:
 To force a specific version once, add a footer to any commit on `main`:
 `Release-As: 1.0.0`.
 
+What counts as breaking, the pre-1.0 rule and how something is deprecated
+first: [stability policy](stability.md). A breaking change carries `!` in the PR
+title and a `BREAKING CHANGE:` footer in a commit; release-please then lists it
+under **⚠ BREAKING CHANGES** in the changelog.
+
 ## What lands in the changelog
 
 Only the sections that mean something to a user: **Features**, **Bug
