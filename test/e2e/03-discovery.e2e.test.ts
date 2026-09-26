@@ -36,7 +36,7 @@ test("D2: guardian API coverage (Eva + webview)", { skip }, async () => {
   const orgId = child.schools[0].orgId;
   const week = 37;
   const probes: [string, () => Promise<unknown>][] = [
-    ["lunch", () => api.getLunchWeek(orgId, week)],
+    ["lunch", () => api.getLunchWeek(orgId, week, new Date().getFullYear())],
     ["news", () => api.getNews(guardian.userId, orgId, child.studentId)],
     ["inbox", () => api.getInbox(guardian.userId, orgId)],
     ["nextEvent", () => api.getNextCalendarEvent(guardian.userId, orgId, child.studentId)],

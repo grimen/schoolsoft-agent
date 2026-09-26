@@ -16,11 +16,37 @@ import {
   type ProviderSession,
   createCompositePortal,
 } from "../../src/core/index.js";
+import type { CalendarEvent, Lesson, Message } from "../../src/core/domain/schemas.js";
+import { isoWeekDate } from "../../src/core/domain/time.js";
 import { schoolsoftProvider, ROUTING } from "../../src/providers/schoolsoft/index.js";
 
-export const FAKE_LESSONS = [
-  { name: "Matematik", startDate: "2026-08-31T08:30", endDate: "2026-08-31T09:50", room: "A12" },
-  { name: "Svenska", startDate: "2026-08-31T10:10", endDate: "2026-08-31T11:30", room: "B03" },
+const lesson = (id: string, title: string, start: string, end: string, room: string): Lesson => ({
+  id,
+  title,
+  start,
+  end,
+  room,
+  group: "4B",
+  teacher: "Lärare Test",
+  note: null,
+});
+
+/** Domain lessons, as a provider returns them after mapping. */
+export const FAKE_LESSONS: Lesson[] = [
+  lesson(
+    "lesson:1@2026-08-31T08:30:00+02:00",
+    "Matematik",
+    "2026-08-31T08:30:00+02:00",
+    "2026-08-31T09:50:00+02:00",
+    "A12",
+  ),
+  lesson(
+    "lesson:2@2026-08-31T10:10:00+02:00",
+    "Svenska",
+    "2026-08-31T10:10:00+02:00",
+    "2026-08-31T11:30:00+02:00",
+    "B03",
+  ),
 ];
 
 export const CONTEXT: GuardianContext = {
@@ -67,22 +93,49 @@ export const serializeFake = (s: FakeSession): Record<string, unknown> => ({
 
 export const fakePortal = {
   getScheduleWeek: async (_week: number) => FAKE_LESSONS,
-  getCalendar: async (_start: string, _end: string) =>
-    FAKE_LESSONS.map((entry, index) => ({
-      ...entry,
-      eventId: index + 1,
+  getCalendar: async (_start: string, _end: string): Promise<CalendarEvent[]> =>
+    FAKE_LESSONS.map((l) => ({
+      id: l.id,
+      kind: "lesson",
+      title: l.title,
       allDay: false,
-      source: "lessons",
+      start: l.start,
+      end: l.end,
+      location: l.room,
+      teacher: l.teacher,
+      group: l.group,
+      category: "lesson",
+      note: null,
     })),
-  getLunchWeek: async (_org: number, week: number) => [
-    { week, dayId: 5, dishes: [{ mealType: "Lunch", description: "Spagetti" }] },
+  getLunchWeek: async (_org: number, week: number, year: number) => [
+    {
+      date: isoWeekDate(year, week, 5),
+      weekday: 5,
+      dishes: [{ kind: "Lunch", description: "Spagetti" }],
+    },
   ],
   getAssignmentsWeek: async () => [{ id: 7, title: "Läxa" }],
   getAssignmentDetail: async (id: number) => ({ view: { id }, sections: [] }),
   getNews: async () => [{ id: 1, title: "Studiedag fredag" }],
-  getInbox: async () => [
-    { id: 5, subject: "Hej", isRead: false },
-    { id: 6, subject: "Läst", isRead: true },
+  getInbox: async (): Promise<Message[]> => [
+    {
+      id: 5,
+      subject: "Hej",
+      preview: "Hej!",
+      read: false,
+      sender: { name: "Lärare Test" },
+      sentAt: "2026-09-01T14:05:00+02:00",
+      hasAttachments: false,
+    },
+    {
+      id: 6,
+      subject: "Läst",
+      preview: "Redan läst",
+      read: true,
+      sender: null,
+      sentAt: "2026-08-28T09:00:00+02:00",
+      hasAttachments: true,
+    },
   ],
   getMessage: async (_u: number, _o: number, id: number) => ({ id, message: "Full text" }),
   getActivityLog: async (limit = 20) =>

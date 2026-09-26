@@ -168,13 +168,13 @@ test("wiring: reads are cached per child, `fresh: true` goes upstream, and login
   assert.deepEqual(await runOperation(schedule, w.ctx, { week: 2, fresh: false }), fresh);
 
   const other = (await runOperation(schedule, w.ctx, { week: 2, child_id: 101 })) as {
-    lessons: string[];
+    lessons: { note: string }[];
   };
-  assert.match(other.lessons[0], /^JSESSIONID=101;/);
+  assert.match(other.lessons[0].note, /^JSESSIONID=101;/);
   const back = (await runOperation(schedule, w.ctx, { week: 2, child_id: 100 })) as {
-    lessons: string[];
+    lessons: { note: string }[];
   };
-  assert.match(back.lessons[0], /^JSESSIONID=100;/);
+  assert.match(back.lessons[0].note, /^JSESSIONID=100;/);
   assert.equal(w.sim.reads.length, 4, "child switches emptied the cache both ways");
 
   await runOperation(schedule, w.ctx, { week: 2 });

@@ -17,6 +17,17 @@ test("ok(): structured content under the limit, truncated text (no structured co
   assert.ok(big.content[0].text.length < CHARACTER_LIMIT + 200);
 });
 
+test("typed tools: structured content even when the text is truncated; errors carry the two lines only", () => {
+  const data = { blob: "x".repeat(CHARACTER_LIMIT + 10) };
+  const big = ok(data, true);
+  assert.equal(big.structuredContent, data, "the protocol requires it with an outputSchema");
+  assert.match(big.content[0].text, /truncated at \d+ chars/);
+  const error = fail(new NotAuthenticatedError("x"), "en", true);
+  assert.equal(error.isError, true);
+  assert.equal(error.structuredContent, undefined);
+  assert.match(error.content[0].text, /^Error: Not logged in to SchoolSoft \(x\)\.\nNext: /);
+});
+
 test("fail(): problem line + next step, structured kind, both languages; bugs are called bugs", () => {
   const bug = fail(new Error("boom"));
   assert.match(bug.content[0].text, /^Error: Unexpected error: boom\nNext: This looks like a bug/);

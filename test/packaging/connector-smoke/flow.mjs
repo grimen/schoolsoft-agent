@@ -283,17 +283,19 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   );
   const children = await call(limited.tokens.access_token, "list_children");
   assert.ok(!refused(children));
-  assert.deepEqual(JSON.parse(children.data.result.content[0].text).children, [ALLOWED]);
+  assert.deepEqual(JSON.parse(children.data.result.content[0].text).children, [
+    { id: ALLOWED.studentId, firstName: ALLOWED.firstName },
+  ]);
   const lunch = await call(limited.tokens.access_token, "get_lunch_menu", { week: 37 });
   assert.ok(!refused(lunch));
   const menu = JSON.parse(lunch.data.result.content[0].text);
   assert.equal(menu.week, 37);
-  assert.equal(menu.menu[0].dishes[0].description, FAKE_LUNCH_DISH);
+  assert.equal(menu.days[0].dishes[0].description, FAKE_LUNCH_DISH);
   const schedule = await call(limited.tokens.access_token, "get_schedule", { week: 37 });
   assert.ok(!refused(schedule));
   assert.match(
     schedule.data.result.content[0].text,
-    new RegExp(`"servedForChild":${ALLOWED.studentId}\\b`),
+    new RegExp(`"note":"servedForChild=${ALLOWED.studentId}"`),
   );
   step("tools/list and tool calls return the fake portal's data");
 

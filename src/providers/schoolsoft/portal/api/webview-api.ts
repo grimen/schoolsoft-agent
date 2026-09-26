@@ -4,7 +4,9 @@
  * Schedule, assignments and the subject rooms behind the React Ämne view.
  */
 import type { SubjectRoom } from "../../../../core/portal/types.js";
-import { calendarEntries, sortCalendar } from "./calendar.js";
+import type { CalendarEvent, Lesson } from "../../../../core/domain/schemas.js";
+import { sortCalendar, toCalendarEvents } from "../domain/agenda.js";
+import { toLessons } from "../domain/lessons.js";
 import type { SchoolsoftHttp } from "./transport.js";
 import { AgentError } from "../../../../core/errors/index.js";
 
@@ -30,22 +32,22 @@ export class WebviewApi {
     return this.cookie<unknown>("/rest-api/session");
   }
 
-  async getCalendar(startDate: string, endDate: string): Promise<unknown[]> {
+  async getCalendar(startDate: string, endDate: string): Promise<CalendarEvent[]> {
     const query = new URLSearchParams({ start_date: startDate, end_date: endDate });
     // Sequential: never leave an in-flight sibling request behind during recovery.
-    const lessons = calendarEntries(
+    const lessons = toCalendarEvents(
       await this.cookie<unknown>(`/rest-api/parent/calendar/lessons/agenda?${query}`),
-      "lessons",
+      "lesson",
     );
-    const events = calendarEntries(
+    const events = toCalendarEvents(
       await this.cookie<unknown>(`/rest-api/parent/calendar/event/agenda?${query}`),
-      "events",
+      "event",
     );
     return sortCalendar([...lessons, ...events]);
   }
 
-  getScheduleWeek(week: number): Promise<unknown[]> {
-    return this.cookie<unknown[]>(`/rest-api/parent/calendar/lessons/week/${week}`);
+  async getScheduleWeek(week: number): Promise<Lesson[]> {
+    return toLessons(await this.cookie<unknown>(`/rest-api/parent/calendar/lessons/week/${week}`));
   }
 
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {

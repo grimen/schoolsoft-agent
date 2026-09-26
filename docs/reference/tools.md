@@ -2,7 +2,7 @@
 
 # MCP tools
 
-Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredContent` plus a text copy (truncated at 25 000 characters).
+Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredContent` plus a text copy (truncated at 25 000 characters). Tools with an Output table declare it as their `outputSchema`; their results are validated and always carry `structuredContent`, and their errors are the two text lines only.
 
 | Tool | Purpose | Annotations |
 |---|---|---|
@@ -66,12 +66,24 @@ Example call:
 
 List the children on this guardian account and which one is in focus.
 
-Returns: { parent, children: [{ studentId, firstName, school, className }], childInFocus }.
+Returns: { guardianName, children: [{ id, firstName, schoolName, className }], childInFocus }.
 
 Use when: the user has more than one child, or before passing child_id
 to another operation.
 
 _No arguments._
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `guardianName` | string |  |
+| `children` | object[] |  |
+| `children[].id` | integer | Child id; pass it as child_id |
+| `children[].firstName` | string |  |
+| `children[].schoolName` | string or null | School name; null when not given |
+| `children[].className` | string or null | Class name; null when not given |
+| `childInFocus` | integer | Id of the child reads default to |
 
 Example call:
 
@@ -86,15 +98,15 @@ Example call:
 
 Get the lesson schedule (timetable) for one child for a given ISO week.
 
-Returns lessons with name, start/end (ISO datetime), room, teaching group
-and teacher.
+Returns lessons with title, start/end (ISO date-time with the Stockholm offset),
+room, teaching group, teacher and note.
 
 Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { week, child, lessons: [...] }
+Returns: { week, child: { id, firstName }, lessons: [{ id, title, start, end, room, group, teacher, note }] }
 
 Use when: "vad har barnet på schemat", "när slutar skolan på fredag".
 
@@ -103,6 +115,24 @@ Use when: "vad har barnet på schemat", "när slutar skolan på fredag".
 | `week` | number | no | ISO week number 1–53. Defaults to the current week. |
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `fresh` | boolean | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `week` | integer |  |
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `lessons` | object[] |  |
+| `lessons[].id` | string | Stable id of this lesson occurrence |
+| `lessons[].title` | string | Subject or lesson name |
+| `lessons[].start` | string (date-time) | ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00 |
+| `lessons[].end` | string (date-time) | ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00 |
+| `lessons[].room` | string or null | Room; null when not given |
+| `lessons[].group` | string or null | Teaching group; null when not given |
+| `lessons[].teacher` | string or null | Teacher; null when not given |
+| `lessons[].note` | string or null | Lesson description; null when not given |
 
 Example call:
 
@@ -125,12 +155,13 @@ Args:
   - child_id (optional): from list_children; defaults to the child in focus.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { start_date, end_date, timezone, child, entries: [...] }.
-Entries retain calendar fields (name, startDate, endDate, allDay and optional
-room, teacher, description) and source: "lessons" or "events". Local timestamps
-are in Europe/Stockholm; do not interpret them as UTC. Both sources must succeed.
-School events depend on what the school publishes. Lunch entries are timetable
-slots; use get_lunch_menu for dishes. Use get_schedule for the existing weekly timetable.
+Returns: { startDate, endDate, timezone, child: { id, firstName }, events: [...] }.
+Each event has id, kind ("lesson" or "event"), title, allDay, start, end,
+location, teacher, group, category and note. start and end are dates for
+date-only entries, otherwise ISO date-times with the Stockholm offset.
+Both sources must succeed. School events depend on what the school publishes.
+Lunch entries are timetable slots (category "lunch"); use get_lunch_menu for
+dishes. Use get_schedule for the weekly timetable.
 
 Use when: "What is happening at school next week?", "Show September's calendar",
 "vad händer i skolan nästa vecka", "visa lektioner och skolhändelser".
@@ -141,6 +172,29 @@ Use when: "What is happening at school next week?", "Show September's calendar",
 | `end_date` | string | no | Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end. |
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `fresh` | boolean | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `startDate` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `endDate` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `timezone` | `"Europe/Stockholm"` |  |
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `events` | object[] |  |
+| `events[].id` | string | Stable id of this calendar entry |
+| `events[].kind` | `"lesson"` \| `"event"` | A timetable entry or a school event |
+| `events[].title` | string |  |
+| `events[].allDay` | boolean |  |
+| `events[].start` | string (date) or string (date-time) | Date for date-only entries |
+| `events[].end` | string (date) or string (date-time) | Date for date-only entries |
+| `events[].location` | string or null | Room or place; null when not given |
+| `events[].teacher` | string or null | Teacher; null when not given |
+| `events[].group` | string or null | Teaching group; null when not given |
+| `events[].category` | string or null | Portal category, e.g. lesson or lunch; null when not given |
+| `events[].note` | string or null | Description; null when not given |
 
 Example call:
 
@@ -156,11 +210,12 @@ Example call:
 Get the school lunch menu for a given ISO week (the child's school).
 
 Args:
-  - week (number, optional): ISO week 1–53. Defaults to current week.
+  - week (number, optional): ISO week 1–53. Defaults to current week; the week
+    nearest today is meant (week 2 asked in December is next January's).
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { week, child, menu: [{ week, dayId (Mon=1…Fri=5), dishes: [{ mealType, description }] }] }.
+Returns: { year, week, child: { id, firstName }, days: [{ date, weekday (1 = Monday), dishes: [{ kind, description }] }] }.
 
 Use when: "vad är det till lunch", "vad serveras på onsdag".
 
@@ -169,6 +224,22 @@ Use when: "vad är det till lunch", "vad serveras på onsdag".
 | `week` | number | no | ISO week number 1–53. Defaults to the current week. |
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `fresh` | boolean | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `year` | integer | ISO week-year |
+| `week` | integer |  |
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `days` | object[] |  |
+| `days[].date` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `days[].weekday` | integer | 1 = Monday … 7 = Sunday |
+| `days[].dishes` | object[] |  |
+| `days[].dishes[].kind` | string or null | Kind of meal, as the school names it; null when not given |
+| `days[].dishes[].description` | string |  |
 
 Example call:
 
@@ -276,8 +347,8 @@ Args:
   - limit (number, optional): max items, default 20.
   - unread_only (boolean, optional): only unread messages.
 
-Returns: { messages: [{ id, subject, message (preview), isRead, sender, date, hasFiles }] }.
-For a full message body use get_message.
+Returns: { messages: [{ id, subject, preview, read, sender: { name } | null, sentAt, hasAttachments }] }.
+For a full message body use get_message with the id.
 
 Use when: "har jag fått något meddelande från skolan", "olästa meddelanden".
 
@@ -286,6 +357,20 @@ Use when: "har jag fått något meddelande från skolan", "olästa meddelanden".
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `limit` | number | no | Max items, default 20 |
 | `unread_only` | boolean | no | Only unread messages |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `messages` | object[] |  |
+| `messages[].id` | integer | Message id; pass it to get_message |
+| `messages[].subject` | string |  |
+| `messages[].preview` | string | Start of the message text |
+| `messages[].read` | boolean |  |
+| `messages[].sender` | object or null |  |
+| `messages[].sender.name` | string |  |
+| `messages[].sentAt` | string (date-time) | ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00 |
+| `messages[].hasAttachments` | boolean |  |
 
 Example call:
 

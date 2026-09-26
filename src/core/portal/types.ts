@@ -7,22 +7,33 @@
  * composite.ts); the browser is never used for something an API serves.
  */
 
+import type { CalendarEvent, Lesson, LunchDay, Message } from "../domain/schemas.js";
+
 export type PortalProvider = "api" | "browser";
 
-/** Contract for every capability. Return shapes are documented per method. */
+/**
+ * Contract for every capability. Return shapes are documented per method.
+ * Capabilities typed with the domain model (`core/domain`) are mapped and
+ * validated by the provider; a raw answer that does not fit throws
+ * ResponseDriftError. `unknown` marks capabilities still returned raw (E4.5).
+ */
 export interface Portal {
   // ----- api: Eva (Bearer) -----
+  /** The guardian and their children, validated; drift throws ResponseDriftError. */
   getParent(): Promise<GuardianParent>;
-  getLunchWeek(orgId: number, week: number): Promise<unknown[]>;
+  /** One ISO week's lunch menu; `year` is the ISO week-year, used to date each day. */
+  getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]>;
   getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]>;
-  getInbox(userId: number, orgId: number): Promise<unknown[]>;
+  /** Inbox summaries in the portal's order. */
+  getInbox(userId: number, orgId: number): Promise<Message[]>;
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown>;
   getNextCalendarEvent(userId: number, orgId: number, studentId: number): Promise<unknown>;
   // ----- api: webview REST (cookies) -----
   getSession(): Promise<unknown>;
-  getScheduleWeek(week: number): Promise<unknown[]>;
-  /** Lessons and school events for the inclusive local date range. */
-  getCalendar(startDate: string, endDate: string): Promise<unknown[]>;
+  /** The child in focus's lessons in one ISO week. */
+  getScheduleWeek(week: number): Promise<Lesson[]>;
+  /** Lessons and school events for the inclusive local date range, sorted by start. */
+  getCalendar(startDate: string, endDate: string): Promise<CalendarEvent[]>;
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]>;
   getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }>;
   /** Verksamhetslogg: activity log entries (legacy /rest endpoint, read-only POST with cookies). */

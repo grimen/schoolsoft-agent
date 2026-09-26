@@ -18,11 +18,6 @@ export const MESSAGES = {
     sv: () =>
       "Ange både start_date och end_date som giltiga datum i formatet YYYY-MM-DD, i ordning, för högst 366 dagar; utelämna båda för denna vecka.",
   },
-  calendar_response: {
-    en: () =>
-      "SchoolSoft returned an unexpected calendar response. The full calendar could not be read.",
-    sv: () => "SchoolSoft returnerade ett oväntat kalendersvar. Hela kalendern kunde inte läsas.",
-  },
   response_drift: {
     en: (p) =>
       `The school portal's answer for ${p.operation} has changed shape (${p.detail}); nothing was returned rather than pass on data that may be wrong.`,

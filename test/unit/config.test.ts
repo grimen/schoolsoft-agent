@@ -357,7 +357,14 @@ test("createPortal recovers a mid-session 401 by re-establishing the session and
         rejectOnce = false;
         return { status: 401, data: null, headers: {}, setCookies: [] };
       }
-      return { status: 200, data: [{ name: "Matte" }], headers: {}, setCookies: [] };
+      return {
+        status: 200,
+        data: [
+          { eventId: 1, name: "Matte", startDate: "2026-09-07T08:30", endDate: "2026-09-07T09:30" },
+        ],
+        headers: {},
+        setCookies: [],
+      };
     }
     return { status: 404, data: null, headers: {}, setCookies: [] };
   };
@@ -385,7 +392,10 @@ test("createPortal recovers a mid-session 401 by re-establishing the session and
   await manager.ensureSession();
   const portal = createPortal(manager, { browser: null, fetchImpl });
   const lessons = await portal.getScheduleWeek(37);
-  assert.deepEqual(lessons, [{ name: "Matte" }]);
+  assert.deepEqual(
+    lessons.map((l) => l.title),
+    ["Matte"],
+  );
   const lessonCalls = calls.filter((c) => c.endsWith("/week/37"));
   assert.equal(lessonCalls.length, 2, "401 then the retry");
   assert.ok(

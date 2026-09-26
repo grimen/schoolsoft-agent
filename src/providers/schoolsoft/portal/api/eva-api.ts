@@ -4,8 +4,12 @@
  * calendar events. Verified live against Täby 2026-09-06.
  */
 import type { GuardianParent } from "../../../../core/portal/types.js";
+import type { LunchDay, Message } from "../../../../core/domain/schemas.js";
 import type { SchoolsoftHttp } from "./transport.js";
 import { AgentError } from "../../../../core/errors/index.js";
+import { toGuardianParent } from "../domain/parent.js";
+import { toLunchDays } from "../domain/lunch.js";
+import { toMessages } from "../domain/inbox.js";
 
 export class EvaApi {
   constructor(
@@ -25,12 +29,16 @@ export class EvaApi {
     return this.http.get<T>(path, { Authorization: `Bearer ${token}` });
   }
 
-  getParent(): Promise<GuardianParent> {
-    return this.bearer<GuardianParent>("/eva/api/v1/parent");
+  async getParent(): Promise<GuardianParent> {
+    return toGuardianParent(await this.bearer<unknown>("/eva/api/v1/parent"));
   }
 
-  getLunchWeek(orgId: number, week: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(`/eva/api/v1/schools/${orgId}/lunchmenu/${week}`);
+  async getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]> {
+    return toLunchDays(
+      await this.bearer<unknown>(`/eva/api/v1/schools/${orgId}/lunchmenu/${week}`),
+      year,
+      week,
+    );
   }
 
   getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
@@ -39,8 +47,10 @@ export class EvaApi {
     );
   }
 
-  getInbox(userId: number, orgId: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(`/eva/api/v1/parent/${userId}/schools/${orgId}/messages/inbox`);
+  async getInbox(userId: number, orgId: number): Promise<Message[]> {
+    return toMessages(
+      await this.bearer<unknown>(`/eva/api/v1/parent/${userId}/schools/${orgId}/messages/inbox`),
+    );
   }
 
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown> {

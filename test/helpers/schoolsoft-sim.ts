@@ -2,10 +2,12 @@
  * An offline stand-in for SchoolSoft's HTTP endpoints, for tests that go
  * through the production wiring (createSessionManager, createPortals,
  * createKeepalive): token refresh with rotation, guardian profile, cookie
- * exchange bound to a child, reads that echo the child's cookie, and the
+ * exchange bound to a child, reads that echo the child's cookie (inside
+ * live-shaped JSON for the typed capabilities, see portal-json.ts), and the
  * web-session header. Everything is synthetic; nothing touches the network.
  */
 import type { PersistedSession } from "../../src/core/index.js";
+import { marked } from "./portal-json.js";
 
 export function jwt(expSeconds: number): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -36,6 +38,8 @@ export class SchoolsoftSim {
   failWith: Error | null = null;
   /** Called on every data read, before it answers. */
   onRead: (() => void | Promise<void>) | null = null;
+  /** Answers a path (profile or data read) with other JSON, e.g. a drifted shape; undefined = default. */
+  override: ((pathname: string) => unknown) | null = null;
 
   constructor(private readonly now: () => number) {}
 
@@ -64,6 +68,8 @@ export class SchoolsoftSim {
         refresh_token: `refresh-${this.refreshes}`,
       });
     }
+    const replaced = this.override?.(pathname);
+    if (replaced !== undefined) return answer(200, replaced);
     if (pathname.endsWith("/eva/api/v1/parent")) {
       if (this.parentStatus !== 200) return answer(this.parentStatus, null);
       return answer(200, {
@@ -87,7 +93,9 @@ export class SchoolsoftSim {
     }
     this.reads.push(`${pathname}${search}`);
     await this.onRead?.();
-    return answer(200, [`${request.headers?.Cookie ?? "bearer"} #${this.requests.length}`]);
+    // Typed shapes carry the marker in a text field (lesson note, dish, preview); others echo it.
+    const marker = `${request.headers?.Cookie ?? "bearer"} #${this.requests.length}`;
+    return answer(200, marked(pathname, marker) ?? [marker]);
   };
 }
 

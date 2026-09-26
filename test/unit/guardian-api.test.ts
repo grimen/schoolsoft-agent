@@ -6,12 +6,16 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ApiPortal, type ApiFetch } from "../../src/providers/schoolsoft/portal/api-portal.js";
 import { childOf, orgIdOf, type GuardianContext } from "../../src/core/portal/guardian.js";
+import { marked, rawParent } from "../helpers/portal-json.js";
 
-function harness(status = 200, data: unknown = []) {
+/** Answers every path with its live-shaped fixture (an empty list where there is none), or `data`. */
+function harness(status = 200, data?: unknown) {
   const calls: { url: string; headers: Record<string, string> }[] = [];
   const fetchImpl: ApiFetch = async (url, _school, options) => {
     calls.push({ url, headers: (options.headers ?? {}) as Record<string, string> });
-    return { status, data };
+    const path = new URL(url).pathname;
+    const fixture = path.endsWith("/eva/api/v1/parent") ? rawParent() : (marked(path, "x") ?? []);
+    return { status, data: data === undefined ? fixture : data };
   };
   const api = new ApiPortal({
     school: "taby",
@@ -25,7 +29,7 @@ function harness(status = 200, data: unknown = []) {
 test("Eva endpoints use Bearer auth with the expected paths", async () => {
   const { api, calls } = harness();
   await api.getParent();
-  await api.getLunchWeek(20, 37);
+  await api.getLunchWeek(20, 37, 2026);
   await api.getNews(21, 20, 17);
   await api.getInbox(21, 20);
   await api.getMessage(21, 20, 99);

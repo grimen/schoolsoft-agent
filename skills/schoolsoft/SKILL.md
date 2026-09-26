@@ -57,13 +57,16 @@ If `CLAUDE_SKILL_DIR` is not set, use the directory this file lives in.
    `null` when done) until `authenticated` is `true`. Never start a second
    login while one is running; the tool refuses and says so.
 3. **Know which child.** Run `list-children`. If there is more than one
-   child and the user did not say which, ask. Pass `--child-id <studentId>`
-   on later commands; it stays in focus afterwards.
+   child and the user did not say which, ask. Pass `--child-id <id>` (the
+   child's `id` from `list-children`) on later commands; it stays in focus
+   afterwards.
 4. **Answer from the JSON.** Use `get-schedule`, `get-lunch-menu`,
    `get-assignments` (then `get-assignment-detail --id`), `get-news`,
    `get-messages` (then `get-message --id`). Weeks are ISO weeks; omit
-   `--week` for the current week. Answer in the user's language (usually
-   Swedish) and convert times and dates to natural phrasing.
+   `--week` for the current week. Times carry Stockholm's UTC offset
+   (`2026-09-07T08:30:00+02:00`); read them as local time. Answer in the
+   user's language (usually Swedish) and convert times and dates to natural
+   phrasing.
 5. **Never write.** This skill is read-only. Do not attempt to report
    absence or send messages; say that is not supported yet.
 
@@ -77,8 +80,10 @@ If `CLAUDE_SKILL_DIR` is not set, use the directory this file lives in.
 - Prefer the smallest query: `--limit` for lists, one week at a time.
 - Exit code `6` means your input was wrong: fix the flag or id named on
   stderr and retry once. Exit codes `4` and `7` are outside your control:
-  retry once after a moment, then tell the user what happened. Exit code `1`
-  is a bug: show the message and stop.
+  retry once after a moment, then tell the user what happened; when stderr
+  says the portal's answer "has changed shape", do not retry: tell the user
+  the school portal changed and schoolsoft-agent needs an update. Exit code
+  `1` is a bug: show the message and stop.
 - A session that dies mid-conversation is repaired silently once; if you
   still get exit code `2`, the user must log in again.
 

@@ -77,7 +77,7 @@ test("operation commands: flags map to args, JSON on stdout, child in output", a
   assert.equal(r.code, EXIT.OK, r.err);
   const data = r.json();
   assert.equal(data.week, 35);
-  assert.equal(data.child.studentId, 101);
+  assert.equal(data.child.id, 101);
   assert.equal(data.lessons.length, 2);
   const u = await run("get-messages", "--unread-only", "--pretty");
   assert.equal(u.code, EXIT.OK);
@@ -616,7 +616,7 @@ test("errors render in Swedish when SCHOOLSOFT_LANG=sv; network failures exit 4 
   assert.match(n.err, /Next: Try again in a moment/);
 });
 
-test("get-calendar maps date flags, returns entries, and explains invalid ranges", async () => {
+test("get-calendar maps date flags, returns events, and explains invalid ranges", async () => {
   const { run } = harness();
   await run("login");
   const result = await run(
@@ -629,11 +629,11 @@ test("get-calendar maps date flags, returns entries, and explains invalid ranges
     "101",
   );
   assert.equal(result.code, EXIT.OK);
-  assert.equal(result.json().child.studentId, 101);
-  assert.equal(result.json().start_date, "2026-09-01");
-  assert.equal(result.json().end_date, "2026-09-30");
+  assert.equal(result.json().child.id, 101);
+  assert.equal(result.json().startDate, "2026-09-01");
+  assert.equal(result.json().endDate, "2026-09-30");
   assert.equal(result.json().timezone, "Europe/Stockholm");
-  assert.ok(result.json().entries.length > 0);
+  assert.ok(result.json().events.length > 0);
   const invalid = await run(
     "get-calendar",
     "--start-date",
