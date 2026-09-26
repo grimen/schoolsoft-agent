@@ -5,6 +5,7 @@ package-lock.json
 e2e-report.md
 e2e-session-dump.json
 CHANGELOG.md
+.release-please-manifest.json
 docs/reference/
 skills/schoolsoft/references/
 plugins/claude/schoolsoft-skill/skills/

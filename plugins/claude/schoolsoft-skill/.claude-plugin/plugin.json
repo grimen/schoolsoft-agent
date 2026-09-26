@@ -1,7 +1,7 @@
 {
   "name": "schoolsoft-skill",
   "displayName": "SchoolSoft (Skill)",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "SchoolSoft for guardians as a skill: Claude runs the schoolsoft-agent CLI for schedule, lunch, assignments, news and messages. BankID login in your own browser. Independent project, not affiliated with SchoolSoft AB.",
   "author": {
     "name": "Jonas Grimfelt",
@@ -10,6 +10,11 @@
   "homepage": "https://github.com/grimen/schoolsoft-agent",
   "repository": "https://github.com/grimen/schoolsoft-agent",
   "license": "MIT",
-  "keywords": ["schoolsoft", "school", "bankid", "sweden"],
+  "keywords": [
+    "schoolsoft",
+    "school",
+    "bankid",
+    "sweden"
+  ],
   "skills": "./skills"
 }
