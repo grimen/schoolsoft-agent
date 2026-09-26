@@ -252,6 +252,10 @@ These require the parent's own accounts and explicit BankID action. Packaging an
 mock-provider tests exercise the implementation without exposing school data; they
 do not stand in for these checks.
 
+Maintainers run these checks as part of one live pass that starts with `make capture`
+(redacted fixtures, reviewed before commit); the order is in
+[Contributing](../../CONTRIBUTING.md#live-pass).
+
 ### Sign out of the dashboard
 
 Use **Sign out of this dashboard** after managing access, especially on a shared
