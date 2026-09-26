@@ -21,6 +21,7 @@ import {
   type Classified,
 } from "./problem.js";
 import { parseChildId, parseQuery, restRoutes } from "./routes.js";
+import { OVERVIEW_QUERY, OVERVIEW_SCOPES, OVERVIEW_SLUG, buildOverview } from "./overview.js";
 
 /** Requests per minute per caller (clientKey) across the whole REST surface. */
 export const REST_REQUESTS_PER_MINUTE = 60;
@@ -28,7 +29,7 @@ export const REST_REQUESTS_PER_MINUTE = 60;
 export interface RestOptions {
   publicUrl: string;
   oauth: OAuthTokenVerifier & { verifyGrant(id: string): ConnectorGrant };
-  runtime: Pick<ConnectorRuntime, "execute" | "status">;
+  runtime: Pick<ConnectorRuntime, "execute" | "executeForChild" | "status">;
   /** Language when the caller's Accept-Language names neither Swedish nor English. */
   lang: Lang;
   /** The connector's per-caller limiter factory (server.ts), so REST shares its keying. */
@@ -110,6 +111,48 @@ export function restApi({
         ownerDashboard: publicUrl + "/owner",
         connectionExpiresAt: new Date(grant.expiresAt).toISOString(),
       });
+    } catch (error) {
+      send(req, res, classify(error));
+    }
+  });
+
+  // The composite overview: one child's first paint in one request (E5.6).
+  router.get(`/children/:childId/${OVERVIEW_SLUG}`, async (req, res) => {
+    const cancellation = new AbortController();
+    res.on("close", () => cancellation.abort());
+    try {
+      const scopes = req.auth!.scopes;
+      if (!OVERVIEW_SCOPES.some((scope) => scopes.includes(scope))) {
+        send(req, res, refusals.scope(OVERVIEW_SCOPES.join(" ")));
+        return;
+      }
+      const input = parseQuery(OVERVIEW_QUERY, req.query);
+      const childId = parseChildId(String(req.params.childId));
+      const grantId = grantOf(req);
+      const grant = oauth.verifyGrant(grantId);
+      const chosen = negotiateLang(req.get("accept-language"), lang);
+      const overview = await buildOverview({
+        childId,
+        input,
+        scopes,
+        now: now(),
+        read: (reads, keep) =>
+          runtime.executeForChild(
+            childId,
+            reads,
+            grant.childIds,
+            {
+              check: () => {
+                oauth.verifyGrant(grantId);
+              },
+              signal: cancellation.signal,
+            },
+            keep,
+          ),
+        problem: (problem) => problemBody(problem, chosen, publicUrl),
+      });
+      oauth.verifyGrant(grantId);
+      res.set({ "Content-Language": chosen, Vary: "Accept-Language" }).json(overview);
     } catch (error) {
       send(req, res, classify(error));
     }

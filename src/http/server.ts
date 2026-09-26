@@ -20,7 +20,10 @@ import { API_BASE } from "./routes.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
-  runtime: Pick<ConnectorRuntime, "beginLogin" | "callback" | "status" | "execute" | "logout">;
+  runtime: Pick<
+    ConnectorRuntime,
+    "beginLogin" | "callback" | "status" | "execute" | "executeForChild" | "logout"
+  >;
   sessions?: OwnerSessions;
   /** Operator-facing notices; never receives request data. Default: stderr. */
   warn?: (message: string) => void;

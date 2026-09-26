@@ -360,10 +360,20 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   const restCalendar = await api(`/children/${ALLOWED.studentId}/calendar`);
   assert.equal(restCalendar.status, 403);
   assert.equal(problemType(restCalendar), "scope-not-granted");
+  const overview = await api(`/children/${ALLOWED.studentId}/overview?fresh=true`);
+  assert.equal(overview.status, 200);
+  const first = json(overview);
+  assert.equal(first.child.id, ALLOWED.studentId);
+  assert.equal(first.schedule.status, "ok");
+  assert.equal(first.schedule.data.lessons[0].note, `servedForChild=${ALLOWED.studentId}`);
+  assert.deepEqual(first.nextEvent, { status: "not-granted", scope: "get_calendar" });
+  const overviewOther = await api(`/children/${OTHER.studentId}/overview`);
+  assert.equal(overviewOther.status, 403);
+  assert.equal(problemType(overviewOther), "child-not-permitted");
   const restAnonymous = await api("/session", "not-a-token");
   assert.equal(restAnonymous.status, 401);
   assert.match(restAnonymous.headers["www-authenticate"], /resource_metadata=/);
-  step("REST: session, children and schedule; refused child, scope and token");
+  step("REST: session, children, schedule and overview; refused child, scope and token");
 
   // --- Refresh rotation ----------------------------------------------------
   const rotatedResponse = await refresh(limited.clientId, limited.tokens.refresh_token);
