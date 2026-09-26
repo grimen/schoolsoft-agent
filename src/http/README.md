@@ -16,6 +16,9 @@ as MCP tools at `/mcp` and as read-only JSON at `/api/v1` for custom UIs.
 - `routes.ts`, `rest.ts`, `problem.ts`: REST routes generated from the registry, their
   router (same bearer tokens, scopes and runtime as `/mcp`) and problem+json errors.
 - `storage.ts`: encrypted persistent state using the parent's deployment key.
+- `reference/`: the reference page at `/reference/`, a minimal browser UI that is an
+  OAuth client of this connector and reads only `/api/v1` (`app.ts` runs in the
+  browser; `page.ts` serves it inline under a hash-scoped policy).
 
 Adapters import core only through `../core/index.js`, never through `src/mcp` or
 `src/cli`. HTTP code is included in the offline coverage gate. Keep one process per
