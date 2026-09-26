@@ -191,3 +191,11 @@ export function extractTablePage(): TablePage {
   }
   return { title, ...(message ? { message } : {}), sections };
 }
+
+/**
+ * The whole document as HTML, for the capture probe (`make capture`). The
+ * probe redacts it in Node before anything is written; nothing here filters.
+ */
+export function pageHtml(): string {
+  return "<!doctype html>\n" + document.documentElement.outerHTML;
+}
