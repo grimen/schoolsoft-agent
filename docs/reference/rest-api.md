@@ -57,7 +57,10 @@ Output (validated; an answer that does not fit is a `502` `response-drift`):
 
 | Field | Type | Description |
 |---|---|---|
+| `year` | integer | ISO week-year: the year in which this week starts nearest today |
 | `week` | integer |  |
+| `startDate` | string (date) | Monday of the week, YYYY-MM-DD in Europe/Stockholm |
+| `endDate` | string (date) | Sunday of the week, YYYY-MM-DD in Europe/Stockholm |
 | `child` | object | The child the result is for |
 | `child.id` | integer | Child id; pass it as child_id |
 | `child.firstName` | string |  |

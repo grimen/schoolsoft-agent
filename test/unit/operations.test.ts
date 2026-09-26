@@ -193,6 +193,6 @@ test("login with background: true returns the URL and auth_status reports the lo
 
 test("isoWeek treats Sunday as the last day of its week", async () => {
   const { isoWeek } = await import("../../src/core/operations/_shared.js");
-  assert.equal(isoWeek(new Date(2026, 8, 6)), 36, "Sunday 2026-09-06 is still week 36");
-  assert.equal(isoWeek(new Date(2026, 8, 7)), 37);
+  assert.equal(isoWeek(new Date("2026-09-06T12:00:00Z")), 36, "Sunday 2026-09-06 is still week 36");
+  assert.equal(isoWeek(new Date("2026-09-07T12:00:00Z")), 37);
 });

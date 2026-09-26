@@ -67,7 +67,16 @@ export type {
   LunchDay,
   Message,
 } from "./domain/schemas.js";
+export {
+  CalendarEventSchema,
+  ChildSchema,
+  LocalDateSchema,
+  DateTimeSchema,
+} from "./domain/schemas.js";
 export { DOMAIN_TIMEZONE, isoWeekDate } from "./domain/time.js";
+export { weekOf, weekOfDate, isoWeekOfDate, type WeekRange } from "./operations/_week.js";
+export { stockholmToday } from "./operations/_calendar-range.js";
+export { toChild } from "./operations/list-children.js";
 export { PortalBudget, portalHealth } from "./budget/budget.js";
 export type {
   RequestBudget,
