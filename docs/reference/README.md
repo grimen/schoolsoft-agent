@@ -9,5 +9,6 @@ The parent-hosted connector exposes only its approved subset. See
 [connector setup](../deployment/connector.md) for that scope and permissions.
 Tool, command and REST references are generated from the operation registry; change
 the source definitions and run `make docs` rather than editing generated files.
+What of these contracts is stable between releases: [stability policy](../development/stability.md).
 
 [All documentation](../README.md)

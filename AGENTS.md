@@ -89,6 +89,9 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
 - **Commits:** Conventional Commits, scopes from `commitlint.config.mjs`; the
   type drives release-please's version bump (see `docs/development/releasing.md`). No
   session links or trailers.
+- **Breaking changes follow `docs/development/stability.md`:** check its
+  "Is my change breaking?" list; deprecate first, then mark with `!` and a
+  `BREAKING CHANGE:` footer.
 - **Coverage is 100% and stays there.** New code ships with the tests that
   cover every branch. The only exclusions are the ones listed in
   `.c8rc.json` and inline `c8 ignore` comments, each with the shipped-artifact
