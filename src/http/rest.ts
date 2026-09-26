@@ -21,6 +21,7 @@ import {
   type Classified,
 } from "./problem.js";
 import { parseChildId, parseQuery, restRoutes } from "./routes.js";
+import { SessionSchema } from "./api-schemas.js";
 import { OVERVIEW_QUERY, OVERVIEW_SCOPES, OVERVIEW_SLUG, buildOverview } from "./overview.js";
 
 /** Requests per minute per caller (clientKey) across the whole REST surface. */
@@ -97,24 +98,26 @@ export function restApi({
       const status = await runtime.status();
       oauth.verifyGrant(grantId);
       const scopes = req.auth!.scopes;
-      res.json({
-        schoolsoft: {
-          signedIn: status.authenticated,
-          loginInProgress: status.loginInProgress,
-          webSession: status.webSession === true,
-          // Not "ok": the portal is pushing back; show "try again at retryAt", not the dashboard link.
-          portal: status.portal,
-        },
-        children: status.children
-          .filter((child) => grant.childIds.includes(child.id))
-          .map((child) => ({ id: child.id, firstName: child.name })),
-        scopes,
-        routes: routes
-          .filter((route) => scopes.includes(route.operation.name))
-          .map((route) => ({ operation: route.operation.name, method: "GET", path: route.path })),
-        ownerDashboard: publicUrl + "/owner",
-        connectionExpiresAt: new Date(grant.expiresAt).toISOString(),
-      });
+      res.json(
+        SessionSchema.parse({
+          schoolsoft: {
+            signedIn: status.authenticated,
+            loginInProgress: status.loginInProgress,
+            webSession: status.webSession === true,
+            // Not "ok": the portal is pushing back; show "try again at retryAt", not the dashboard link.
+            portal: status.portal,
+          },
+          children: status.children
+            .filter((child) => grant.childIds.includes(child.id))
+            .map((child) => ({ id: child.id, firstName: child.name })),
+          scopes,
+          routes: routes
+            .filter((route) => scopes.includes(route.operation.name))
+            .map((route) => ({ operation: route.operation.name, method: "GET", path: route.path })),
+          ownerDashboard: publicUrl + "/owner",
+          connectionExpiresAt: new Date(grant.expiresAt).toISOString(),
+        }),
+      );
     } catch (error) {
       send(req, res, classify(error));
     }

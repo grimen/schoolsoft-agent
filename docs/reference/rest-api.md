@@ -4,7 +4,7 @@
 
 Read-only JSON for custom UIs, served by the [parent-hosted connector](../deployment/connector.md) at `https://<your connector>/api/v1`. The routes are generated from the same operations as the connector's MCP tools, behind the same OAuth access tokens, scopes and per-child approval: an app gets a token through the ordinary connection approval and sends it as `Authorization: Bearer <token>`. There are no cookies or API keys. Same-origin only: no CORS headers are sent and a request with another site's `Origin` is refused. Each caller may make 60 requests per minute. Design: [REST surface spec](../planning/specs/2026-09-26-rest-surface.md).
 
-Responses are the operations' validated domain objects, unchanged, as `application/json`. Failures are `application/problem+json` (see [Problems](#problems)).
+Responses are the operations' validated domain objects, unchanged, as `application/json`. Failures are `application/problem+json` (see [Problems](#problems)). The same API as an OpenAPI 3.1 document: [openapi.json](openapi.json); a typed client for JavaScript and TypeScript apps: [`schoolsoft-agent/client`](#typed-client).
 
 | Route | Operation | Scope | Query parameters |
 |---|---|---|---|
@@ -21,14 +21,21 @@ What the calling connection may do and whether the connector can serve it now. N
 
 | Field | Type | Description |
 |---|---|---|
+| `schoolsoft` | object |  |
 | `schoolsoft.signedIn` | boolean | The connector's SchoolSoft session is present and valid |
 | `schoolsoft.loginInProgress` | boolean | The parent started a sign-in that has not finished |
 | `schoolsoft.webSession` | boolean | A gated web-login session is stored (the connector does not offer one; always false today) |
-| `schoolsoft.portal.state` | string | `ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again |
+| `schoolsoft.portal` | object |  |
+| `schoolsoft.portal.state` | `"ok"` \| `"backing_off"` \| `"paused"` \| `"probing"` | `ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again |
 | `schoolsoft.portal.retryAt` | string (date-time) or null | When requests flow again; null while they flow or a probe decides |
-| `children[]` | object[] | The children this connection may read, `{ id, firstName }` as `/children` returns them; empty while signed out |
+| `children` | object[] | The children this connection may read, { id, firstName } as /children returns them; empty while signed out |
+| `children[].id` | integer | Child id; use it as {childId} |
+| `children[].firstName` | string |  |
 | `scopes` | string[] | The operations this token may call |
-| `routes[]` | object[] | `{ operation, method, path }` for each route the scopes allow |
+| `routes` | object[] | { operation, method, path } for each route the scopes allow |
+| `routes[].operation` | string |  |
+| `routes[].method` | `"GET"` |  |
+| `routes[].path` | string |  |
 | `ownerDashboard` | string | Where the parent signs in to SchoolSoft again |
 | `connectionExpiresAt` | string (date-time) | When this connection's approval expires |
 
@@ -41,7 +48,7 @@ Output (the connector's projection: only the children in this connection, no gua
 | Field | Type | Description |
 |---|---|---|
 | `children` | object[] | The children in this connection, { id, firstName } |
-| `children[].id` | integer |  |
+| `children[].id` | integer | Child id; use it as {childId} |
 | `children[].firstName` | string |  |
 | `childInFocus` | integer or null | The child reads default to, when it is in this grant; else null |
 
@@ -191,6 +198,52 @@ A dashboard's first paint for one child in one request: the week's lessons and l
 | `until` | string (date) | Last day searched: 29 days after today |
 
 **Partial failure.** A section keeps its own failure when it concerns that read (`response-drift`, `upstream`, `network`, `portal-pushback`, `not-implemented`, `not-available`, `web-session`, `internal`); the others are still served and the status is `200`. When the school portal pushes back on one section, the request budget refuses the remaining ones without sending them, and they say `portal-pushback` with `retryAt`. Everything about the request as a whole fails it with the single routes' status and releases no section: the token or grant (`401`), the child (`403`), the connector's SchoolSoft session (`409`), a busy connector (`503`) and invalid input (`400`).
+
+## Tokens
+
+**The resource is named after MCP.** The connector is one OAuth protected resource, `https://<your connector>/mcp`, for its MCP endpoint and this API alike. Ask for tokens with `resource=https://<your connector>/mcp`; the resource's metadata is at `/.well-known/oauth-protected-resource/mcp`, and the `401` challenge on `/api/v1` points there. There is no separate `/api/v1` resource: RFC 9728 ties a metadata document to the identifier its address was built from, so an alias would mean a second resource and a second token audience, a wider token for the sake of a name.
+
+**Refresh one at a time.** Access tokens live 5 minutes. Refresh tokens rotate on every use, and presenting one twice revokes the whole connection (reuse detection). A UI that sends reads in parallel must let exactly one of them refresh and have the others wait for it, and must not refresh when another read already did.
+
+## Typed client
+
+`schoolsoft-agent/client` is a small client for JavaScript and TypeScript apps. It imports nothing but Zod, so a bundler (Metro, Vite) pulls in no connector code. It calls every route above, validates every answer against the schemas this reference is generated from (fields it does not know pass through), refreshes tokens one at a time as described above, and reports every failure as a `ConnectorError` with the `kind`, `retryable` and problem name the MCP tools and the CLI use. Signing in (registration, PKCE and the redirect) stays with the app; the client starts from the tokens it received. Design: [OpenAPI and typed client spec](../planning/specs/2026-09-26-openapi-client.md).
+
+```ts
+import { createClient, memoryTokenStore, ConnectorError } from "schoolsoft-agent/client";
+
+const client = createClient({
+  baseUrl: "https://connector.example",
+  clientId, // from POST /register
+  tokens: memoryTokenStore({ accessToken, refreshToken, expiresAt }),
+});
+try {
+  const overview = await client.overview(childId);
+  if (overview.lunch.status === "ok") show(overview.lunch.data.days);
+} catch (error) {
+  if (error instanceof ConnectorError && error.problem === "schoolsoft-session")
+    askParentToSignIn(error.ownerDashboard);
+}
+```
+
+| Method | Route |
+|---|---|
+| `session()` | `GET /api/v1/session` |
+| `children()` | `GET /api/v1/children` |
+| `schedule(childId, { week, fresh })` | `GET /api/v1/children/{childId}/schedule` |
+| `calendar(childId, { start_date, end_date, fresh })` | `GET /api/v1/children/{childId}/calendar` |
+| `lunchMenu(childId, { week, fresh })` | `GET /api/v1/children/{childId}/lunch-menu` |
+| `overview(childId, { date, fresh })` | `GET /api/v1/children/{childId}/overview` |
+
+| Failure | `kind` | `problem` | `retryable` |
+|---|---|---|---|
+| Any problem details answer | the body's | the body's type | the body's |
+| `401` that survives one refresh, a refused refresh, or no tokens | `not_authenticated` | `oauth-token` | false |
+| The connector cannot be reached | `network` | null | true |
+| An answer that does not fit its schema | `upstream` | `response-drift` | false |
+| Any other answer (e.g. a proxy's error page) | `upstream` | null | for 5xx |
+
+The client never retries on its own, except once after a refresh; honour `retryAt` and `Retry-After`.
 
 ## Problems
 

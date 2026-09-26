@@ -52,3 +52,35 @@ test("checker catches core → provider (outside wiring), provider → core/inde
   assert.ok(msgs.some((m) => m.includes("adapter cli imports a provider")));
   assert.equal(msgs.length, 5);
 });
+
+test("the typed client imports only zod and its own files, and nothing imports it", () => {
+  const root = mkdtempSync(join(tmpdir(), "bounds-"));
+  for (const d of ["src/client", "src/http", "src/core"])
+    mkdirSync(join(root, d), { recursive: true });
+  writeFileSync(join(root, "src/core/index.ts"), `export {};\n`);
+  writeFileSync(
+    join(root, "src/client/index.ts"),
+    [
+      `import { z } from "zod";`,
+      `import {\n  SCHEMAS,\n} from "./api.gen.js";`,
+      `import type { Overview } from "../http/overview.js";`,
+      `export { ok } from "../core/index.js";`,
+      `import "node:fs";`,
+      `const lazy = () => import("express");`,
+      `const f = globalThis.fetch;`,
+    ].join("\n"),
+  );
+  writeFileSync(join(root, "src/client/api.gen.ts"), `export const SCHEMAS = {};\n`);
+  writeFileSync(
+    join(root, "src/http/a.ts"),
+    `import { createClient } from "../client/index.js";\n`,
+  );
+  const msgs = checkBoundaries(root).map((v) => `${v.file}:${v.line}: ${v.message}`);
+  assert.deepEqual(msgs, [
+    "client/index.ts:5: the typed client may import only zod and its own files, not ../http/overview.js",
+    "client/index.ts:6: the typed client may import only zod and its own files, not ../core/index.js",
+    "client/index.ts:7: the typed client may import only zod and its own files, not node:fs",
+    "client/index.ts:8: the typed client may import only zod and its own files, not express",
+    "http/a.ts:1: client/index.js is the typed client; nothing in the package imports it",
+  ]);
+});

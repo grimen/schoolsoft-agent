@@ -212,6 +212,7 @@ export async function fixture(
       access: tokens.access_token as string,
       refresh: tokens.refresh_token as string,
       grantId,
+      clientId,
     };
   }
   const api = (path: string, token: string, headers: Record<string, string> = {}) =>

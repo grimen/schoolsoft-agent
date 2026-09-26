@@ -95,6 +95,10 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js"
     },
+    "./client": {
+      "types": "./dist/client/index.d.ts",
+      "default": "./dist/client/index.js"
+    },
     "./package.json": "./package.json"
   },
   "types": "./dist/core/index.d.ts",

@@ -14,3 +14,4 @@ docs/planning/
 docs/diagrams/README.md
 docs/diagrams/dist/
 docs/assets/
+src/client/api.gen.ts
