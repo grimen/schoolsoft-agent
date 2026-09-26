@@ -2,7 +2,7 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts
+RUN npm ci --ignore-scripts --workspaces=false && test ! -d node_modules/expo && test ! -d node_modules/react-native
 COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build && npm prune --omit=dev --omit=optional --ignore-scripts

@@ -23,3 +23,25 @@ updates:
       npm-minor-patch:
         update-types: ["minor", "patch"]
     open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /packages/app
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      app-expo:
+        patterns:
+          [
+            "expo",
+            "expo-*",
+            "@expo/*",
+            "react",
+            "react-*",
+            "react-native",
+            "react-native-*",
+            "jest-expo",
+            "@testing-library/*",
+          ]
+    open-pull-requests-limit: 3
