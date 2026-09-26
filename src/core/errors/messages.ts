@@ -203,6 +203,12 @@ export const MESSAGES = {
     en: () => `SchoolSoft's public school list came back empty.`,
     sv: () => `SchoolSofts offentliga skollista var tom.`,
   },
+  state_newer_than_app: {
+    en: (p) =>
+      `${p.file} was written by a newer version of schoolsoft-agent (format ${p.found}; this version reads up to ${p.supported}). It has been left unchanged.`,
+    sv: (p) =>
+      `${p.file} skrevs av en nyare version av schoolsoft-agent (format ${p.found}; den här versionen läser upp till ${p.supported}). Filen har lämnats orörd.`,
+  },
   input: {
     en: (p) => `Invalid input: ${p.detail}.`,
     sv: (p) => `Ogiltig inmatning: ${p.detail}.`,
@@ -339,6 +345,16 @@ export const HINTS = {
     sv: {
       cli: `Titta i SchoolSoft innan du försöker igen; en blind upprepning kan anmäla frånvaron två gånger`,
       mcp: `Be användaren titta i SchoolSoft först. Anropa inte igen på eget initiativ; en upprepning kan anmäla frånvaron två gånger.`,
+    },
+  },
+  update_app: {
+    en: {
+      cli: `Update schoolsoft-agent to the latest version (npx -y schoolsoft-agent@latest, or npm install -g schoolsoft-agent@latest) and run the command again; do not delete the file`,
+      mcp: `Ask the user to update schoolsoft-agent to the latest version and restart this server; the file must not be deleted.`,
+    },
+    sv: {
+      cli: `Uppdatera schoolsoft-agent till senaste versionen (npx -y schoolsoft-agent@latest, eller npm install -g schoolsoft-agent@latest) och kör kommandot igen; radera inte filen`,
+      mcp: `Be användaren uppdatera schoolsoft-agent till senaste versionen och starta om den här servern; filen får inte raderas.`,
     },
   },
   fix_input: {

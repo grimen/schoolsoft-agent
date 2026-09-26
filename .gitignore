@@ -9,3 +9,6 @@ coverage/
 *.mcpb
 .schoolsoft-agent-state/
 lefthook-local.yml
+# make capture: redacted but unreviewed captures, and the maintainer's own denylist
+.captures/
+.capture-denylist

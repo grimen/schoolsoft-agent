@@ -14,7 +14,21 @@ export {
   envSource,
   defaultConfigDir,
   resolveConfig,
+  CONFIG_FORMAT,
 } from "./config.js";
+export {
+  NewerFormatError,
+  MalformedVersionError,
+  VERSION_FIELD,
+  currentVersion,
+  describeVersion,
+  loadVersioned,
+  readVersioned,
+  storedVersion,
+  unchanged,
+  writeVersioned,
+} from "./versioned.js";
+export type { Migration, VersionedFormat } from "./versioned.js";
 export {
   type SessionDeps,
   createSessionManager,
@@ -37,6 +51,7 @@ export {
   SessionHistoryRecorder,
   summarizeHistory,
   emptyHistory,
+  HISTORY_FORMAT,
   MAX_HISTORY_EVENTS,
   MAX_HISTORY_LOSSES,
 } from "./session/history.js";
@@ -105,7 +120,7 @@ export type {
 } from "./provider/types.js";
 export { SessionManager, NotAuthenticatedError, RENEW_LEAD_MS } from "./session/session-manager.js";
 export type { PersistedSession, SessionStore } from "./session/store.js";
-export { MemorySessionStore } from "./session/store.js";
+export { MemorySessionStore, SESSION_FORMAT } from "./session/store.js";
 export {
   MemoryPendingLoginStore,
   FilePendingLoginStore,

@@ -119,7 +119,7 @@ test("configure: non-interactive with --school/--org-id writes config.json", asy
   const r = await run("--config-dir", dir, "--school", "taby", "--org-id", "20", "configure");
   assert.equal(r.code, EXIT.OK, r.err);
   const written = JSON.parse(readFileSync(join(dir, "config.json"), "utf8"));
-  assert.deepEqual(written, { school: "taby", orgId: "20" });
+  assert.deepEqual(written, { version: 1, school: "taby", orgId: "20" });
   assert.equal(r.json().status, "configured");
 });
 

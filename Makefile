@@ -112,6 +112,12 @@ browser-verify: build ## Check every browser-read SchoolSoft page still has its 
 fingerprints: ## Re-record page fingerprints from the live tenant into the provider's fingerprints.ts (after a portal update)
 	./node_modules/.bin/tsx scripts/fingerprints.ts
 
+capture: ## Record redacted form structures, the Översikt page and a school-event agenda from an EXISTING session into .captures/ (live, local; never logs in, never submits)
+	$(TSX) scripts/capture.ts
+
+capture-promote: ## Move reviewed captures into test/fixtures/; refuses everything if any file still looks personal
+	$(TSX) scripts/capture-promote.ts
+
 # ---------- Generated artifacts ----------
 
 docs: ## Regenerate command/tool reference docs from the operation registry
@@ -183,6 +189,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact connector-smoke e2e login login-web status logout configure doctor browser browser-verify fingerprints docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact connector-smoke e2e login login-web status logout configure doctor browser browser-verify fingerprints capture capture-promote docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

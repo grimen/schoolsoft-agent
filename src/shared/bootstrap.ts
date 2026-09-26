@@ -9,6 +9,10 @@ import {
   type Config,
   type ConfigSource,
   type OperationContext,
+  CONFIG_FORMAT,
+  loadVersioned,
+  storedVersion,
+  writeVersioned,
   createPortals,
   createSessionManager,
   resolveProvider,
@@ -36,30 +40,54 @@ export function configDirFrom(inputs: BootstrapInputs): string {
   );
 }
 
+/**
+ * Parse and migrate config.json. A file from a newer build throws
+ * NewerFormatError; bad JSON or a malformed version is the usual
+ * "Could not parse" error naming the file.
+ */
+function readConfigDocument(file: string): ConfigSource {
+  return loadVersioned<ConfigSource, never>(
+    CONFIG_FORMAT,
+    file,
+    () => JSON.parse(readFileSync(file, "utf8")),
+    (e) => {
+      throw new Error(`Could not parse ${file}: ${(e as Error).message}`, { cause: e });
+    },
+  );
+}
+
 /** Raw contents of config.json (no configDir injected), {} if absent. */
 export function readConfigFile(configDir: string): ConfigSource {
   const file = join(configDir, CONFIG_FILE);
   if (!existsSync(file)) return {};
-  return JSON.parse(readFileSync(file, "utf8")) as ConfigSource;
+  return readConfigDocument(file);
 }
 
-/** Write config.json (0600) and return its path. */
+/** Write config.json (0600) with the current format version and return its path. */
 export function writeConfigFile(configDir: string, config: ConfigSource): string {
   mkdirSync(configDir, { recursive: true, mode: 0o700 });
   const file = join(configDir, CONFIG_FILE);
-  writeFileSync(file, JSON.stringify(config, null, 2) + "\n", { mode: 0o600 });
+  writeFileSync(file, JSON.stringify(writeVersioned(CONFIG_FORMAT, config), null, 2) + "\n", {
+    mode: 0o600,
+  });
   return file;
+}
+
+/** The format version of config.json (0 before versions existed); null when absent or unreadable. */
+export function configFileVersion(configDir: string): number | null {
+  const file = join(configDir, CONFIG_FILE);
+  if (!existsSync(file)) return null;
+  try {
+    return storedVersion(JSON.parse(readFileSync(file, "utf8")));
+  } catch {
+    return null;
+  }
 }
 
 export function fileSource(configDir: string): ConfigSource {
   const file = join(configDir, CONFIG_FILE);
   if (!existsSync(file)) return {};
-  try {
-    const parsed = JSON.parse(readFileSync(file, "utf8")) as ConfigSource;
-    return { ...parsed, configDir };
-  } catch (e) {
-    throw new Error(`Could not parse ${file}: ${(e as Error).message}`, { cause: e });
-  }
+  return { ...readConfigDocument(file), configDir };
 }
 
 /** Resolve the Config with precedence overrides > env > file > defaults. */
