@@ -3,13 +3,12 @@ import type { OperationContext } from "./types.js";
 import type { GuardianChild } from "../portal/types.js";
 import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
 import type { ChildRef } from "../domain/schemas.js";
+import { isoWeekOfDate } from "./_week.js";
+import { stockholmToday } from "./_calendar-range.js";
 
+/** The current ISO week number in Europe/Stockholm (or at `date`). */
 export function isoWeek(date = new Date()): number {
-  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-  const dayNum = d.getUTCDay() || 7;
-  d.setUTCDate(d.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  return Math.ceil(((d.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return isoWeekOfDate(stockholmToday(date));
 }
 
 export const WeekSchema = z

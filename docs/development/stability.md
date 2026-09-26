@@ -141,9 +141,25 @@ directly. What is promised is the upgrade path:
   `title`, `detail`, `hint` and `Content-Language` text. A breaking change is
   served as `/api/v2` next to v1; v1 is then deprecated and removed no earlier
   than the notice period below.
+- **OpenAPI document** (`docs/reference/openapi.json`): a generated description
+  of REST v1, so it follows the REST rules above. What it describes is the
+  contract; its layout (component names, descriptions, the order of keys) is not.
+  Response schemas leave out `additionalProperties: false` on purpose: new fields
+  are compatible within v1.
+- **Typed client** (`schoolsoft-agent/client`): the package export for apps.
+  Stable: the exported names (`createClient`, `memoryTokenStore`,
+  `ConnectorError`, the method names and their parameters, `TokenStore`,
+  `Tokens`), the fields of `ConnectorError` and what they mean, the refresh
+  behaviour (one refresh at a time, at most one retry after it) and the answer
+  types, which are REST v1's and change only as REST v1 may. Compatible: new
+  methods for new routes, new optional options, new fields in answer types (they
+  are generated from the same schemas). Not a contract: the generated
+  `SCHEMAS` and `ROUTES` tables, `validate`, and error message wording. It is not
+  part of the `.` library export below and is not affected by its pre-1.0 caveat.
 - **MCP over HTTP** (`/mcp`): the MCP tool rules above, for the tools the
   connector offers.
-- **OAuth**: scope names (one per operation name) and per-child consent are
+- **OAuth**: scope names (one per operation name), per-child consent and the
+  resource identifier `https://<connector>/mcp` (for REST clients too) are
   stable. A release never widens an existing grant: a newly offered operation
   needs a new approval. Removing an operation from the connector is breaking.
   Endpoints and token lifetimes follow the MCP authorization specification and

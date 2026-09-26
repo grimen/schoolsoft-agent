@@ -72,6 +72,38 @@ the granted children and routes without starting a login. The runtime marks its
 refusals with a reason (`ConnectorRefusedError`) so the adapter can answer `403` or
 `503` without parsing prose.
 
+**Composite overview.** `GET /api/v1/children/{childId}/overview` (`src/http/overview.ts`,
+[spec](../planning/specs/2026-09-26-composite-overview.md)) answers a dashboard's first
+paint: the week's `get_schedule` and `get_lunch_menu` outputs and the next school event
+from `get_calendar`. It is not an operation and has no scope: each section needs its
+operation's scope and is `not-granted` otherwise. `ConnectorRuntime.executeForChild` runs
+the sections in one turn of the queue (one grant check, at most one child switch, no
+interleaving from other requests) and in order, so after push-back the budget refuses the
+rest unsent; a failure that concerns one read (drift, upstream, network, push-back, not
+offered, a bug) stays in its section as the problem body, anything about the request as a
+whole (token, child, SchoolSoft session, busy connector, input) fails it. Weeks are named
+by `weekOf`/`weekOfDate` (`core/operations/_week.ts`): the ISO week-year in which the week
+starts nearest today and its Monday and Sunday in Europe/Stockholm, the rule
+`get_schedule` and `get_lunch_menu` share.
+
+**OpenAPI and the typed client.** `src/http/openapi.ts` builds an OpenAPI 3.1 document
+from the route table, the operations' input and output schemas, the overview, the
+session schema (`api-schemas.ts`, which the router also validates its answer with) and
+`PROBLEMS`, with `z.toJSONSchema`; `make docs` writes it to
+`docs/reference/openapi.json` and the generated-docs test keeps it current, and a unit
+test compares it with the paths the Express router actually serves
+([spec](../planning/specs/2026-09-26-openapi-client.md)). The typed client
+(`src/client/`, the package export `schoolsoft-agent/client`) is for apps, not for the
+connector: `make boundaries` lets it import only `zod` and its own files, and nothing in
+`src` imports it. Its generated half (`api.gen.ts`, also written by `make docs`) holds
+the document's response schemas and TypeScript types emitted from them
+(`scripts/json-schema-ts.ts`); at run time it turns each schema back into a Zod
+validator (`z.fromJSONSchema`). It owns the token refresh with single-flight (refresh
+tokens rotate and a reused one revokes the grant) and reports failures as
+`ConnectorError` with the core's error kinds. The OAuth resource stays
+`https://<connector>/mcp` for REST clients; an `/api/v1` alias would be a second
+resource and token audience (RFC 9728), so it is documented rather than added.
+
 The deployment is one process per private state volume. The storage key comes from
 the parent's deployment environment; the project author operates no central service.
 Hosting administrators may access plaintext during use, and requested results enter

@@ -16,7 +16,13 @@ export interface QueryParam {
   kind: "number" | "boolean" | "string";
   description: string;
 }
-export interface RestRoute {
+/** What a query string may contain: its parameters and the strict schema they must fit. */
+export interface QueryShape {
+  query: QueryParam[];
+  /** The input minus `child_id`, strict: what the query string may contain. */
+  schema: z.ZodObject;
+}
+export interface RestRoute extends QueryShape {
   operation: Operation;
   /** Express pattern below API_BASE, e.g. `/children/:childId/schedule`. */
   pattern: string;
@@ -24,10 +30,13 @@ export interface RestRoute {
   path: string;
   /** Whether the child comes from the path (the operation takes `child_id`). */
   childScoped: boolean;
-  query: QueryParam[];
-  /** The input minus `child_id`, strict: what the query string may contain. */
-  schema: z.ZodObject;
 }
+
+/**
+ * Child routes that are not generated from one operation (the overview). A generated
+ * route may not take their slug, so an operation can never shadow one.
+ */
+export const COMPOSITE_SLUGS: readonly string[] = ["overview"];
 
 /** `get_lunch_menu` → `lunch-menu`, `list_children` → `children`. */
 export function slug(name: string): string {
@@ -42,6 +51,14 @@ function queryParam(name: string, raw: z.core.$ZodType): QueryParam {
   if (inner instanceof z.ZodBoolean) return { name, kind: "boolean", description };
   if (inner instanceof z.ZodString) return { name, kind: "string", description };
   throw new Error(`REST: unsupported input schema for "${name}"`);
+}
+
+/** The query parameters and strict schema for a Zod input shape (without `child_id`). */
+export function queryShape(input: z.ZodRawShape): QueryShape {
+  return {
+    query: Object.entries(input).map(([name, schema]) => queryParam(name, schema)),
+    schema: z.object(input).strict(),
+  };
 }
 
 /**
@@ -59,6 +76,8 @@ export function restRoutes(
         throw new Error(`REST: ${operation.name} must be read-only and typed`);
       const { child_id, ...rest } = operation.input;
       const childScoped = child_id !== undefined;
+      if (COMPOSITE_SLUGS.includes(slug(operation.name)))
+        throw new Error(`REST: ${operation.name} would shadow a composite route`);
       const pattern = childScoped
         ? `/children/:${CHILD}/${slug(operation.name)}`
         : `/${slug(operation.name)}`;
@@ -67,8 +86,7 @@ export function restRoutes(
         pattern,
         path: API_BASE + pattern.replace(`:${CHILD}`, `{${CHILD}}`),
         childScoped,
-        query: Object.entries(rest).map(([name, schema]) => queryParam(name, schema)),
-        schema: z.object(rest).strict(),
+        ...queryShape(rest),
       };
     });
 }
@@ -85,7 +103,7 @@ export function parseChildId(value: string): number {
  * declared kind, then checked against the operation's own schema (unknown keys refused).
  */
 export function parseQuery(
-  route: RestRoute,
+  route: QueryShape,
   query: Record<string, unknown>,
 ): Record<string, unknown> {
   const args: Record<string, unknown> = {};

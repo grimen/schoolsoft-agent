@@ -1,0 +1,2185 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "schoolsoft-agent connector REST API",
+    "version": "1",
+    "description": "Read-only JSON for custom UIs, served by a parent-hosted schoolsoft-agent connector (an independent project; SchoolSoft AB is not involved). Generated from the connector's own route table and Zod schemas (`make docs`); the human-readable reference is `docs/reference/rest-api.md`.\n\n**Tokens.** Every request carries `Authorization: Bearer <access token>` from the connector's OAuth 2.1 authorization-code flow with PKCE (register with `POST /register` as a public client, then `/authorize` and `/token`). The connector is one OAuth protected resource named `https://<connector>/mcp`, also for REST: ask for tokens with `resource=https://<connector>/mcp`; its metadata is at `/.well-known/oauth-protected-resource/mcp`, and the `401` challenge on `/api/v1` points there. Access tokens live 5 minutes. Refresh tokens rotate, and presenting one twice revokes the whole connection: refresh one at a time.\n\n**Problems.** Failures are `application/problem+json` with `type` `urn:schoolsoft-agent:problem:<name>`; branch on `type`, `status`, `kind` and `retryable`, never on text. `401` is always the app's token; `409` is always the connector's SchoolSoft sign-in (send the parent to `ownerDashboard`).\n\n**Limits.** Same-origin only (no CORS headers; another site's `Origin` is refused). 60 requests per minute per caller. New response fields may appear within v1: ignore fields you do not know."
+  },
+  "servers": [
+    {
+      "url": "https://{connector}/api/v1",
+      "variables": {
+        "connector": {
+          "default": "connector.example",
+          "description": "Your connector's host"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "oauth": []
+    }
+  ],
+  "paths": {
+    "/session": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Connection status",
+        "description": "What the calling connection may do and whether the connector can serve it now. Never starts a SchoolSoft login or BankID. Show data when `schoolsoft.signedIn` is true; otherwise link the parent to `ownerDashboard`, unless `schoolsoft.portal.state` is not `ok`.",
+        "security": [
+          {
+            "oauth": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/children": {
+      "get": {
+        "operationId": "listChildren",
+        "summary": "List children",
+        "description": "Operation `list_children`, scope `list_children`. The answer is the operation's validated domain object; one that does not fit is a `502` `response-drift`.",
+        "security": [
+          {
+            "oauth": [
+              "list_children"
+            ]
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Children"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid-input`: Path or query parameters do not fit the operation's input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only. `scope-not-granted`: The token's scopes do not include this operation. Nothing was read. `child-not-permitted`: The child is outside this connection's grant or no longer on the account. Nothing was read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`schoolsoft-session`: The connector is not signed in to SchoolSoft (never signed in, signed out, or the saved session expired). The token is fine; only the parent can fix this, on the owner dashboard (`ownerDashboard`). `web-session`: The data needs SchoolSoft's separate web login, which the connector does not offer.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "`not-implemented`: The school portal or the connector does not offer this capability.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`response-drift`: The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. `upstream`: The portal answered with an error. Usually temporary.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`connector-busy`: Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. `portal-pushback`: The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. `not-available`: The connector cannot serve this now (for example its stored state is from a newer version).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "`network`: The connector could not reach the portal (DNS, TCP, TLS or timeout).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/children/{childId}/schedule": {
+      "get": {
+        "operationId": "getSchedule",
+        "summary": "Get schedule",
+        "description": "Operation `get_schedule`, scope `get_schedule`. The answer is the operation's validated domain object; one that does not fit is a `502` `response-drift`.",
+        "security": [
+          {
+            "oauth": [
+              "get_schedule"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "childId",
+            "in": "path",
+            "required": true,
+            "description": "An `id` from `/children`; a child outside the connection's approval is refused with `403` before anything is read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "week",
+            "in": "query",
+            "required": false,
+            "description": "ISO week number 1–53. Defaults to the current week.",
+            "schema": {
+              "description": "ISO week number 1–53. Defaults to the current week.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 53
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+            "schema": {
+              "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Schedule"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid-input`: Path or query parameters do not fit the operation's input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only. `scope-not-granted`: The token's scopes do not include this operation. Nothing was read. `child-not-permitted`: The child is outside this connection's grant or no longer on the account. Nothing was read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`schoolsoft-session`: The connector is not signed in to SchoolSoft (never signed in, signed out, or the saved session expired). The token is fine; only the parent can fix this, on the owner dashboard (`ownerDashboard`). `web-session`: The data needs SchoolSoft's separate web login, which the connector does not offer.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "`not-implemented`: The school portal or the connector does not offer this capability.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`response-drift`: The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. `upstream`: The portal answered with an error. Usually temporary.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`connector-busy`: Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. `portal-pushback`: The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. `not-available`: The connector cannot serve this now (for example its stored state is from a newer version).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "`network`: The connector could not reach the portal (DNS, TCP, TLS or timeout).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/children/{childId}/calendar": {
+      "get": {
+        "operationId": "getCalendar",
+        "summary": "Get full calendar",
+        "description": "Operation `get_calendar`, scope `get_calendar`. The answer is the operation's validated domain object; one that does not fit is a `502` `response-drift`.",
+        "security": [
+          {
+            "oauth": [
+              "get_calendar"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "childId",
+            "in": "path",
+            "required": true,
+            "description": "An `id` from `/children`; a child outside the connection's approval is refused with `403` before anything is read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "start_date",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive start date, YYYY-MM-DD. Supply with end_date or omit both for this week.",
+            "schema": {
+              "description": "Inclusive start date, YYYY-MM-DD. Supply with end_date or omit both for this week.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "end_date",
+            "in": "query",
+            "required": false,
+            "description": "Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end.",
+            "schema": {
+              "description": "Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+            "schema": {
+              "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Calendar"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid-input`: Path or query parameters do not fit the operation's input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only. `scope-not-granted`: The token's scopes do not include this operation. Nothing was read. `child-not-permitted`: The child is outside this connection's grant or no longer on the account. Nothing was read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`schoolsoft-session`: The connector is not signed in to SchoolSoft (never signed in, signed out, or the saved session expired). The token is fine; only the parent can fix this, on the owner dashboard (`ownerDashboard`). `web-session`: The data needs SchoolSoft's separate web login, which the connector does not offer.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "`not-implemented`: The school portal or the connector does not offer this capability.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`response-drift`: The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. `upstream`: The portal answered with an error. Usually temporary.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`connector-busy`: Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. `portal-pushback`: The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. `not-available`: The connector cannot serve this now (for example its stored state is from a newer version).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "`network`: The connector could not reach the portal (DNS, TCP, TLS or timeout).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/children/{childId}/lunch-menu": {
+      "get": {
+        "operationId": "getLunchMenu",
+        "summary": "Get lunch menu",
+        "description": "Operation `get_lunch_menu`, scope `get_lunch_menu`. The answer is the operation's validated domain object; one that does not fit is a `502` `response-drift`.",
+        "security": [
+          {
+            "oauth": [
+              "get_lunch_menu"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "childId",
+            "in": "path",
+            "required": true,
+            "description": "An `id` from `/children`; a child outside the connection's approval is refused with `403` before anything is read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "week",
+            "in": "query",
+            "required": false,
+            "description": "ISO week number 1–53. Defaults to the current week.",
+            "schema": {
+              "description": "ISO week number 1–53. Defaults to the current week.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 53
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+            "schema": {
+              "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LunchMenu"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid-input`: Path or query parameters do not fit the operation's input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only. `scope-not-granted`: The token's scopes do not include this operation. Nothing was read. `child-not-permitted`: The child is outside this connection's grant or no longer on the account. Nothing was read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`schoolsoft-session`: The connector is not signed in to SchoolSoft (never signed in, signed out, or the saved session expired). The token is fine; only the parent can fix this, on the owner dashboard (`ownerDashboard`). `web-session`: The data needs SchoolSoft's separate web login, which the connector does not offer.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "`not-implemented`: The school portal or the connector does not offer this capability.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`response-drift`: The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. `upstream`: The portal answered with an error. Usually temporary.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`connector-busy`: Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. `portal-pushback`: The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. `not-available`: The connector cannot serve this now (for example its stored state is from a newer version).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "`network`: The connector could not reach the portal (DNS, TCP, TLS or timeout).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/children/{childId}/overview": {
+      "get": {
+        "operationId": "getOverview",
+        "summary": "One child's first paint",
+        "description": "The week's lessons and lunch and the next school event, each section `ok`, `not-granted` or `error` with its own problem, read in one turn of the connector's queue. No scope of its own: any one of the three section scopes admits the request, and a section whose scope is missing is `not-granted`. Weeks are ISO weeks named by their Europe/Stockholm dates.",
+        "security": [
+          {
+            "oauth": [
+              "get_schedule"
+            ]
+          },
+          {
+            "oauth": [
+              "get_lunch_menu"
+            ]
+          },
+          {
+            "oauth": [
+              "get_calendar"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "childId",
+            "in": "path",
+            "required": true,
+            "description": "An `id` from `/children`; a child outside the connection's approval is refused with `403` before anything is read.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": false,
+            "description": "Any day of the week to show, YYYY-MM-DD, within about half a year of today. Defaults to today in Europe/Stockholm.",
+            "schema": {
+              "description": "Any day of the week to show, YYYY-MM-DD, within about half a year of today. Defaults to today in Europe/Stockholm.",
+              "type": "string"
+            }
+          },
+          {
+            "name": "fresh",
+            "in": "query",
+            "required": false,
+            "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+            "schema": {
+              "description": "Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest.",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The validated answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalid-input`: Path or query parameters do not fit the operation's input.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The access token is missing, invalid or expired (the MCP SDK's RFC 6750 answer with `WWW-Authenticate`), or the connection was revoked while the request waited (`oauth-token`). Refresh the token once; connect again if that fails."
+          },
+          "403": {
+            "description": "`foreign-origin`: The request carried another site's `Origin`; the API is same-origin only. `scope-not-granted`: The token's scopes do not include this operation. Nothing was read. `child-not-permitted`: The child is outside this connection's grant or no longer on the account. Nothing was read.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`schoolsoft-session`: The connector is not signed in to SchoolSoft (never signed in, signed out, or the saved session expired). The token is fine; only the parent can fix this, on the owner dashboard (`ownerDashboard`). `web-session`: The data needs SchoolSoft's separate web login, which the connector does not offer.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "`rate-limited`: Per-caller limit reached; `Retry-After` says when to try again.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`internal`: A bug in the connector. No detail is returned.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "`not-implemented`: The school portal or the connector does not offer this capability.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`response-drift`: The portal answered in a shape that does not map to the domain model; nothing was returned. Retrying does not help. `upstream`: The portal answered with an error. Usually temporary.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`connector-busy`: Too many requests queued, the connector is shutting down, or the child in focus changed while the request waited. `Retry-After` is set. `portal-pushback`: The school portal asked for fewer requests or kept failing, so the connector sends it nothing for a while. `Retry-After` and `retryAt` say when to try again; signing in again does not help. `not-available`: The connector cannot serve this now (for example its stored state is from a newer version).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "`network`: The connector could not reach the portal (DNS, TCP, TLS or timeout).",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "oauth": {
+        "type": "oauth2",
+        "description": "Authorization code with PKCE (S256), public clients. Resource indicator: `https://<connector>/mcp`. One scope per operation; the parent approves scopes and children on the connector's consent page.",
+        "flows": {
+          "authorizationCode": {
+            "authorizationUrl": "/authorize",
+            "tokenUrl": "/token",
+            "refreshUrl": "/token",
+            "scopes": {
+              "list_children": "List children",
+              "get_schedule": "Get schedule",
+              "get_calendar": "Get full calendar",
+              "get_lunch_menu": "Get lunch menu"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Session": {
+        "type": "object",
+        "properties": {
+          "schoolsoft": {
+            "type": "object",
+            "properties": {
+              "signedIn": {
+                "type": "boolean",
+                "description": "The connector's SchoolSoft session is present and valid"
+              },
+              "loginInProgress": {
+                "type": "boolean",
+                "description": "The parent started a sign-in that has not finished"
+              },
+              "webSession": {
+                "type": "boolean",
+                "description": "A gated web-login session is stored (the connector does not offer one; always false today)"
+              },
+              "portal": {
+                "type": "object",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "ok",
+                      "backing_off",
+                      "paused",
+                      "probing"
+                    ],
+                    "description": "`ok`: requests to the school portal flow; `backing_off`: a short pause after the portal pushed back; `paused`: the portal pushed back repeatedly and the connector sends it nothing until `retryAt`; `probing`: the next request tests whether it answers again"
+                  },
+                  "retryAt": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "format": "date-time"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "When requests flow again; null while they flow or a probe decides"
+                  }
+                },
+                "required": [
+                  "state",
+                  "retryAt"
+                ]
+              }
+            },
+            "required": [
+              "signedIn",
+              "loginInProgress",
+              "webSession",
+              "portal"
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "Child id; use it as {childId}"
+                },
+                "firstName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "firstName"
+              ]
+            },
+            "description": "The children this connection may read, { id, firstName } as /children returns them; empty while signed out"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The operations this token may call"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "operation": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string",
+                  "const": "GET"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "operation",
+                "method",
+                "path"
+              ]
+            },
+            "description": "{ operation, method, path } for each route the scopes allow"
+          },
+          "ownerDashboard": {
+            "type": "string",
+            "description": "Where the parent signs in to SchoolSoft again"
+          },
+          "connectionExpiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When this connection's approval expires"
+          }
+        },
+        "required": [
+          "schoolsoft",
+          "children",
+          "scopes",
+          "routes",
+          "ownerDashboard",
+          "connectionExpiresAt"
+        ]
+      },
+      "Children": {
+        "type": "object",
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "description": "Child id; use it as {childId}"
+                },
+                "firstName": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "firstName"
+              ]
+            },
+            "description": "The children in this connection, { id, firstName }"
+          },
+          "childInFocus": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The child reads default to, when it is in this grant; else null"
+          }
+        },
+        "required": [
+          "children",
+          "childInFocus"
+        ]
+      },
+      "Schedule": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "ISO week-year: the year in which this week starts nearest today"
+          },
+          "week": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 53
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Monday of the week, YYYY-MM-DD in Europe/Stockholm"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Sunday of the week, YYYY-MM-DD in Europe/Stockholm"
+          },
+          "child": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Child id; pass it as child_id"
+              },
+              "firstName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "firstName"
+            ],
+            "description": "The child the result is for"
+          },
+          "lessons": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stable id of this lesson occurrence"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Subject or lesson name"
+                },
+                "start": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                },
+                "end": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                },
+                "room": {
+                  "description": "Room; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "group": {
+                  "description": "Teaching group; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "teacher": {
+                  "description": "Teacher; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "description": "Lesson description; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "start",
+                "end",
+                "room",
+                "group",
+                "teacher",
+                "note"
+              ]
+            }
+          }
+        },
+        "required": [
+          "year",
+          "week",
+          "startDate",
+          "endDate",
+          "child",
+          "lessons"
+        ]
+      },
+      "Calendar": {
+        "type": "object",
+        "properties": {
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+          },
+          "timezone": {
+            "type": "string",
+            "const": "Europe/Stockholm"
+          },
+          "child": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Child id; pass it as child_id"
+              },
+              "firstName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "firstName"
+            ],
+            "description": "The child the result is for"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "description": "Stable id of this calendar entry"
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "lesson",
+                    "event"
+                  ],
+                  "description": "A timetable entry or a school event"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "allDay": {
+                  "type": "boolean"
+                },
+                "start": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                    }
+                  ],
+                  "description": "Date for date-only entries"
+                },
+                "end": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "format": "date",
+                      "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                    },
+                    {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                    }
+                  ],
+                  "description": "Date for date-only entries"
+                },
+                "location": {
+                  "description": "Room or place; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "teacher": {
+                  "description": "Teacher; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "group": {
+                  "description": "Teaching group; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "category": {
+                  "description": "Portal category, e.g. lesson or lunch; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "note": {
+                  "description": "Description; null when not given",
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "title",
+                "allDay",
+                "start",
+                "end",
+                "location",
+                "teacher",
+                "group",
+                "category",
+                "note"
+              ]
+            }
+          }
+        },
+        "required": [
+          "startDate",
+          "endDate",
+          "timezone",
+          "child",
+          "events"
+        ]
+      },
+      "LunchMenu": {
+        "type": "object",
+        "properties": {
+          "year": {
+            "type": "integer",
+            "description": "ISO week-year"
+          },
+          "week": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 53
+          },
+          "child": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Child id; pass it as child_id"
+              },
+              "firstName": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "firstName"
+            ],
+            "description": "The child the result is for"
+          },
+          "days": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "date": {
+                  "type": "string",
+                  "format": "date",
+                  "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                },
+                "weekday": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = Monday … 7 = Sunday"
+                },
+                "dishes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "kind": {
+                        "description": "Kind of meal, as the school names it; null when not given",
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "description": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind",
+                      "description"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "date",
+                "weekday",
+                "dishes"
+              ]
+            }
+          }
+        },
+        "required": [
+          "year",
+          "week",
+          "child",
+          "days"
+        ]
+      },
+      "Overview": {
+        "type": "object",
+        "properties": {
+          "child": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "integer",
+                "description": "Child id; pass it as child_id"
+              },
+              "firstName": {
+                "type": "string"
+              },
+              "schoolName": {
+                "description": "School name; null when not given",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "className": {
+                "description": "Class name; null when not given",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "firstName",
+              "schoolName",
+              "className"
+            ],
+            "description": "The child in the path"
+          },
+          "week": {
+            "type": "object",
+            "properties": {
+              "year": {
+                "type": "integer",
+                "description": "ISO week-year"
+              },
+              "week": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 53,
+                "description": "ISO week number"
+              },
+              "startDate": {
+                "type": "string",
+                "format": "date",
+                "description": "Monday of the week"
+              },
+              "endDate": {
+                "type": "string",
+                "format": "date",
+                "description": "Sunday of the week"
+              },
+              "today": {
+                "type": "string",
+                "format": "date",
+                "description": "Today in Europe/Stockholm, the start of nextEvent's search"
+              },
+              "timezone": {
+                "type": "string",
+                "const": "Europe/Stockholm"
+              }
+            },
+            "required": [
+              "year",
+              "week",
+              "startDate",
+              "endDate",
+              "today",
+              "timezone"
+            ]
+          },
+          "schedule": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "ok"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "year": {
+                        "type": "integer",
+                        "description": "ISO week-year: the year in which this week starts nearest today"
+                      },
+                      "week": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 53
+                      },
+                      "startDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Monday of the week, YYYY-MM-DD in Europe/Stockholm"
+                      },
+                      "endDate": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Sunday of the week, YYYY-MM-DD in Europe/Stockholm"
+                      },
+                      "child": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "Child id; pass it as child_id"
+                          },
+                          "firstName": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "firstName"
+                        ],
+                        "description": "The child the result is for"
+                      },
+                      "lessons": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string",
+                              "description": "Stable id of this lesson occurrence"
+                            },
+                            "title": {
+                              "type": "string",
+                              "description": "Subject or lesson name"
+                            },
+                            "start": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                            },
+                            "end": {
+                              "type": "string",
+                              "format": "date-time",
+                              "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                            },
+                            "room": {
+                              "description": "Room; null when not given",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "group": {
+                              "description": "Teaching group; null when not given",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "teacher": {
+                              "description": "Teacher; null when not given",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "note": {
+                              "description": "Lesson description; null when not given",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "title",
+                            "start",
+                            "end",
+                            "room",
+                            "group",
+                            "teacher",
+                            "note"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "year",
+                      "week",
+                      "startDate",
+                      "endDate",
+                      "child",
+                      "lessons"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "data"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "not-granted"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "description": "The scope this connection lacks; nothing was read"
+                  }
+                },
+                "required": [
+                  "status",
+                  "scope"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "error"
+                  },
+                  "problem": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "`urn:schoolsoft-agent:problem:<name>`; branch on this"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Short English title of the problem type"
+                      },
+                      "status": {
+                        "type": "integer",
+                        "description": "The HTTP status this problem is answered with"
+                      },
+                      "detail": {
+                        "type": "string",
+                        "description": "What happened, in the negotiated language"
+                      },
+                      "hint": {
+                        "description": "What to do next, in the negotiated language",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "internal",
+                          "not_authenticated",
+                          "not_configured",
+                          "network",
+                          "not_available",
+                          "input",
+                          "upstream"
+                        ],
+                        "description": "The error kind, as the MCP tools and the CLI report it"
+                      },
+                      "retryable": {
+                        "type": "boolean",
+                        "description": "Whether repeating the same request may succeed"
+                      },
+                      "ownerDashboard": {
+                        "description": "Where the parent signs in to SchoolSoft again (SchoolSoft-session problems)",
+                        "type": "string"
+                      },
+                      "error": {
+                        "description": "RFC 6750 error code on token problems",
+                        "type": "string",
+                        "enum": [
+                          "invalid_token",
+                          "insufficient_scope"
+                        ]
+                      },
+                      "retryAt": {
+                        "description": "When the connector sends requests to the school portal again (`portal-pushback`)",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "kind",
+                      "retryable"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "problem"
+                ]
+              }
+            ],
+            "description": "The week's lessons: get_schedule's output"
+          },
+          "lunch": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "ok"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "year": {
+                        "type": "integer",
+                        "description": "ISO week-year"
+                      },
+                      "week": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 53
+                      },
+                      "child": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer",
+                            "description": "Child id; pass it as child_id"
+                          },
+                          "firstName": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "firstName"
+                        ],
+                        "description": "The child the result is for"
+                      },
+                      "days": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "date": {
+                              "type": "string",
+                              "format": "date",
+                              "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                            },
+                            "weekday": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 7,
+                              "description": "1 = Monday … 7 = Sunday"
+                            },
+                            "dishes": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "kind": {
+                                    "description": "Kind of meal, as the school names it; null when not given",
+                                    "type": [
+                                      "string",
+                                      "null"
+                                    ]
+                                  },
+                                  "description": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "kind",
+                                  "description"
+                                ]
+                              }
+                            }
+                          },
+                          "required": [
+                            "date",
+                            "weekday",
+                            "dishes"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "year",
+                      "week",
+                      "child",
+                      "days"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "data"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "not-granted"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "description": "The scope this connection lacks; nothing was read"
+                  }
+                },
+                "required": [
+                  "status",
+                  "scope"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "error"
+                  },
+                  "problem": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "`urn:schoolsoft-agent:problem:<name>`; branch on this"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Short English title of the problem type"
+                      },
+                      "status": {
+                        "type": "integer",
+                        "description": "The HTTP status this problem is answered with"
+                      },
+                      "detail": {
+                        "type": "string",
+                        "description": "What happened, in the negotiated language"
+                      },
+                      "hint": {
+                        "description": "What to do next, in the negotiated language",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "internal",
+                          "not_authenticated",
+                          "not_configured",
+                          "network",
+                          "not_available",
+                          "input",
+                          "upstream"
+                        ],
+                        "description": "The error kind, as the MCP tools and the CLI report it"
+                      },
+                      "retryable": {
+                        "type": "boolean",
+                        "description": "Whether repeating the same request may succeed"
+                      },
+                      "ownerDashboard": {
+                        "description": "Where the parent signs in to SchoolSoft again (SchoolSoft-session problems)",
+                        "type": "string"
+                      },
+                      "error": {
+                        "description": "RFC 6750 error code on token problems",
+                        "type": "string",
+                        "enum": [
+                          "invalid_token",
+                          "insufficient_scope"
+                        ]
+                      },
+                      "retryAt": {
+                        "description": "When the connector sends requests to the school portal again (`portal-pushback`)",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "kind",
+                      "retryable"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "problem"
+                ]
+              }
+            ],
+            "description": "The week's lunch: get_lunch_menu's output"
+          },
+          "nextEvent": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "ok"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "event": {
+                        "anyOf": [
+                          {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "description": "Stable id of this calendar entry"
+                              },
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "lesson",
+                                  "event"
+                                ],
+                                "description": "A timetable entry or a school event"
+                              },
+                              "title": {
+                                "type": "string"
+                              },
+                              "allDay": {
+                                "type": "boolean"
+                              },
+                              "start": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                                  }
+                                ],
+                                "description": "Date for date-only entries"
+                              },
+                              "end": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "Calendar date YYYY-MM-DD in Europe/Stockholm"
+                                  },
+                                  {
+                                    "type": "string",
+                                    "format": "date-time",
+                                    "description": "ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00"
+                                  }
+                                ],
+                                "description": "Date for date-only entries"
+                              },
+                              "location": {
+                                "description": "Room or place; null when not given",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "teacher": {
+                                "description": "Teacher; null when not given",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "group": {
+                                "description": "Teaching group; null when not given",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "category": {
+                                "description": "Portal category, e.g. lesson or lunch; null when not given",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "note": {
+                                "description": "Description; null when not given",
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind",
+                              "title",
+                              "allDay",
+                              "start",
+                              "end",
+                              "location",
+                              "teacher",
+                              "group",
+                              "category",
+                              "note"
+                            ]
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The first school event (kind \"event\") that has not ended, by start; null when there is none"
+                      },
+                      "from": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "First day searched: today in Europe/Stockholm"
+                      },
+                      "until": {
+                        "type": "string",
+                        "format": "date",
+                        "description": "Last day searched: 29 days after today"
+                      }
+                    },
+                    "required": [
+                      "event",
+                      "from",
+                      "until"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "data"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "not-granted"
+                  },
+                  "scope": {
+                    "type": "string",
+                    "description": "The scope this connection lacks; nothing was read"
+                  }
+                },
+                "required": [
+                  "status",
+                  "scope"
+                ]
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "type": "string",
+                    "const": "error"
+                  },
+                  "problem": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "`urn:schoolsoft-agent:problem:<name>`; branch on this"
+                      },
+                      "title": {
+                        "type": "string",
+                        "description": "Short English title of the problem type"
+                      },
+                      "status": {
+                        "type": "integer",
+                        "description": "The HTTP status this problem is answered with"
+                      },
+                      "detail": {
+                        "type": "string",
+                        "description": "What happened, in the negotiated language"
+                      },
+                      "hint": {
+                        "description": "What to do next, in the negotiated language",
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string",
+                        "enum": [
+                          "internal",
+                          "not_authenticated",
+                          "not_configured",
+                          "network",
+                          "not_available",
+                          "input",
+                          "upstream"
+                        ],
+                        "description": "The error kind, as the MCP tools and the CLI report it"
+                      },
+                      "retryable": {
+                        "type": "boolean",
+                        "description": "Whether repeating the same request may succeed"
+                      },
+                      "ownerDashboard": {
+                        "description": "Where the parent signs in to SchoolSoft again (SchoolSoft-session problems)",
+                        "type": "string"
+                      },
+                      "error": {
+                        "description": "RFC 6750 error code on token problems",
+                        "type": "string",
+                        "enum": [
+                          "invalid_token",
+                          "insufficient_scope"
+                        ]
+                      },
+                      "retryAt": {
+                        "description": "When the connector sends requests to the school portal again (`portal-pushback`)",
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "title",
+                      "status",
+                      "detail",
+                      "kind",
+                      "retryable"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "problem"
+                ]
+              }
+            ],
+            "description": "The next school event from today, within 30 days (get_calendar)"
+          }
+        },
+        "required": [
+          "child",
+          "week",
+          "schedule",
+          "lunch",
+          "nextEvent"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "description": "`urn:schoolsoft-agent:problem:<name>`; branch on this"
+          },
+          "title": {
+            "type": "string",
+            "description": "Short English title of the problem type"
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status this problem is answered with"
+          },
+          "detail": {
+            "type": "string",
+            "description": "What happened, in the negotiated language"
+          },
+          "hint": {
+            "description": "What to do next, in the negotiated language",
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "internal",
+              "not_authenticated",
+              "not_configured",
+              "network",
+              "not_available",
+              "input",
+              "upstream"
+            ],
+            "description": "The error kind, as the MCP tools and the CLI report it"
+          },
+          "retryable": {
+            "type": "boolean",
+            "description": "Whether repeating the same request may succeed"
+          },
+          "ownerDashboard": {
+            "description": "Where the parent signs in to SchoolSoft again (SchoolSoft-session problems)",
+            "type": "string"
+          },
+          "error": {
+            "description": "RFC 6750 error code on token problems",
+            "type": "string",
+            "enum": [
+              "invalid_token",
+              "insufficient_scope"
+            ]
+          },
+          "retryAt": {
+            "description": "When the connector sends requests to the school portal again (`portal-pushback`)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "detail",
+          "kind",
+          "retryable"
+        ]
+      }
+    }
+  }
+}

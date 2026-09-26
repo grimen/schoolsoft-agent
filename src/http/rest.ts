@@ -5,8 +5,8 @@
  * as /mcp, and the same runtime call, so consent, child focus, the read cache, output
  * validation, recovery and revocation checks are the ones /mcp relies on.
  */
-import { Router, type Request, type RequestHandler, type Response } from "express";
-import type { Options as RateLimitOptions } from "express-rate-limit";
+import { Router, type Request, type Response } from "express";
+import { rateLimit, type Options as RateLimitOptions } from "express-rate-limit";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import { PortalPushbackError, type Lang } from "../core/index.js";
@@ -21,6 +21,8 @@ import {
   type Classified,
 } from "./problem.js";
 import { parseChildId, parseQuery, restRoutes } from "./routes.js";
+import { SessionSchema } from "./api-schemas.js";
+import { OVERVIEW_QUERY, OVERVIEW_SCOPES, OVERVIEW_SLUG, buildOverview } from "./overview.js";
 
 /** Requests per minute per caller (clientKey) across the whole REST surface. */
 export const REST_REQUESTS_PER_MINUTE = 60;
@@ -28,11 +30,11 @@ export const REST_REQUESTS_PER_MINUTE = 60;
 export interface RestOptions {
   publicUrl: string;
   oauth: OAuthTokenVerifier & { verifyGrant(id: string): ConnectorGrant };
-  runtime: Pick<ConnectorRuntime, "execute" | "status">;
+  runtime: Pick<ConnectorRuntime, "execute" | "executeForChild" | "status">;
   /** Language when the caller's Accept-Language names neither Swedish nor English. */
   lang: Lang;
-  /** The connector's per-caller limiter factory (server.ts), so REST shares its keying. */
-  limit: (extra: Partial<RateLimitOptions>) => RequestHandler;
+  /** The connector's per-caller keying (server.ts), so REST limits callers as the owner routes do. */
+  perCaller: Partial<RateLimitOptions>;
   /** Clock for Retry-After (tests). */
   now?: () => number;
 }
@@ -42,7 +44,7 @@ export function restApi({
   oauth,
   runtime,
   lang,
-  limit,
+  perCaller,
   now = Date.now,
 }: RestOptions): Router {
   const resourceMetadataUrl = publicUrl + "/.well-known/oauth-protected-resource/mcp";
@@ -74,8 +76,12 @@ export function restApi({
 
   const router = Router();
   router.use(
-    limit({
+    rateLimit({
+      windowMs: 60_000,
       limit: REST_REQUESTS_PER_MINUTE,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      ...perCaller,
       handler: (req, res) => send(req, res, refusals.rateLimited()),
     }),
   );
@@ -92,24 +98,68 @@ export function restApi({
       const status = await runtime.status();
       oauth.verifyGrant(grantId);
       const scopes = req.auth!.scopes;
-      res.json({
-        schoolsoft: {
-          signedIn: status.authenticated,
-          loginInProgress: status.loginInProgress,
-          webSession: status.webSession === true,
-          // Not "ok": the portal is pushing back; show "try again at retryAt", not the dashboard link.
-          portal: status.portal,
-        },
-        children: status.children
-          .filter((child) => grant.childIds.includes(child.id))
-          .map((child) => ({ id: child.id, firstName: child.name })),
+      res.json(
+        SessionSchema.parse({
+          schoolsoft: {
+            signedIn: status.authenticated,
+            loginInProgress: status.loginInProgress,
+            webSession: status.webSession === true,
+            // Not "ok": the portal is pushing back; show "try again at retryAt", not the dashboard link.
+            portal: status.portal,
+          },
+          children: status.children
+            .filter((child) => grant.childIds.includes(child.id))
+            .map((child) => ({ id: child.id, firstName: child.name })),
+          scopes,
+          routes: routes
+            .filter((route) => scopes.includes(route.operation.name))
+            .map((route) => ({ operation: route.operation.name, method: "GET", path: route.path })),
+          ownerDashboard: publicUrl + "/owner",
+          connectionExpiresAt: new Date(grant.expiresAt).toISOString(),
+        }),
+      );
+    } catch (error) {
+      send(req, res, classify(error));
+    }
+  });
+
+  // The composite overview: one child's first paint in one request (E5.6).
+  router.get(`/children/:childId/${OVERVIEW_SLUG}`, async (req, res) => {
+    const cancellation = new AbortController();
+    res.on("close", () => cancellation.abort());
+    try {
+      const scopes = req.auth!.scopes;
+      if (!OVERVIEW_SCOPES.some((scope) => scopes.includes(scope))) {
+        send(req, res, refusals.scope(OVERVIEW_SCOPES.join(" ")));
+        return;
+      }
+      const input = parseQuery(OVERVIEW_QUERY, req.query);
+      const childId = parseChildId(String(req.params.childId));
+      const grantId = grantOf(req);
+      const grant = oauth.verifyGrant(grantId);
+      const chosen = negotiateLang(req.get("accept-language"), lang);
+      const overview = await buildOverview({
+        childId,
+        input,
         scopes,
-        routes: routes
-          .filter((route) => scopes.includes(route.operation.name))
-          .map((route) => ({ operation: route.operation.name, method: "GET", path: route.path })),
-        ownerDashboard: publicUrl + "/owner",
-        connectionExpiresAt: new Date(grant.expiresAt).toISOString(),
+        now: now(),
+        read: (reads, keep) =>
+          runtime.executeForChild(
+            childId,
+            reads,
+            grant.childIds,
+            {
+              check: () => {
+                oauth.verifyGrant(grantId);
+              },
+              signal: cancellation.signal,
+            },
+            keep,
+          ),
+        problem: (problem) => problemBody(problem, chosen, publicUrl),
       });
+      oauth.verifyGrant(grantId);
+      res.set({ "Content-Language": chosen, Vary: "Accept-Language" }).json(overview);
     } catch (error) {
       send(req, res, classify(error));
     }

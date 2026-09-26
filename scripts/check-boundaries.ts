@@ -11,6 +11,8 @@
  *     only a provider's net.ts imports ssp-node's `schoolsoftFetch`/`rawRequest` or calls `fetch`;
  *     nothing imports ssp-node's other request helpers or calls a SchoolsoftClient method that sends
  *     (`verifySession`, `getNews`, ...); only the inbound servers import node:http(s)/net/tls/undici
+ *   - src/client/** (the typed client, a package export for apps) imports only zod and its own
+ *     files, and nothing else in src imports it
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, dirname, resolve } from "node:path";
@@ -64,6 +66,9 @@ const CLIENT_SENDS =
 /** The outbound rules for one file (whole text, so multi-line imports count too). */
 function checkOutbound(rel: string, text: string): Violation[] {
   const out: Violation[] = [];
+  // The typed client talks to a connector, never to the school portal, and runs in the
+  // app that imports it; the portal-outbound rules are not about it (its own rule is below).
+  if (rel.startsWith("client/")) return out;
   const lineOf = (index: number) => text.slice(0, index).split("\n").length;
   const add = (index: number, message: string) =>
     out.push({ file: rel, line: lineOf(index), message });
@@ -105,6 +110,41 @@ function checkOutbound(rel: string, text: string): Violation[] {
   return out;
 }
 
+/**
+ * The typed client (src/client) ships to apps and browsers: it may import Zod and its own
+ * files, nothing else, and nothing else imports it (it is reached only as a package export).
+ * Whole text, so multi-line and dynamic imports count too.
+ */
+function checkClient(rel: string, text: string, src: string, file: string): Violation[] {
+  const out: Violation[] = [];
+  const lineOf = (index: number) => text.slice(0, index).split("\n").length;
+  const inClient = rel.startsWith("client/");
+  for (const m of text.matchAll(
+    /(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']\s*\)|(?:^|\n)\s*import\s*["']([^"']+)["']/g,
+  )) {
+    const spec = m[1] ?? m[2] ?? m[3];
+    const at = m.index + m[0].length - m[0].trimStart().length;
+    const target = spec.startsWith(".")
+      ? relative(src, resolve(dirname(file), spec))
+          .split("\\")
+          .join("/")
+      : undefined;
+    if (inClient && spec !== "zod" && !target?.startsWith("client/"))
+      out.push({
+        file: rel,
+        line: lineOf(at),
+        message: `the typed client may import only zod and its own files, not ${spec}`,
+      });
+    if (!inClient && target?.startsWith("client/"))
+      out.push({
+        file: rel,
+        line: lineOf(at),
+        message: `${target} is the typed client; nothing in the package imports it`,
+      });
+  }
+  return out;
+}
+
 export function checkBoundaries(root: string): Violation[] {
   const src = join(root, "src");
   const violations: Violation[] = [];
@@ -113,6 +153,7 @@ export function checkBoundaries(root: string): Violation[] {
     const layer = rel.split("/")[0];
     const source = readFileSync(file, "utf8");
     violations.push(...checkOutbound(rel, source));
+    violations.push(...checkClient(rel, source, src, file));
     const lines = source.split("\n");
     lines.forEach((text, i) => {
       const m = /^\s*(?:import|export)\s[^"']*["']([^"']+)["']/.exec(text);
