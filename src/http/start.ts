@@ -2,6 +2,7 @@
 import {
   HISTORY_FORMAT,
   SESSION_FORMAT,
+  detectLang,
   resolveConfig,
   type VersionedFormat,
   type KeepaliveDeps,
@@ -91,7 +92,11 @@ export function composeConnector(
     keepaliveDeps,
     redirectUri: config.publicUrl + "/schoolsoft/callback",
   });
-  return { app: createConnectorApp({ config, oauth, runtime }), runtime };
+  // SCHOOLSOFT_LANG (or the locale) picks the REST fallback language; English otherwise.
+  return {
+    app: createConnectorApp({ config, oauth, runtime, lang: detectLang(env) }),
+    runtime,
+  };
 }
 export function startConnector(
   env: Record<string, string | undefined>,
