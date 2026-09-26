@@ -37,6 +37,16 @@ test("the real tree: only the provider's net.ts calls fetch; @elias4044/ssp-node
     .filter((f) => /(^|[^\w.$])fetch\(/.test(readFileSync(f, "utf8")))
     .map((f) => relative(src, f));
   assert.deepEqual(callers, ["providers/schoolsoft/net.ts"]);
+  const pkg = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8")) as Record<
+    string,
+    Record<string, string> | undefined
+  >;
+  for (const field of ["dependencies", "devDependencies", "optionalDependencies"])
+    assert.equal(pkg[field]?.["@elias4044/ssp-node"], undefined, field);
+  assert.doesNotMatch(
+    readFileSync(join(process.cwd(), "package-lock.json"), "utf8"),
+    /@elias4044\/ssp-node/,
+  );
 });
 
 test("the checker refuses every way around the budget", () => {

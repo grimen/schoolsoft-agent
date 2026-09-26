@@ -35,7 +35,6 @@
   "author": "Jonas Grimfelt",
   "license": "MIT",
   "dependencies": {
-    "@elias4044/ssp-node": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "commander": "^15.0.0",
     "express": "^5.2.1",
