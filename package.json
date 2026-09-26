@@ -103,5 +103,8 @@
   "types": "./dist/core/index.d.ts",
   "optionalDependencies": {
     "playwright": "^1.63.0"
-  }
+  },
+  "workspaces": [
+    "packages/app"
+  ]
 }

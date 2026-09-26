@@ -12,6 +12,7 @@ export default {
       2,
       "always",
       [
+        "app", // packages/app
         "core", // src/core
         "mcp", // src/mcp
         "cli", // src/cli

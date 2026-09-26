@@ -14,3 +14,6 @@ lefthook-local.yml
 .capture-denylist
 # make host-probe: what the host probe saw (no personal data, but local only)
 .host-probe/
+packages/app/.expo/
+packages/app/dist-web/
+packages/app/coverage/

@@ -16,3 +16,6 @@ docs/diagrams/README.md
 docs/diagrams/dist/
 docs/assets/
 src/client/api.gen.ts
+packages/app/.expo/
+packages/app/dist-web/
+packages/app/coverage/
