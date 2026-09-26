@@ -46,6 +46,8 @@ and software running on the server could access the data while it is being used.
 Encryption does not remove that trust. Claude or ChatGPT receives the school data
 returned by the tools you use, and may retain it under your account's data settings.
 The connector therefore does not mean that only you can ever see the information.
+What the server saves, for how long, and what each AI app can read is listed in
+[how your family's data is handled](../getting-started/data-handling.md#what-is-saved-on-your-connector-server).
 
 The available tools are children, schedule, calendar and lunch.
 
@@ -251,6 +253,8 @@ replicas or let another container share this volume.
 
 Logging out here cannot delete answers already retained by Claude or ChatGPT, or
 backups kept by a hosting provider. Manage those separately in the relevant account.
+What **Disconnect everything** keeps, and how to remove the rest, is in
+[delete everything](../getting-started/data-handling.md#how-to-delete-everything).
 
 ## Your own app or dashboard (REST API)
 
