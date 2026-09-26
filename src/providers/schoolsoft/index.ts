@@ -42,6 +42,7 @@ export const schoolsoftProvider: SchoolProvider<SchoolsoftSession> = {
       openBrowser: deps.openBrowser,
       browserAuthorization: deps.browserAuthorization,
       redirectUri: deps.redirectUri,
+      onRefresh: deps.onRefresh,
     }),
   ],
 

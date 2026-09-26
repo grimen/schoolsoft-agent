@@ -150,6 +150,15 @@ export class FakeAuth implements AuthStrategy<FakeSession> {
   async restore(_s: FakeSession, saved: PersistedSession): Promise<void> {
     this.context = saved.guardian ?? { ...CONTEXT };
   }
+  renewCalls = 0;
+  /** Set to make renew() fail (a NetworkError, a rejection...). */
+  renewError: unknown = null;
+  renewExpiresAt: number | null = null;
+  async renew(): Promise<{ expiresAt: number | null }> {
+    this.renewCalls++;
+    if (this.renewError) throw this.renewError;
+    return { expiresAt: this.renewExpiresAt };
+  }
   async focusChild(_s: FakeSession, studentId: number): Promise<void> {
     // Deliberately non-validating: SessionManager must guard this.
     this.context = { ...this.context!, childInFocus: studentId };
@@ -165,6 +174,8 @@ export const testConfig: Config = {
   stateDir: "/tmp/unused",
   configDir: "/tmp/unused",
   browser: { kind: "chromium", headless: true },
+  cache: true,
+  keepalive: { mode: "off", webIntervalMs: 600_000, quietHours: null },
   allowWrites: false,
 };
 

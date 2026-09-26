@@ -124,6 +124,9 @@ export class ApiPortal implements ApiPortalPart {
   syncWebChild(): Promise<void> {
     return this.webSession.syncWebChild();
   }
+  touchWebSession(): Promise<void> {
+    return this.webSession.touch();
+  }
 
   // Writes
   reportAbsence(notice: AbsenceNotice): Promise<AbsenceReceipt> {

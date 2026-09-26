@@ -9,6 +9,7 @@
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { homedir } from "node:os";
 import { createMcpServer } from "./server.js";
+import { startMcpKeepalive } from "./keepalive.js";
 import { loadContext } from "../shared/bootstrap.js";
 import { detectLang } from "../core/index.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
@@ -21,6 +22,8 @@ async function main(): Promise<void> {
     lang: detectLang(process.env),
   });
   await server.connect(new StdioServerTransport());
+  // Opt-in (SCHOOLSOFT_KEEPALIVE); off by default. Timers are unref'd, so the server still exits with its host.
+  startMcpKeepalive(() => context());
   console.error("schoolsoft-agent-mcp running on stdio");
 }
 

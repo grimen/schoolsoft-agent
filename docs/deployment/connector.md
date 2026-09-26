@@ -199,6 +199,21 @@ replicas or let another container share this volume.
 - **The AI says to sign in again:** open your server's owner page and repeat the
   SchoolSoft login. BankID sessions can expire; this does not require reinstalling
   the connector.
+- **You have to sign in often:** the owner page lists, under "Sign-in history",
+  when SchoolSoft ended earlier sign-ins and how old each one was. Times only; no
+  school data. If you want the server to renew the sign-in in the background
+  while it runs, add `SCHOOLSOFT_KEEPALIVE=app` to the environment settings and
+  restart. It is off by default: with it on, your server contacts SchoolSoft about
+  every 12 minutes even when nobody asks anything. It never signs in for you,
+  never touches BankID, and stops when SchoolSoft ends the sign-in. SchoolSoft AB
+  is not involved in this project and has not approved background requests; see
+  [troubleshooting](../getting-started/troubleshooting.md#i-have-to-log-in-with-bankid-too-often).
+  `SCHOOLSOFT_KEEPALIVE_QUIET_HOURS=22-6` pauses it at night (server clock, usually UTC).
+- **An answer looks out of date:** schedules are remembered in the server's memory
+  for 30 minutes and lunch menus for 6 hours, separately for each child, and never
+  on disk. Ask the AI for "the latest", or set `SCHOOLSOFT_CACHE=off`. A
+  disconnected app, or an app without permission for a child, is refused before
+  anything remembered is looked at.
 - **Remove one AI app:** revoke its permission on the owner page, then remove the
   connector in that app. Verify that it can no longer retrieve school data. The
   other app should retain its own permission.

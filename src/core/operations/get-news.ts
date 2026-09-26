@@ -1,5 +1,5 @@
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, LimitSchema, withChild } from "./_shared.js";
+import { ChildSchema, LimitSchema, withChild, FreshSchema } from "./_shared.js";
 
 export const getNews = defineOperation({
   name: "get_news",
@@ -9,11 +9,12 @@ export const getNews = defineOperation({
 Args:
   - child_id (number, optional): from list_children.
   - limit (number, optional): max items, default 20.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { child, news: [{ id, title, description, category, creDate, toDate, read, hasAttachment, author }] }.
 
 Use when: "något nytt från skolan", "senaste nyheterna".`,
-  input: { child_id: ChildSchema, limit: LimitSchema },
+  input: { child_id: ChildSchema, limit: LimitSchema, fresh: FreshSchema },
   portal: ["getNews"],
   annotations: READ_ONLY,
   async run(ctx, { child_id, limit }) {

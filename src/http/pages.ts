@@ -1,4 +1,5 @@
 /** Small server-rendered owner console; every dynamic value is escaped. */
+import type { SessionHistorySummary } from "../core/index.js";
 export function escapeHtml(value: unknown): string {
   return String(value).replace(
     /[&<>"']/g,
@@ -13,4 +14,20 @@ export function form(action: string, csrf: string, body: string, label: string):
 }
 export function hidden(name: string, value: string): string {
   return `<input type="hidden" name="${escapeHtml(name)}" value="${escapeHtml(value)}">`;
+}
+/** Plain-language lines about how long SchoolSoft sign-ins have lasted; empty until something is known. */
+export function signInHistory(history: SessionHistorySummary | null | undefined): string {
+  if (!history || (!history.app && history.losses.length === 0)) return "";
+  const lines: string[] = [];
+  if (history.app) {
+    lines.push(
+      `Current sign-in: ${history.app.ageMinutes === null ? "started before this was recorded" : `${history.app.ageMinutes} minutes old`}, renewed ${history.app.activityCount} times.`,
+    );
+  }
+  for (const loss of history.losses) {
+    lines.push(
+      `${loss.at.slice(0, 16).replace("T", " ")} UTC: SchoolSoft ended a sign-in after ${loss.ageMinutes === null ? "an unknown time" : `${loss.ageMinutes} minutes`} (${loss.idleMinutes} minutes since it was last renewed).`,
+    );
+  }
+  return `<h2>Sign-in history</h2><p>Times only; no school data is kept here.</p>${lines.map((l) => `<p>${escapeHtml(l)}</p>`).join("")}`;
 }

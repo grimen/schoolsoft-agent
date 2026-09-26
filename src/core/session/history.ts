@@ -1,0 +1,214 @@
+/**
+ * Session history: a small, bounded record of when sessions started, were
+ * renewed, were used and died, so the real lifetimes of a school portal's
+ * sessions can be read off after some weeks of ordinary use. It holds
+ * timestamps and counters only: no tokens, no cookies, no names, no child
+ * ids. It survives logout on purpose (a lifetime is only known once the
+ * session is gone); deleting the state directory removes it.
+ */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+
+/** What the session manager and the portal observers report. */
+export type SessionEvent =
+  | { type: "login" }
+  | { type: "logout" }
+  | { type: "child_switch" }
+  | { type: "refresh" }
+  /** `since`: when the web login was made (known from the stored web session). */
+  | { type: "web_login"; since: number }
+  | { type: "web_use"; since: number; via: "read" | "keepalive" }
+  | { type: "session_lost"; session: SessionName };
+
+export type SessionName = "app" | "web";
+export type SessionListener = (event: SessionEvent) => void;
+
+/** One live session: activity is a token refresh (app) or a read/touch (web). */
+export interface SessionSpan {
+  /** Null when the session predates the history file. */
+  startedAt: number | null;
+  lastActivityAt: number;
+  activityCount: number;
+  /** Longest pause between two activities that the session survived. */
+  longestGapMs: number;
+}
+
+export interface SessionLoss {
+  session: SessionName;
+  at: number;
+  ageMs: number | null;
+  idleMs: number;
+  activityCount: number;
+  longestGapMs: number;
+}
+
+export interface SessionHistory {
+  version: 1;
+  app: SessionSpan | null;
+  web: SessionSpan | null;
+  losses: SessionLoss[];
+  events: { type: string; at: number }[];
+}
+
+export interface SessionHistoryStore {
+  read(): SessionHistory | null;
+  write(history: SessionHistory): void;
+}
+
+export const MAX_HISTORY_EVENTS = 300;
+export const MAX_HISTORY_LOSSES = 50;
+
+export function emptyHistory(): SessionHistory {
+  return { version: 1, app: null, web: null, losses: [], events: [] };
+}
+
+export class MemorySessionHistoryStore implements SessionHistoryStore {
+  private value: SessionHistory | null = null;
+  read(): SessionHistory | null {
+    return this.value;
+  }
+  write(history: SessionHistory): void {
+    this.value = history;
+  }
+}
+
+/** `session-history.json` in the state directory (0600; contains no credentials). */
+export class FileSessionHistoryStore implements SessionHistoryStore {
+  constructor(private readonly dir: string) {}
+  private get path(): string {
+    return join(this.dir, "session-history.json");
+  }
+  read(): SessionHistory | null {
+    if (!existsSync(this.path)) return null;
+    try {
+      const parsed = JSON.parse(readFileSync(this.path, "utf8")) as SessionHistory;
+      return parsed.version === 1 ? parsed : null;
+    } catch {
+      return null;
+    }
+  }
+  write(history: SessionHistory): void {
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    writeFileSync(this.path, JSON.stringify(history), { mode: 0o600 });
+  }
+}
+
+function touched(span: SessionSpan | null, at: number, startedAt: number | null): SessionSpan {
+  if (!span) return { startedAt, lastActivityAt: at, activityCount: 1, longestGapMs: 0 };
+  return {
+    startedAt: span.startedAt,
+    lastActivityAt: at,
+    activityCount: span.activityCount + 1,
+    longestGapMs: Math.max(span.longestGapMs, at - span.lastActivityAt),
+  };
+}
+
+function fresh(at: number): SessionSpan {
+  return { startedAt: at, lastActivityAt: at, activityCount: 0, longestGapMs: 0 };
+}
+
+/** Applies events to the stored history; every write is bounded. */
+export class SessionHistoryRecorder {
+  constructor(
+    private readonly store: SessionHistoryStore,
+    private readonly now: () => number,
+  ) {}
+
+  read(): SessionHistory {
+    return this.store.read() ?? emptyHistory();
+  }
+
+  /** How long the named session has been idle, null when it is not being tracked. */
+  idleMs(session: SessionName): number | null {
+    const span = this.read()[session];
+    return span ? this.now() - span.lastActivityAt : null;
+  }
+
+  /** Best effort: a state directory that cannot be written must never break a login or a read. */
+  record(event: SessionEvent): void {
+    try {
+      this.apply(event);
+    } catch {
+      /* measuring is optional; the session is not */
+    }
+  }
+
+  private apply(event: SessionEvent): void {
+    if (event.type === "child_switch") return; // not a lifetime fact, and nothing about children is kept
+    const at = this.now();
+    const h = this.read();
+    switch (event.type) {
+      case "login":
+        h.app = fresh(at);
+        break;
+      case "refresh":
+        h.app = touched(h.app, at, null);
+        break;
+      case "web_login":
+        h.web = fresh(event.since);
+        break;
+      case "web_use":
+        h.web = touched(h.web, at, event.since);
+        break;
+      case "logout":
+        h.app = null;
+        h.web = null;
+        break;
+      case "session_lost": {
+        const span = h[event.session];
+        if (!span) return; // already recorded; a dead session is reported once
+        h.losses.push({
+          session: event.session,
+          at,
+          ageMs: span.startedAt === null ? null : at - span.startedAt,
+          idleMs: at - span.lastActivityAt,
+          activityCount: span.activityCount,
+          longestGapMs: span.longestGapMs,
+        });
+        h[event.session] = null;
+        break;
+      }
+    }
+    h.events.push({
+      type: event.type === "session_lost" ? `${event.session}_lost` : event.type,
+      at,
+    });
+    h.events = h.events.slice(-MAX_HISTORY_EVENTS);
+    h.losses = h.losses.slice(-MAX_HISTORY_LOSSES);
+    this.store.write(h);
+  }
+}
+
+const minutes = (ms: number): number => Math.round(ms / 60_000);
+const iso = (ms: number): string => new Date(ms).toISOString();
+
+function describeSpan(span: SessionSpan | null, now: number) {
+  if (!span) return null;
+  return {
+    since: span.startedAt === null ? null : iso(span.startedAt),
+    ageMinutes: span.startedAt === null ? null : minutes(now - span.startedAt),
+    lastActivity: iso(span.lastActivityAt),
+    idleMinutes: minutes(now - span.lastActivityAt),
+    activityCount: span.activityCount,
+    longestGapSurvivedMinutes: minutes(span.longestGapMs),
+  };
+}
+
+/** What auth_status and doctor show: the live sessions and the last ten observed losses. */
+export function summarizeHistory(history: SessionHistory, now: number) {
+  return {
+    recordedSince: history.events.length ? iso(history.events[0].at) : null,
+    app: describeSpan(history.app, now),
+    web: describeSpan(history.web, now),
+    losses: history.losses.slice(-10).map((l) => ({
+      session: l.session,
+      at: iso(l.at),
+      ageMinutes: l.ageMs === null ? null : minutes(l.ageMs),
+      idleMinutes: minutes(l.idleMs),
+      activityCount: l.activityCount,
+      longestGapSurvivedMinutes: minutes(l.longestGapMs),
+    })),
+  };
+}
+
+export type SessionHistorySummary = ReturnType<typeof summarizeHistory>;

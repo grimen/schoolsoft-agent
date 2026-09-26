@@ -57,7 +57,7 @@ test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and t
     // every weekly-schedule read was for the approved child (asserted in the flow by its echo).
     assert.equal(upstream.calls.filter((call) => call.includes("/lessons/week/")).length, 1);
     const files = readdirSync(stateDir);
-    assert.deepEqual(files.sort(), ["identity.enc", "oauth.enc", "session.enc"]);
+    assert.deepEqual(files.sort(), ["history.enc", "identity.enc", "oauth.enc", "session.enc"]);
     for (const file of files) {
       const bytes = readFileSync(join(stateDir, file)).toString("latin1");
       for (const secret of [

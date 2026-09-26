@@ -101,6 +101,16 @@ export const MESSAGES = {
     sv: (p) =>
       `SchoolSoft skickade ${p.page} till inloggningssidan: webbinloggningen har gått ut (inaktivitet).`,
   },
+  web_session_lost_after: {
+    en: (p) =>
+      `SchoolSoft sent ${p.page} to its login page: the web login session expired after about ${p.minutes} minutes without use.`,
+    sv: (p) =>
+      `SchoolSoft skickade ${p.page} till inloggningssidan: webbinloggningen gick ut efter ungefär ${p.minutes} minuter utan användning.`,
+  },
+  config_value_invalid: {
+    en: (p) => `The setting ${p.name} has the value "${p.value}", but it must be ${p.expected}.`,
+    sv: (p) => `Inställningen ${p.name} har värdet "${p.value}", men det måste vara ${p.expected}.`,
+  },
   app_session_lost: {
     en: (p) => `SchoolSoft sent ${p.page} to its login page: the session expired.`,
     sv: (p) => `SchoolSoft skickade ${p.page} till inloggningssidan: sessionen har gått ut.`,

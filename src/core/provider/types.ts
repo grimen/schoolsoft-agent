@@ -40,6 +40,12 @@ export interface AuthDeps {
   /** Remote hosts supply both this callback and their validated redirect URI. */
   browserAuthorization?: BrowserAuthorization;
   redirectUri?: string;
+  /**
+   * A strategy calls this right after it obtained rotated credentials and put
+   * them on the session, before doing anything else that can fail, so the
+   * session manager can persist them at once (a lost rotation is a lost login).
+   */
+  onRefresh?: () => void;
 }
 
 /** What a provider gets when building its API portal. */
@@ -89,7 +95,16 @@ export interface SchoolProvider<S extends ProviderSession = ProviderSession> {
   createApiPortal(
     session: S,
     ctx: ApiPortalContext,
-  ): ApiPortalPart & { syncWebChild(): Promise<void> };
+  ): ApiPortalPart & {
+    syncWebChild(): Promise<void>;
+    /**
+     * Keepalive: one harmless GET the portal itself makes, with the web-login
+     * cookies. Never a write, never a child switch. Rejects with a web
+     * SessionLostError when the web session is gone, WebLoginRequiredError
+     * when there is none.
+     */
+    touchWebSession(): Promise<void>;
+  };
   createBrowserPortal(browser: BrowserSession, ctx: BrowserPortalContext): BrowserPortalPart;
   createSchoolDirectory(cacheFile: string): SchoolDirectoryPort;
   /** Web cookies filtered for the browser session; default keeps the provider origin's cookies. */

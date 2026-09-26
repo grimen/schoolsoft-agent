@@ -8,7 +8,7 @@
  */
 import { makePkcePair, makeState, schoolsoftFetch, ssUrl } from "@elias4044/ssp-node";
 import type { SchoolsoftUserType } from "../../../core/constants.js";
-import { AgentError, guardNetwork } from "../../../core/errors/index.js";
+import { AgentError, UpstreamError, guardNetwork } from "../../../core/errors/index.js";
 
 const MOBILE_UA = "SchoolSoftPlus-Mobile/1.0";
 
@@ -62,6 +62,8 @@ export type TokenFetch = (
 ) => Promise<{ status: number; data: unknown }>;
 
 function parseTokenResponse(status: number, data: unknown, what: string): TokenSet {
+  // A failing server is not a rejected login: keep the saved session and let the caller retry.
+  if (status >= 500) throw new UpstreamError(status, what);
   if (status !== 200) {
     const said =
       data && typeof data === "object" && "userMessage" in data

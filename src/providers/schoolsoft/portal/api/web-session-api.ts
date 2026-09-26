@@ -47,6 +47,23 @@ export class WebSessionApi {
   }
 
   /**
+   * Keepalive touch: the header GET the portal's own pages make on every
+   * load. Read only, no child switch. A rejected request, or an answer that
+   * is not the header (a login page), means the web session is gone.
+   */
+  async touch(): Promise<void> {
+    const path = "/rest-api/parent/header/parent";
+    let header: Partial<WebHeader> | null;
+    try {
+      header = await this.webCookie<Partial<WebHeader> | null>("touchWebSession", path);
+    } catch (e) {
+      if (e instanceof UpstreamError && e.sessionRejected) throw new SessionLostError(path, true);
+      throw e;
+    }
+    if (typeof header?.currentChildId !== "number") throw new SessionLostError(path, true);
+  }
+
+  /**
    * Select a child in the WEB session: the same PUT the portal's child menu
    * sends. It changes session state only (which child pages show), never
    * school data; it is the one non-GET the web session performs.

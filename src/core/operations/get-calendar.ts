@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { defineOperation, READ_ONLY } from "./types.js";
-import { ChildSchema, withChild } from "./_shared.js";
+import { ChildSchema, withChild, FreshSchema } from "./_shared.js";
 import { calendarRange, CALENDAR_TIMEZONE } from "./_calendar-range.js";
 
 export const getCalendar = defineOperation({
@@ -12,6 +12,7 @@ Args:
   - start_date and end_date (optional): inclusive YYYY-MM-DD range, at most 366 days.
     Supply both or omit both for the current Monday–Sunday in Europe/Stockholm.
   - child_id (optional): from list_children; defaults to the child in focus.
+  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
 Returns: { start_date, end_date, timezone, child, entries: [...] }.
 Entries retain calendar fields (name, startDate, endDate, allDay and optional
@@ -34,6 +35,7 @@ Use when: "What is happening at school next week?", "Show September's calendar",
       .optional()
       .describe("Inclusive end date, YYYY-MM-DD. Maximum 366 days including start and end."),
     child_id: ChildSchema,
+    fresh: FreshSchema,
   },
   portal: ["getCalendar"],
   annotations: READ_ONLY,

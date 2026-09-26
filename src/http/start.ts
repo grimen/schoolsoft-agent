@@ -1,15 +1,38 @@
 /** Composition root for one parent-owned connector process. */
-import { resolveConfig, type SessionDeps, type PersistedSession } from "../core/index.js";
+import {
+  resolveConfig,
+  type KeepaliveDeps,
+  type SessionDeps,
+  type SessionHistory,
+  type PersistedSession,
+} from "../core/index.js";
 import { connectorConfig, type ConnectorConfig } from "./config.js";
 import { EncryptedRepository } from "./storage.js";
 import { ConnectorOAuthProvider, type OAuthState } from "./oauth.js";
 import { ConnectorRuntime, CONNECTOR_OPERATIONS } from "./runtime.js";
 import { createConnectorApp } from "./server.js";
-/** The object graph without a listener, so callers choose where (and whether) to listen. */
-export function composeConnector(config: ConnectorConfig, deps?: SessionDeps) {
+type ConnectorKeepaliveDeps = Pick<
+  KeepaliveDeps,
+  "timer" | "random" | "hourOf" | "fetchImpl" | "log"
+>;
+/**
+ * The object graph without a listener, so callers choose where (and whether) to listen.
+ * Nothing is started here: `startConnector` starts the keepalive.
+ */
+export function composeConnector(
+  config: ConnectorConfig,
+  deps?: SessionDeps,
+  env: Record<string, string | undefined> = {},
+  keepaliveDeps?: ConnectorKeepaliveDeps,
+) {
   const session = new EncryptedRepository<PersistedSession>(
     config.stateDir,
     "session",
+    config.storageKey,
+  );
+  const history = new EncryptedRepository<SessionHistory>(
+    config.stateDir,
+    "history",
     config.storageKey,
   );
   const identity = new EncryptedRepository<string>(config.stateDir, "identity", config.storageKey);
@@ -20,7 +43,17 @@ export function composeConnector(config: ConnectorConfig, deps?: SessionDeps) {
   });
   const runtime = new ConnectorRuntime({
     config: resolveConfig(
-      [{ school: config.school, stateDir: config.stateDir, configDir: config.stateDir }],
+      [
+        {
+          school: config.school,
+          stateDir: config.stateDir,
+          configDir: config.stateDir,
+          keepalive: env.SCHOOLSOFT_KEEPALIVE || undefined,
+          keepaliveWebMinutes: env.SCHOOLSOFT_KEEPALIVE_WEB_MINUTES || undefined,
+          keepaliveQuietHours: env.SCHOOLSOFT_KEEPALIVE_QUIET_HOURS || undefined,
+          cache: env.SCHOOLSOFT_CACHE || undefined,
+        },
+      ],
       { home: config.stateDir, platform: "linux" },
     ),
     store: {
@@ -29,14 +62,23 @@ export function composeConnector(config: ConnectorConfig, deps?: SessionDeps) {
       clear: () => session.clear(),
     },
     identityStore: identity,
-    deps,
+    deps: {
+      history: { read: () => history.read() ?? null, write: (value) => history.write(value) },
+      ...deps,
+    },
+    keepaliveDeps,
     redirectUri: config.publicUrl + "/schoolsoft/callback",
   });
   return { app: createConnectorApp({ config, oauth, runtime }), runtime };
 }
-export function startConnector(env: Record<string, string | undefined>, deps?: SessionDeps) {
+export function startConnector(
+  env: Record<string, string | undefined>,
+  deps?: SessionDeps,
+  keepaliveDeps?: ConnectorKeepaliveDeps,
+) {
   const config = connectorConfig(env);
-  const { app, runtime } = composeConnector(config, deps);
+  const { app, runtime } = composeConnector(config, deps, env, keepaliveDeps);
+  runtime.startKeepalive();
   const server = app.listen(config.port, "0.0.0.0");
   return { server, runtime };
 }

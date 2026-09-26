@@ -7,6 +7,10 @@ export {
   type ConfigSource,
   ENV,
   NotConfiguredError,
+  ConfigValueError,
+  parseQuietHours,
+  type KeepaliveConfig,
+  type KeepaliveMode,
   envSource,
   defaultConfigDir,
   resolveConfig,
@@ -15,13 +19,55 @@ export {
   type SessionDeps,
   createSessionManager,
   createPortal,
+  createPortals,
+  createKeepalive,
   createApiPortal,
   createBrowserSession,
   resolveProvider,
   getProvider,
   providerIds,
   type PortalDeps,
+  type Portals,
+  type KeepaliveDeps,
 } from "./wiring.js";
+export { runOperation } from "./operations/run.js";
+export {
+  MemorySessionHistoryStore,
+  FileSessionHistoryStore,
+  SessionHistoryRecorder,
+  summarizeHistory,
+  emptyHistory,
+  MAX_HISTORY_EVENTS,
+  MAX_HISTORY_LOSSES,
+} from "./session/history.js";
+export type {
+  SessionEvent,
+  SessionListener,
+  SessionHistory,
+  SessionHistoryStore,
+  SessionHistorySummary,
+  SessionLoss,
+  SessionSpan,
+} from "./session/history.js";
+export { MemoryReadCache, DEFAULT_CACHE_ENTRIES } from "./cache/read-cache.js";
+export type { ReadCache } from "./cache/read-cache.js";
+export { DEFAULT_CACHE_TTL_MS } from "./cache/policy.js";
+export type { CacheTtls } from "./cache/policy.js";
+export { withReadCache, cacheKey, normalizeArgs } from "./portal/cached.js";
+export type { CacheScope, ReadCacheOptions } from "./portal/cached.js";
+export { withWebSessionObserver } from "./portal/observed.js";
+export {
+  KeepaliveScheduler,
+  inQuietHours,
+  MIN_DELAY_MS,
+  MAX_BACKOFF_MS,
+} from "./keepalive/scheduler.js";
+export type {
+  KeepaliveTask,
+  KeepaliveTimer,
+  KeepaliveOptions,
+  QuietHours,
+} from "./keepalive/scheduler.js";
 export {
   AgentError,
   NetworkError,
@@ -31,6 +77,7 @@ export {
   describeError,
   detectLang,
   guardNetwork,
+  isTransient,
   MESSAGES,
   HINTS,
 } from "./errors/index.js";
@@ -56,7 +103,7 @@ export type {
   BrowserPortalContext,
   WebLoginSpec,
 } from "./provider/types.js";
-export { SessionManager, NotAuthenticatedError } from "./session/session-manager.js";
+export { SessionManager, NotAuthenticatedError, RENEW_LEAD_MS } from "./session/session-manager.js";
 export type { PersistedSession, SessionStore } from "./session/store.js";
 export { MemorySessionStore } from "./session/store.js";
 export {
@@ -105,7 +152,7 @@ export type { SchoolEntry, RankedSchool, SchoolDirectoryPort } from "./school-di
 export { operations, getOperation } from "./operations/registry.js";
 export { defineOperation, READ_ONLY } from "./operations/types.js";
 export type { Operation, OperationAnnotations, OperationContext } from "./operations/types.js";
-export { isoWeek } from "./operations/_shared.js";
+export { isoWeek, FreshSchema } from "./operations/_shared.js";
 export type { PageSpec, PageMap, PageFingerprint } from "./portal/page-spec.js";
 export { verifyPages } from "./portal/verify.js";
 export type { PageReport, PageStatus, VerifyOptions } from "./portal/verify.js";

@@ -236,11 +236,16 @@ export class PortalGatedError extends AgentError {
 /** The page redirected to the login page: the cookie session is gone. */
 export class SessionLostError extends AgentError {
   readonly web: boolean;
-  constructor(page: string, web = false) {
+  /** `idleMinutes`: how long the web session had gone unused, when the session history knows. */
+  constructor(page: string, web = false, idleMinutes?: number) {
     super({
       kind: "not_authenticated",
-      key: web ? "web_session_lost" : "app_session_lost",
-      params: { page },
+      key: !web
+        ? "app_session_lost"
+        : idleMinutes === undefined
+          ? "web_session_lost"
+          : "web_session_lost_after",
+      params: { page, minutes: idleMinutes },
       hint: web ? "login_web" : "login",
     });
     this.web = web;

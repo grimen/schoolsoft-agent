@@ -11,6 +11,7 @@ import {
   decodeJwtClaims,
   type TokenFetch,
 } from "../../src/providers/schoolsoft/auth/oauth.js";
+import { UpstreamError } from "../../src/core/errors/index.js";
 
 function jwt(payload: Record<string, unknown>): string {
   const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -151,8 +152,13 @@ test("token response parsing: userMessage, missing access_token, no refresh/expi
     /Ogiltig kod/,
   );
   await assert.rejects(
-    exchangeCode({ ...base, fetchImpl: fetchWith(500, "nope") }),
-    /status 500\)\.$/,
+    exchangeCode({ ...base, fetchImpl: fetchWith(404, "nope") }),
+    /status 404\)\.$/,
+  );
+  // A failing server is not a rejected login: retryable, so the saved session is kept.
+  await assert.rejects(
+    refreshTokens({ ...base, refreshToken: "r", fetchImpl: fetchWith(503, "down") }),
+    (e: unknown) => e instanceof UpstreamError && e.retryable && e.status === 503,
   );
   await assert.rejects(
     exchangeCode({ ...base, fetchImpl: fetchWith(200, null) }),

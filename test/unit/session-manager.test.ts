@@ -28,6 +28,15 @@ class FakeStrategy implements AuthStrategy<FakeSession> {
     if (this.restoreShouldFail) throw new Error("boom");
   }
 
+  renewCalls = 0;
+  renewError: unknown = null;
+  renewExpiresAt: number | null = null;
+  async renew(): Promise<{ expiresAt: number | null }> {
+    this.renewCalls++;
+    if (this.renewError) throw this.renewError;
+    return { expiresAt: this.renewExpiresAt };
+  }
+
   async focusChild(): Promise<void> {}
 }
 

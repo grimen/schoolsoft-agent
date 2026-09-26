@@ -14,7 +14,7 @@ import type { ConnectorOAuthProvider } from "./oauth.js";
 import { CONNECTOR_OPERATIONS, type ConnectorRuntime } from "./runtime.js";
 import { OwnerSessions } from "./owner-session.js";
 import { clientKey } from "./client-key.js";
-import { escapeHtml as esc, page, form, hidden } from "./pages.js";
+import { escapeHtml as esc, page, form, hidden, signInHistory } from "./pages.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
@@ -183,7 +183,7 @@ export function createConnectorApp({
           )
           .join(
             "",
-          )}${form("/owner/signout", csrf, "", "Sign out of this dashboard")}<h2>Stop access</h2>${form("/owner/schoolsoft/logout", csrf, "<p>This disconnects every AI app and removes the saved SchoolSoft session.</p>", "Disconnect everything")}`,
+          )}${signInHistory(status.sessionHistory)}${form("/owner/signout", csrf, "", "Sign out of this dashboard")}<h2>Stop access</h2>${form("/owner/schoolsoft/logout", csrf, "<p>This disconnects every AI app and removes the saved SchoolSoft session.</p>", "Disconnect everything")}`,
       ),
     );
   });

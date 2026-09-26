@@ -122,6 +122,18 @@ Access tokens live 15 minutes. Every process start (an MCP server launching, a C
 
 The retry exists because the alternative is a BankID round for the user. Refreshing when the expiry is _unknown_ protects sessions written by older versions.
 
+## Between logins: history, read cache, keepalive
+
+Every forced BankID login is friction for a parent, and the real limits of SchoolSoft's sessions are unknown (refresh-token lifetime; the web session's idle and absolute timeouts). Three vendor-neutral mechanisms in core work on that, specified in [session longevity](../planning/specs/2026-09-21-session-longevity.md); what remains to be measured live is listed there.
+
+**Session history** (`session/history.ts`). `SessionManager` reports lifecycle events (login, refresh, child switch, web login, web-session use, session loss, logout) to a `SessionHistoryRecorder` and to subscribers. The recorder keeps, per session, when it started, its last activity, the activity count and the longest gap it survived; a loss stores the age and idle time. `auth_status` (`sessionHistory`) and `doctor` summarise it. The record holds timestamps and counters only, is bounded (300 events, 50 losses), survives logout on purpose, and is written best effort: a read-only state directory never breaks a login. Web-session uses and losses are observed by a portal decorator (`portal/observed.ts`) over `SchoolProvider.webSessionCapabilities`; a loss is rethrown saying how long the login had been idle.
+
+**Durable refresh.** A provider reports every credential rotation through `AuthDeps.onRefresh`, and the manager persists it at once, before the profile lookup and cookie exchange that can still fail. Transient failures (`isTransient`: network, HTTP 5xx, including a 5xx from the token endpoint) never clear the saved session and are never recorded as a loss. Restore and renewal run one at a time inside the manager, so two callers cannot spend the same refresh token.
+
+**Read cache** (`cache/`, `portal/cached.ts`). `ReadCache` is a port with an in-memory default wired in `wiring.ts`, one per session manager. A Portal method does not name the child it reads, so the key is built from the scope at call time: provider, school, guardian, child in focus, capability, normalised arguments. TTLs per capability live in `cache/policy.ts` (lunch, subject rooms and contacts 6 h; files 1 h; schedule and calendar 30 min; news, assignments and the activity log 10 min); an absent capability is never cached, and web-session capabilities are refused in code whatever the table says. A result is stored only if scope and cache epoch are unchanged after the read, so a read that overlapped a child switch is returned but never kept. Session events empty the cache (login, logout, child switch, session loss). It is bounded (200 entries, LRU), copies values in and out, and is never persisted. Operations stay unaware: those that can be answered from the cache declare `fresh` in their input, and `runOperation` (the one way a surface runs an operation) swaps in the portal that bypasses and refreshes the cache. The decorator order is cache → session recovery → web-session observer → composite. On the connector, `beforeRead` is also the cache's guard: consent and child focus are rechecked before a cached value is served, not only before an HTTP GET.
+
+**Keepalive** (`keepalive/scheduler.ts`, `createKeepalive` in wiring). Opt-in through `Config.keepalive` (`off` by default, `app`, `all`). Timer, clock and randomness are injected. The app task calls `SessionManager.renew`, which works from the store (adopting tokens another process rotated) and asks the strategy's `renew` to refresh only inside the lead time (3 minutes before expiry). The web task calls the provider's `touchWebSession()`: for SchoolSoft one GET of `/rest-api/parent/header/parent`, never the child PUT. Runs happen up to 10 % early, never late; transient failures double the pause up to 60 minutes; any other failure stops that task until a `login` or `web_login` event resumes it, so it cannot loop against a dead session and never leads to BankID. Quiet hours skip the request. Only long-lived hosts start it: the stdio MCP server (`src/mcp/keepalive.ts`) and the connector, whose ticks run through its serialised queue and stop with `close()`. The CLI never creates a scheduler. Known limit: two processes sharing a state directory can still race on one refresh token; the marker-file coordination from issue #8 is not built. SchoolSoft AB is not involved in this project and has not approved background requests, which is why this stays off unless the user turns it on.
+
 ## Session states
 
 [![Session states](../diagrams/dist/session-states.svg)](../diagrams/src/session-states.mmd)
@@ -129,7 +141,7 @@ The retry exists because the alternative is a BankID round for the user. Refresh
 ## Repository layout
 
 ```
-src/core/         vendor-neutral: provider/ (SchoolProvider seam), auth/ (strategy port, callback server, opener), portal/ (Portal types, guardian, page-spec, inspect, verify, composite), browser/ (session guard, playwright, optional-playwright, install, web-login), session/, operations/, school-directory.ts, config.ts (model), wiring.ts (composition root; the one core file that imports providers), constants.ts, index.ts
+src/core/         vendor-neutral: cache/ (ReadCache port, TTL policy), keepalive/ (scheduler), provider/ (SchoolProvider seam), auth/ (strategy port, callback server, opener), portal/ (Portal types, guardian, page-spec, inspect, verify, composite), browser/ (session guard, playwright, optional-playwright, install, web-login), session/, operations/, school-directory.ts, config.ts (model), wiring.ts (composition root; the one core file that imports providers), constants.ts, index.ts
 src/providers/    one directory per school portal vendor implementing SchoolProvider + index.ts registry
 src/providers/schoolsoft/  auth/ (BankID via SchoolSoft OAuth, token/cookie exchange), portal/ (api-portal facade + api/{transport,eva,webview,legacy,web-session}, browser-portal, pages, extractors, fingerprints), routing.ts, session.ts, web-login.ts, schools.ts
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
@@ -147,16 +159,20 @@ test/             unit/, boundary/, functional/, packaging/, e2e/, helpers/
 
 Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defaults.
 
-| Key            | Env                        | Default                                  |
-| -------------- | -------------------------- | ---------------------------------------- |
-| `school`       | `SCHOOLSOFT_SCHOOL`        | required; `configure` finds it by name   |
-| `orgId`        | `SCHOOLSOFT_ORGID`         | from the child's profile                 |
-| `userType`     | `SCHOOLSOFT_USER_TYPE`     | `parent`                                 |
-| `clientId`     | `SCHOOLSOFT_CLIENT_ID`     | `vApp` for parent, `eApp` otherwise      |
-| `callbackPort` | `SCHOOLSOFT_CALLBACK_PORT` | `43117`                                  |
-| `configDir`    | `SCHOOLSOFT_CONFIG_DIR`    | platform config dir (`doctor` prints it) |
-| `stateDir`     | `SCHOOLSOFT_STATE_DIR`     | `<configDir>/state`                      |
-| `allowWrites`  | `SCHOOLSOFT_ALLOW_WRITES`  | off; `1` lets write operations run       |
+| Key                   | Env                                | Default                                                           |
+| --------------------- | ---------------------------------- | ----------------------------------------------------------------- |
+| `school`              | `SCHOOLSOFT_SCHOOL`                | required; `configure` finds it by name                            |
+| `orgId`               | `SCHOOLSOFT_ORGID`                 | from the child's profile                                          |
+| `userType`            | `SCHOOLSOFT_USER_TYPE`             | `parent`                                                          |
+| `clientId`            | `SCHOOLSOFT_CLIENT_ID`             | `vApp` for parent, `eApp` otherwise                               |
+| `callbackPort`        | `SCHOOLSOFT_CALLBACK_PORT`         | `43117`                                                           |
+| `configDir`           | `SCHOOLSOFT_CONFIG_DIR`            | platform config dir (`doctor` prints it)                          |
+| `stateDir`            | `SCHOOLSOFT_STATE_DIR`             | `<configDir>/state`                                               |
+| `cache`               | `SCHOOLSOFT_CACHE`                 | `on` (in-memory read cache; `off` disables)                       |
+| `keepalive`           | `SCHOOLSOFT_KEEPALIVE`             | `off`; `app` renews the token, `all` also touches the web session |
+| `keepaliveWebMinutes` | `SCHOOLSOFT_KEEPALIVE_WEB_MINUTES` | `10` (5 to 120)                                                   |
+| `keepaliveQuietHours` | `SCHOOLSOFT_KEEPALIVE_QUIET_HOURS` | none; `22-6` sends nothing between those local hours              |
+| `allowWrites`         | `SCHOOLSOFT_ALLOW_WRITES`          | off; `1` lets write operations run                                |
 
 ## Testing
 
@@ -172,14 +188,15 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 
 ## What lives where at runtime
 
-| Path                            | Contents                                    | Sensitivity   |
-| ------------------------------- | ------------------------------------------- | ------------- |
-| `<configDir>/config.json`       | school slug, orgId                          | low           |
-| `<configDir>/schools.json`      | cached public school list                   | none          |
-| `<stateDir>/key.bin` (0600)     | AES key                                     | secret        |
-| `<stateDir>/session.enc` (0600) | tokens, cookies, children's names/ids/class | personal data |
+| Path                                     | Contents                                                        | Sensitivity   |
+| ---------------------------------------- | --------------------------------------------------------------- | ------------- |
+| `<configDir>/config.json`                | school slug, orgId                                              | low           |
+| `<configDir>/schools.json`               | cached public school list                                       | none          |
+| `<stateDir>/key.bin` (0600)              | AES key                                                         | secret        |
+| `<stateDir>/session.enc` (0600)          | tokens, cookies, children's names/ids/class                     | personal data |
+| `<stateDir>/session-history.json` (0600) | timestamps and counters of logins, refreshes and session losses | low           |
 
-`schoolsoft-agent logout` removes the session; deleting the state directory removes everything.
+`schoolsoft-agent logout` removes the session (the history of timestamps stays, since a lifetime is only known once a session is gone); deleting the state directory removes everything.
 
 **Calendar reads.** The additive `get_calendar` operation validates a date range,
 then calls one API-only portal capability. SchoolSoft's provider combines the

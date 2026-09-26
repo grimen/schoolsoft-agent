@@ -108,6 +108,17 @@ export class InputError extends AgentError {
   }
 }
 
+/**
+ * A failure that says nothing about the session: the network, or the portal
+ * answering 5xx. Saved sessions are kept and keepalive backs off, because
+ * throwing a session away would cost the user a BankID round for a wifi blip.
+ */
+export function isTransient(e: unknown): boolean {
+  return (
+    e instanceof AgentError && (e.kind === "network" || (e.kind === "upstream" && e.retryable))
+  );
+}
+
 export interface ErrorDescription {
   kind: ErrorKind;
   exitCode: number;
