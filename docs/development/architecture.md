@@ -263,5 +263,6 @@ the transport does not follow redirects for writes, and a transport failure or 5
 is reported as "outcome unknown" rather than retryable. The request body of
 `POST /rest-api/parent/absence-notice` is **unverified**; the guess lives in one
 mapper (`portal/api/absence-notice-body.ts`) until the live pass corrects it. The
-general write framework (idempotency keys, audit log, remote write scope) is a
-later spec; see `docs/planning/specs/2026-09-21-absence-report.md`.
+general write framework (confirmation tokens, idempotency keys, audit log, remote
+write scope) is specified in the [write framework spec](../planning/specs/2026-09-26-write-framework.md)
+(E7.1) and built in E7.2; until then see `docs/planning/specs/2026-09-21-absence-report.md`.

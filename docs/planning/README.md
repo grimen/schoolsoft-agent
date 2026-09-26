@@ -10,6 +10,7 @@ and [architecture](../development/architecture.md) for the current system.
 - [Parent-hosted connectors](specs/2026-09-07-parent-hosted-connectors.md)
 - [Capture probe](specs/2026-09-26-capture-probe.md)
 - [CLI output for humans](specs/2026-09-26-cli-text-output.md)
+- [Write framework](specs/2026-09-26-write-framework.md)
 
 ## Implementation plans
 
