@@ -515,9 +515,16 @@ test("a grant revoked while /session waited in the queue is refused", async (t) 
   });
   const read = f.api(`/children/${ALVA}/schedule?week=37&fresh=true`, access);
   await started;
+  // Revoke only once /session has asked the runtime, i.e. waits behind the held read.
+  let asked!: () => void;
+  const waiting = new Promise<void>((resolve) => (asked = resolve));
+  const status = f.runtime.status.bind(f.runtime);
+  t.mock.method(f.runtime, "status", () => {
+    asked();
+    return status();
+  });
   const session = f.api("/session", access);
-  // Let /session reach the runtime's queue behind the held read before revoking.
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  await waiting;
   f.oauth.revokeGrant(grantId);
   release();
   assertProblem(await read, 401, "oauth-token");
@@ -538,8 +545,18 @@ test("a full runtime queue answers 503 with Retry-After", async (t) => {
   const queued = Array.from({ length: 16 }, (_, i) =>
     f.api(`/children/${ALVA}/schedule?week=${i + 1}&fresh=true`, access),
   );
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const busy = await f.api(`/children/${ALVA}/schedule?week=20`, access);
+  // Probe until the runtime is full: a probe that does not answer at once is queued too.
+  let busy: Reply | undefined;
+  for (let attempt = 0; !busy; attempt++) {
+    assert.ok(attempt < 200, "the queue never filled");
+    const probe = f.api(`/children/${ALVA}/schedule?week=20`, access);
+    const first = await Promise.race([
+      probe,
+      new Promise<undefined>((resolve) => setTimeout(resolve, 25)),
+    ]);
+    if (first) busy = first;
+    else queued.push(probe);
+  }
   const body = assertProblem(busy, 503, "connector-busy");
   assert.equal(busy.headers.get("retry-after"), "1");
   assert.equal(body.retryable, true);
