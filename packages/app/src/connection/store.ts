@@ -24,9 +24,10 @@ export function memoryStorage(): KeyValue {
 }
 
 /** sessionStorage while the tab lives; memory when the browser blocks or lacks storage. */
-export function openStorage(
-  candidate: () => KeyValue = () => globalThis.sessionStorage as unknown as KeyValue,
-): { storage: KeyValue; persistent: boolean } {
+export function openStorage(candidate: () => KeyValue = () => globalThis.sessionStorage): {
+  storage: KeyValue;
+  persistent: boolean;
+} {
   try {
     const storage = candidate();
     storage.getItem(STORAGE_KEY);
