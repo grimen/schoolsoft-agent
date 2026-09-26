@@ -17,6 +17,8 @@ import { clientKey } from "./client-key.js";
 import { escapeHtml as esc, page, form, hidden, signInHistory } from "./pages.js";
 import { restApi } from "./rest.js";
 import { API_BASE } from "./routes.js";
+import { PAGE_PATH } from "./reference/app.js";
+import { referencePage } from "./reference/page.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
@@ -64,7 +66,10 @@ export function createConnectorApp({
   app.use((_req, res, next) => {
     res.set({
       "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
+      // Never a Referer to another site. Not "no-referrer": under it, browsers send
+      // `Origin: null` on the owner pages' own form posts, which the Origin checks
+      // below then refuse, so a real browser could not sign in to the dashboard.
+      "Referrer-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy":
         "default-src 'none'; form-action 'self' https://claude.ai https://chatgpt.com; frame-ancestors 'none'; base-uri 'none'",
@@ -87,6 +92,8 @@ export function createConnectorApp({
   app.get("/", (_req, res) => {
     res.redirect("/owner");
   });
+  // The reference page: public and data-free; it reads through /api/v1 with its own grant.
+  app.use(referencePage());
   // Every per-caller limit uses the same address normalisation (IPv6 by /64). The
   // library's forwarding-header check is replaced by the single notice above.
   const perCaller: Partial<RateLimitOptions> = {
@@ -188,7 +195,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Your SchoolSoft connector",
-        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${portalNotice(status.portal)}${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
+        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${portalNotice(status.portal)}${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p><a href="${PAGE_PATH}">Reference page</a>: one child's week, read through this connector's REST API with its own approval.</p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
           .listGrants()
           .map(
             (g) =>
@@ -258,7 +265,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Choose what this app may read",
-        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. The selected data will be sent to your AI provider when you use these tools.</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
+        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. ${pending.redirectUri === config.publicUrl + PAGE_PATH ? "The selected data will be shown in this browser on your connector's reference page; it is not sent to an AI provider." : "The selected data will be sent to your AI provider when you use these tools."}</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
       ),
     );
   });
