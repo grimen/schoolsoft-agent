@@ -17,6 +17,7 @@ import type { BrowserEngine } from "./browser/session.js";
 import type { QuietHours } from "./keepalive/scheduler.js";
 import { unchanged, type VersionedFormat } from "./versioned.js";
 import { BUDGET_BOUNDS, type BudgetLimits } from "./budget/policy.js";
+import { accountKey, accountsOf, entryOf, isRecord } from "./accounts.js";
 
 /** off: nothing in the background. app: refresh the API token. all: also touch the web session. */
 export const KEEPALIVE_MODES = ["off", "app", "all"] as const;
@@ -80,8 +81,81 @@ export interface ConfigSource {
   maxConcurrentRequests?: number | string;
 }
 
-/** config.json's format; the adapter that reads the file applies it. */
-export const CONFIG_FORMAT: VersionedFormat = { migrations: [unchanged] };
+/** Settings that belong to one account (they choose the tenant and its login); the rest belong to the machine. */
+export const ACCOUNT_SETTINGS = ["provider", "school", "orgId", "userType", "clientId"] as const;
+export type AccountSettings = Pick<ConfigSource, (typeof ACCOUNT_SETTINGS)[number]>;
+
+/** config.json as stored from v2 on (without its version): the account settings per account. */
+export interface ConfigDocument extends ConfigSource {
+  /** Key of the current account (accounts.ts). */
+  account?: string;
+  accounts?: Record<string, AccountSettings>;
+}
+
+/** Which account the sources above the file (flags, environment) select, if any. */
+export interface AccountSelection {
+  provider?: string;
+  school?: string;
+}
+
+const isAccountSetting = (key: string): boolean =>
+  (ACCOUNT_SETTINGS as readonly string[]).includes(key);
+
+/** An account's stored settings; nothing when the entry is missing or not an object. */
+function settingsOf(doc: ConfigDocument, account: string | undefined): AccountSettings {
+  const entry = account === undefined ? undefined : entryOf<unknown>(doc, account);
+  return isRecord(entry) ? (entry as AccountSettings) : {};
+}
+
+/**
+ * Move the account settings of a document that names a school into that
+ * school's `accounts` entry and make it the current account. It is the
+ * v1 → v2 migration, and it runs on every read too, so the top-level keys
+ * stay valid settings. Account settings without a school stay at the top
+ * level, where they apply to whichever account is selected.
+ */
+export function foldAccountSettings(doc: ConfigDocument): ConfigDocument {
+  if (typeof doc.school !== "string" || doc.school === "") return doc;
+  const settings: Record<string, unknown> = {};
+  const rest: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(doc)) {
+    if (k === "account" || k === "accounts") continue;
+    if (!isAccountSetting(k)) rest[k] = v;
+    else if (v !== undefined) settings[k] = v;
+  }
+  const account = accountKey(doc.provider, doc.school);
+  return {
+    account,
+    accounts: {
+      ...accountsOf<AccountSettings>(doc),
+      [account]: { ...settingsOf(doc, account), ...settings },
+    },
+    ...rest,
+  };
+}
+
+/**
+ * The file's settings for the selected account: the top-level settings with
+ * that account's entry on top. Nothing selected: the file's current account.
+ * A selected school without an entry adds no account settings, so it never
+ * borrows another school's orgId or login route.
+ */
+export function accountSource(doc: ConfigDocument, selection: AccountSelection = {}): ConfigSource {
+  const folded = foldAccountSettings(doc);
+  const { account: current, accounts: _accounts, ...top } = folded;
+  const account = selection.school
+    ? accountKey(
+        selection.provider ?? settingsOf(folded, current).provider ?? top.provider,
+        selection.school,
+      )
+    : current;
+  return { ...top, ...settingsOf(folded, account) };
+}
+
+/** config.json's format; the adapter that reads the file applies it. v1 → v2 keys the account settings by account. */
+export const CONFIG_FORMAT: VersionedFormat = {
+  migrations: [unchanged, foldAccountSettings],
+};
 
 export class ConfigValueError extends AgentError {
   constructor(name: string, value: unknown, expected: string) {

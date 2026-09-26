@@ -4,6 +4,8 @@
  * version, the current version loads, a newer version fails with a
  * user-facing error in both languages and leaves the file byte-for-byte
  * as it was, and a malformed version takes the file's corrupted-file path.
+ * The current versions are 2 since accounts were keyed by school
+ * (docs/planning/specs/2026-09-26-accounts-by-school.md, test/unit/accounts.test.ts).
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -159,12 +161,16 @@ function cli(env: Record<string, string> = {}) {
   };
 }
 
-test("config.json v0: loads unchanged, and the next configure writes version 1 with everything kept", async () => {
+test("config.json v0: loads unchanged, and the next configure writes the current version with everything kept", async () => {
   const dir = tmp("cfg0");
   const file = join(dir, "config.json");
   writeFileSync(file, JSON.stringify({ school: "taby", keepalive: "app" }));
   assert.deepEqual(fileSource(dir), { school: "taby", keepalive: "app", configDir: dir });
-  assert.deepEqual(readConfigFile(dir), { school: "taby", keepalive: "app" });
+  assert.deepEqual(readConfigFile(dir), {
+    account: "schoolsoft:taby",
+    accounts: { "schoolsoft:taby": { school: "taby" } },
+    keepalive: "app",
+  });
   assert.equal(configFileVersion(dir), 0);
   assert.equal(
     loadConfig({ env: {}, home: dir, platform: "linux", overrides: { configDir: dir } }).school,
@@ -174,30 +180,34 @@ test("config.json v0: loads unchanged, and the next configure writes version 1 w
   const r = await run("--config-dir", dir, "--school", "rosjo", "configure");
   assert.equal(r.code, 0, r.err);
   assert.deepEqual(JSON.parse(readFileSync(file, "utf8")), {
-    version: 1,
-    school: "rosjo",
+    version: 2,
+    account: "schoolsoft:rosjo",
+    accounts: { "schoolsoft:taby": { school: "taby" }, "schoolsoft:rosjo": { school: "rosjo" } },
     keepalive: "app",
   });
-  assert.equal(configFileVersion(dir), 1);
+  assert.equal(configFileVersion(dir), 2);
 });
 
-test("config.json v1: loads without the field", () => {
+test("config.json at the current version: loads without the field", () => {
   const dir = tmp("cfg1");
   writeConfigFile(dir, { school: "taby", orgId: "20" } satisfies ConfigSource);
+  const stored = {
+    account: "schoolsoft:taby",
+    accounts: { "schoolsoft:taby": { school: "taby", orgId: "20" } },
+  };
   assert.deepEqual(JSON.parse(readFileSync(join(dir, "config.json"), "utf8")), {
-    version: 1,
-    school: "taby",
-    orgId: "20",
+    version: 2,
+    ...stored,
   });
-  assert.deepEqual(readConfigFile(dir), { school: "taby", orgId: "20" });
+  assert.deepEqual(readConfigFile(dir), stored);
   assert.deepEqual(fileSource(dir), { school: "taby", orgId: "20", configDir: dir });
-  assert.equal(currentVersion(CONFIG_FORMAT), 1);
+  assert.equal(currentVersion(CONFIG_FORMAT), 2);
 });
 
 test("config.json from a newer build: every reader refuses, configure exits 5 in both languages, the file is untouched", async () => {
   const dir = tmp("cfg2");
   const file = join(dir, "config.json");
-  const original = JSON.stringify({ version: 2, school: "taby", accounts: [] });
+  const original = JSON.stringify({ version: 3, school: "taby", accounts: [] });
   writeFileSync(file, original);
   assert.throws(
     () => fileSource(dir),
@@ -207,7 +217,7 @@ test("config.json from a newer build: every reader refuses, configure exits 5 in
     () => readConfigFile(dir),
     (e) => assertNewer(e, file),
   );
-  assert.equal(configFileVersion(dir), 2);
+  assert.equal(configFileVersion(dir), 3);
   const en = await cli()("--config-dir", dir, "--school", "rosjo", "configure");
   assert.equal(en.code, 5);
   assert.match(en.err, /written by a newer version of schoolsoft-agent/);
@@ -266,9 +276,11 @@ function openLocal(dir: string): Record<string, unknown> {
   return JSON.parse(Buffer.concat([d.update(data.subarray(28)), d.final()]).toString());
 }
 
-test("session.enc v0 (both unversioned shapes): loads, and the next save writes version 1", () => {
+const ACCOUNT = "schoolsoft:testskola";
+
+test("session.enc v0 (both unversioned shapes): loads, and the next save writes the current version", () => {
   const dir = tmp("sess0");
-  const store = new FileSessionStore(dir);
+  const store = new FileSessionStore(dir, ACCOUNT);
   assert.equal(store.storedVersion(), null);
   store.save(session);
   sealLocal(dir, { ...session });
@@ -283,14 +295,14 @@ test("session.enc v0 (both unversioned shapes): loads, and the next save writes 
   });
   assert.deepEqual(store.load()?.data, { accessToken: "a" });
   store.save(store.load()!);
-  assert.equal(openLocal(dir).version, 1);
-  assert.equal(store.storedVersion(), 1);
-  assert.equal(currentVersion(SESSION_FORMAT), 1);
+  assert.equal(openLocal(dir).version, 2);
+  assert.equal(store.storedVersion(), 2);
+  assert.equal(currentVersion(SESSION_FORMAT), 2);
 });
 
-test("session.enc v1: loads without the field", () => {
+test("session.enc at the current version: loads without the field", () => {
   const dir = tmp("sess1");
-  const store = new FileSessionStore(dir);
+  const store = new FileSessionStore(dir, ACCOUNT);
   store.save(session);
   assert.deepEqual(Object.keys(openLocal(dir))[0], "version");
   assert.deepEqual(store.load(), session);
@@ -298,9 +310,9 @@ test("session.enc v1: loads without the field", () => {
 
 test("session.enc from a newer build: load, save and clear refuse; the blob is untouched", () => {
   const dir = tmp("sess2");
-  const store = new FileSessionStore(dir);
+  const store = new FileSessionStore(dir, ACCOUNT);
   store.save(session);
-  const blob = sealLocal(dir, { ...session, version: 2 });
+  const blob = sealLocal(dir, { ...session, version: 3 });
   const file = join(dir, "session.enc");
   assert.throws(
     () => store.load(),
@@ -314,13 +326,13 @@ test("session.enc from a newer build: load, save and clear refuse; the blob is u
     () => store.clear(),
     (e) => assertNewer(e, file),
   );
-  assert.equal(store.storedVersion(), 2);
+  assert.equal(store.storedVersion(), 3);
   assert.deepEqual(readFileSync(file), blob);
 });
 
 test("session.enc with a malformed version reads as logged out, like a corrupt blob, and can be replaced", () => {
   const dir = tmp("sessbad");
-  const store = new FileSessionStore(dir);
+  const store = new FileSessionStore(dir, ACCOUNT);
   store.save(session);
   sealLocal(dir, { ...session, version: "x" });
   assert.equal(store.load(), null);
@@ -335,9 +347,9 @@ test("session.enc with a malformed version reads as logged out, like a corrupt b
 
 // ---------- local session-history.json ----------
 
-test("session-history.json v0 loads and the next event writes version 1; v1 loads", () => {
+test("session-history.json v0 loads and the next event writes the current version, which loads", () => {
   const dir = tmp("hist0");
-  const store = new FileSessionHistoryStore(dir);
+  const store = new FileSessionHistoryStore(dir, ACCOUNT);
   const file = join(dir, "session-history.json");
   assert.equal(store.storedVersion(), null);
   writeFileSync(file, JSON.stringify(emptyHistory()));
@@ -345,18 +357,18 @@ test("session-history.json v0 loads and the next event writes version 1; v1 load
   assert.deepEqual(store.read(), emptyHistory());
   new SessionHistoryRecorder(store, () => 5).record({ type: "login" });
   const written = JSON.parse(readFileSync(file, "utf8"));
-  assert.equal(written.version, 1);
-  assert.equal(store.storedVersion(), 1);
+  assert.equal(written.version, 2);
+  assert.equal(store.storedVersion(), 2);
   assert.equal(store.read()?.app?.startedAt, 5);
   assert.equal("version" in store.read()!, false);
-  assert.equal(currentVersion(HISTORY_FORMAT), 1);
+  assert.equal(currentVersion(HISTORY_FORMAT), 2);
 });
 
 test("session-history.json from a newer build: reads refuse, events are not recorded over it, idle time is unknown", () => {
   const dir = tmp("hist2");
-  const store = new FileSessionHistoryStore(dir);
+  const store = new FileSessionHistoryStore(dir, ACCOUNT);
   const file = join(dir, "session-history.json");
-  const original = JSON.stringify({ version: 2, spans: {} });
+  const original = JSON.stringify({ version: 3, spans: {} });
   writeFileSync(file, original);
   assert.throws(
     () => store.read(),
@@ -367,7 +379,7 @@ test("session-history.json from a newer build: reads refuse, events are not reco
   assert.equal(recorder.idleMs("web"), null);
   assert.throws(() => recorder.read(), NewerFormatError);
   assert.equal(readFileSync(file, "utf8"), original);
-  assert.equal(store.storedVersion(), 2);
+  assert.equal(store.storedVersion(), 3);
   writeFileSync(file, "{broken");
   assert.equal(store.storedVersion(), null);
 });
@@ -399,8 +411,12 @@ test("doctor reports the version of config.json, session.enc and session-history
   const dir = tmp("doctor");
   const state = join(dir, "state");
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
-  new FileSessionStore(state).save(session);
-  new SessionHistoryRecorder(new FileSessionHistoryStore(state), () => 1).record({ type: "login" });
+  new FileSessionStore(state, "schoolsoft:taby").save(session);
+  new SessionHistoryRecorder(new FileSessionHistoryStore(state, "schoolsoft:taby"), () => 1).record(
+    {
+      type: "login",
+    },
+  );
   const byName = async (overrides: Record<string, unknown>) =>
     Object.fromEntries(
       (await runDoctor(doctorDeps(dir), overrides, false, "v22.0.0")).checks.map((c) => [
@@ -409,9 +425,9 @@ test("doctor reports the version of config.json, session.enc and session-history
       ]),
     );
   const checks = await byName({ configDir: dir });
-  assert.match(checks.config.detail, /config\.json format v0, upgraded to v1 on the next write$/);
-  assert.match(checks.session.detail, /; format v1$/);
-  assert.match(checks["session-history"].detail, /^keepalive=off; format v1; /);
+  assert.match(checks.config.detail, /config\.json format v0, upgraded to v2 on the next write$/);
+  assert.match(checks.session.detail, /; format v2$/);
+  assert.match(checks["session-history"].detail, /^keepalive=off; format v2; /);
   const envOnly = await byName({ school: "taby", configDir: tmp("doctor-empty") });
   assert.match(envOnly.config.detail, /config\.json absent$/);
 });
@@ -433,7 +449,7 @@ test("doctor fails the check of each file from a newer build with the update mes
   assert.match(corrupt.detail, /^Error: Could not parse/);
 
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
-  new FileSessionStore(state).save(session);
+  new FileSessionStore(state, "schoolsoft:taby").save(session);
   sealLocal(state, { ...session, version: 5 });
   writeFileSync(join(state, "session-history.json"), JSON.stringify({ version: 5 }));
   const result = await runDoctor(doctorDeps(dir), { configDir: dir }, false, "v22.0.0");

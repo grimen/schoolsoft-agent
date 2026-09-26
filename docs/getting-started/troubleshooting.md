@@ -14,6 +14,10 @@ npx -y schoolsoft-agent configure --query "Rösjöskolan"
 
 Replace the name with your school's. It lists matches; pick yours. Claude Desktop users set the school when installing the extension instead.
 
+### Children in two schools or municipalities
+
+One SchoolSoft login covers every child in one municipality, even in different schools there. A child in another municipality, or in an independent school with its own SchoolSoft address, needs a second login. Run `configure` for that school and log in: the tool keeps both logins and both schools' settings side by side, and neither replaces the other. It works with one school at a time: the one you configured last, or the one you name with `--school` (or `SCHOOLSOFT_SCHOOL`). Switching back is `configure` again, or `--school`, with no new BankID login while that school's login is still alive. Choosing the school from within the assistant is planned.
+
 ## "Not logged in to SchoolSoft"
 
 There is no saved session, or it has expired for good. If a session dies in the middle of a conversation, the tool first re-establishes it silently and repeats the request; you only see this message when that did not help. Ask the assistant to log in, or run:

@@ -9,17 +9,37 @@
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { SESSION_FORMAT, type PersistedSession, type SessionStore } from "./store.js";
 import {
-  currentVersion,
-  loadVersioned,
-  NewerFormatError,
-  storedVersion,
-  writeVersioned,
-} from "../versioned.js";
+  SESSION_FORMAT,
+  accountSessionStore,
+  type PersistedSession,
+  type SessionDocument,
+  type SessionStore,
+} from "./store.js";
+import { loadVersioned, storedVersion, writeVersioned } from "../versioned.js";
+import { accountsOf } from "../accounts.js";
 
+/**
+ * session.enc holds one saved session per account (SessionDocument); an
+ * instance reads and writes the entry of one account and keeps the others.
+ */
 export class FileSessionStore implements SessionStore {
-  constructor(private readonly dir: string) {}
+  private readonly entry: SessionStore;
+
+  constructor(
+    private readonly dir: string,
+    /** The account this store reads and writes (accountKey). */
+    readonly account: string,
+  ) {
+    this.entry = accountSessionStore(
+      {
+        read: () => this.document(),
+        write: (doc) => this.writeDocument(doc),
+        remove: () => rmSync(this.blobPath),
+      },
+      account,
+    );
+  }
 
   private ensureDir(): void {
     mkdirSync(this.dir, { recursive: true, mode: 0o700 });
@@ -43,12 +63,11 @@ export class FileSessionStore implements SessionStore {
     return key;
   }
 
-  save(session: PersistedSession): void {
-    this.refuseNewer();
+  private writeDocument(doc: SessionDocument): void {
     const key = this.loadOrCreateKey();
     const iv = randomBytes(12);
     const cipher = createCipheriv("aes-256-gcm", key, iv);
-    const plaintext = Buffer.from(JSON.stringify(writeVersioned(SESSION_FORMAT, session)), "utf8");
+    const plaintext = Buffer.from(JSON.stringify(writeVersioned(SESSION_FORMAT, doc)), "utf8");
     const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     const tag = cipher.getAuthTag();
     writeFileSync(this.blobPath, Buffer.concat([iv, tag, encrypted]), {
@@ -69,16 +88,40 @@ export class FileSessionStore implements SessionStore {
     return JSON.parse(plaintext.toString("utf8"));
   }
 
-  load(): PersistedSession | null {
+  /**
+   * Every account's session, migrated; null when there is no file or it is
+   * unreadable (corrupt, tampered, a malformed version, a session that names
+   * no school). A blob from a newer build throws NewerFormatError, so a CLI
+   * and an MCP server of different builds sharing this directory never
+   * overwrite or delete a newer file: save and clear read it first.
+   */
+  private document(): SessionDocument | null {
     if (!existsSync(this.blobPath)) return null;
-    // Corrupt or tampered blob, or a malformed version: treat as logged out.
-    // A blob from a newer build throws NewerFormatError instead.
-    return loadVersioned<PersistedSession, null>(
+    return loadVersioned<SessionDocument, null>(
       SESSION_FORMAT,
       this.blobPath,
       () => this.decrypt(),
       () => null,
     );
+  }
+
+  save(session: PersistedSession): void {
+    this.entry.save(session);
+  }
+
+  load(): PersistedSession | null {
+    return this.entry.load();
+  }
+
+  /** Forget this account's session; the file goes with the last one, or when it is unreadable. */
+  clear(): void {
+    if (existsSync(this.blobPath) && this.document() === null) rmSync(this.blobPath);
+    else this.entry.clear();
+  }
+
+  /** The keys of every account with a saved session (doctor). */
+  accounts(): string[] {
+    return Object.keys(accountsOf(this.document()));
   }
 
   /** The format version on disk (0 before versions existed); null when absent or unreadable. */
@@ -89,22 +132,5 @@ export class FileSessionStore implements SessionStore {
     } catch {
       return null;
     }
-  }
-
-  /**
-   * A CLI and an MCP server of different builds may share this directory, and
-   * save/clear do not read first: never overwrite or delete a newer session.
-   */
-  private refuseNewer(): void {
-    const found = this.storedVersion();
-    const current = currentVersion(SESSION_FORMAT);
-    if (found !== null && found > current) {
-      throw new NewerFormatError(this.blobPath, found, current);
-    }
-  }
-
-  clear(): void {
-    this.refuseNewer();
-    if (existsSync(this.blobPath)) rmSync(this.blobPath);
   }
 }

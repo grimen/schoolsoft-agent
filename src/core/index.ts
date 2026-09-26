@@ -15,7 +15,15 @@ export {
   defaultConfigDir,
   resolveConfig,
   CONFIG_FORMAT,
+  ACCOUNT_SETTINGS,
+  accountSource,
+  foldAccountSettings,
+  type AccountSelection,
+  type AccountSettings,
+  type ConfigDocument,
 } from "./config.js";
+export { accountKey, accountKeyOf } from "./accounts.js";
+export type { AccountsDocument } from "./accounts.js";
 export {
   NewerFormatError,
   MalformedVersionError,
@@ -95,12 +103,14 @@ export {
   summarizeHistory,
   emptyHistory,
   HISTORY_FORMAT,
+  accountHistoryStore,
   MAX_HISTORY_EVENTS,
   MAX_HISTORY_LOSSES,
 } from "./session/history.js";
 export type {
   SessionEvent,
   SessionListener,
+  HistoryDocument,
   SessionHistory,
   SessionHistoryStore,
   SessionHistorySummary,
@@ -165,8 +175,13 @@ export type {
   WebLoginSpec,
 } from "./provider/types.js";
 export { SessionManager, NotAuthenticatedError, RENEW_LEAD_MS } from "./session/session-manager.js";
-export type { PersistedSession, SessionStore } from "./session/store.js";
-export { MemorySessionStore, SESSION_FORMAT } from "./session/store.js";
+export type {
+  DocumentRepository,
+  PersistedSession,
+  SessionDocument,
+  SessionStore,
+} from "./session/store.js";
+export { MemorySessionStore, SESSION_FORMAT, accountSessionStore } from "./session/store.js";
 export {
   MemoryPendingLoginStore,
   FilePendingLoginStore,

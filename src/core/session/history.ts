@@ -15,6 +15,7 @@ import {
   writeVersioned,
   type VersionedFormat,
 } from "../versioned.js";
+import { accountsOf, entryOf, withAccount, type AccountsDocument } from "../accounts.js";
 
 /** What the session manager and the portal observers report. */
 export type SessionEvent =
@@ -49,7 +50,7 @@ export interface SessionLoss {
   longestGapMs: number;
 }
 
-/** Stored with `version` (the file was written as `version: 1` from the start). */
+/** One account's history (the file was written as `version: 1` from the start; v2 keys it by account). */
 export interface SessionHistory {
   app: SessionSpan | null;
   web: SessionSpan | null;
@@ -69,8 +70,41 @@ export function emptyHistory(): SessionHistory {
   return { app: null, web: null, losses: [], events: [] };
 }
 
+/**
+ * The history file from v2 on: one history per account. A v1 history said
+ * nothing about the school it was recorded for; it waits as `legacy` until an
+ * account without an entry of its own records an event, and then is that
+ * account's (for a single-account user: theirs).
+ */
+export interface HistoryDocument extends AccountsDocument<SessionHistory> {
+  legacy?: SessionHistory;
+}
+
+/** v1 → v2: keep the history as the legacy record (see HistoryDocument). */
+export function keepLegacyHistory(raw: SessionHistory & { version?: unknown }): HistoryDocument {
+  const { version: _version, ...legacy } = raw;
+  return { accounts: {}, legacy };
+}
+
 /** The history's format (local session-history.json and the connector's encrypted history). */
-export const HISTORY_FORMAT: VersionedFormat = { migrations: [unchanged] };
+export const HISTORY_FORMAT: VersionedFormat = { migrations: [unchanged, keepLegacyHistory] };
+
+/** An account's history; an account without one sees the legacy record, if any. */
+export function historyOf(doc: HistoryDocument | null, account: string): SessionHistory | null {
+  return entryOf<SessionHistory>(doc, account) ?? doc?.legacy ?? null;
+}
+
+/** Store an account's history. Its first entry claims the legacy record, which it was shown. */
+export function withHistory(
+  doc: HistoryDocument | null,
+  account: string,
+  history: SessionHistory,
+): HistoryDocument {
+  const base: HistoryDocument = doc ?? { accounts: {} };
+  if (entryOf(base, account) !== undefined) return withAccount(base, account, history);
+  const { legacy: _claimed, ...rest } = base;
+  return withAccount(rest, account, history);
+}
 
 export class MemorySessionHistoryStore implements SessionHistoryStore {
   private value: SessionHistory | null = null;
@@ -82,21 +116,62 @@ export class MemorySessionHistoryStore implements SessionHistoryStore {
   }
 }
 
-/** `session-history.json` in the state directory (0600; contains no credentials). */
+/**
+ * One account's view of a keyed history document (the local file and the
+ * connector's encrypted history). Writing re-reads the document first, so the
+ * other accounts' entries are kept.
+ */
+export function accountHistoryStore(
+  repo: { read(): HistoryDocument | null; write(doc: HistoryDocument): void },
+  account: string,
+): SessionHistoryStore {
+  return {
+    read: () => historyOf(repo.read(), account),
+    write: (history) => repo.write(withHistory(repo.read(), account, history)),
+  };
+}
+
+/** `session-history.json` in the state directory (0600; contains no credentials), one history per account. */
 export class FileSessionHistoryStore implements SessionHistoryStore {
-  constructor(private readonly dir: string) {}
+  private readonly entry: SessionHistoryStore;
+  constructor(
+    private readonly dir: string,
+    /** The account this store reads and writes (accountKey). */
+    readonly account: string,
+  ) {
+    this.entry = accountHistoryStore(
+      { read: () => this.document(), write: (doc) => this.writeDocument(doc) },
+      account,
+    );
+  }
   private get path(): string {
     return join(this.dir, "session-history.json");
   }
   /** Unreadable reads as nothing (the next event starts afresh); a newer file throws and is left alone. */
-  read(): SessionHistory | null {
+  private document(): HistoryDocument | null {
     if (!existsSync(this.path)) return null;
-    return loadVersioned<SessionHistory, null>(
+    return loadVersioned<HistoryDocument, null>(
       HISTORY_FORMAT,
       this.path,
       () => JSON.parse(readFileSync(this.path, "utf8")),
       () => null,
     );
+  }
+  private writeDocument(doc: HistoryDocument): void {
+    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
+    writeFileSync(this.path, JSON.stringify(writeVersioned(HISTORY_FORMAT, doc)), {
+      mode: 0o600,
+    });
+  }
+  read(): SessionHistory | null {
+    return this.entry.read();
+  }
+  write(history: SessionHistory): void {
+    this.entry.write(history);
+  }
+  /** The keys of every account with a history of its own (doctor). */
+  accounts(): string[] {
+    return Object.keys(accountsOf(this.document()));
   }
   /** The format version on disk (0 before versions existed); null when absent or unreadable. */
   storedVersion(): number | null {
@@ -106,12 +181,6 @@ export class FileSessionHistoryStore implements SessionHistoryStore {
     } catch {
       return null;
     }
-  }
-  write(history: SessionHistory): void {
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    writeFileSync(this.path, JSON.stringify(writeVersioned(HISTORY_FORMAT, history)), {
-      mode: 0o600,
-    });
   }
 }
 

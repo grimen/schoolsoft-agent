@@ -8,7 +8,7 @@ import type { PersistedSession } from "../../src/core/session/store.js";
 
 function tmpStore(): { store: FileSessionStore; dir: string } {
   const dir = mkdtempSync(join(tmpdir(), "ssmcp-test-"));
-  return { store: new FileSessionStore(dir), dir };
+  return { store: new FileSessionStore(dir, "schoolsoft:testskola"), dir };
 }
 
 const sample: PersistedSession = {

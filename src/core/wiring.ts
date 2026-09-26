@@ -13,6 +13,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { Config } from "./config.js";
+import { accountKeyOf } from "./accounts.js";
 import { RENEW_LEAD_MS, SessionManager } from "./session/session-manager.js";
 import { FileSessionStore } from "./session/file-store.js";
 import type { SessionStore } from "./session/store.js";
@@ -147,15 +148,17 @@ export function createSessionManager(config: Config, deps: SessionDeps = {}): Se
   const cache =
     deps.cache === undefined ? (config.cache ? new MemoryReadCache(now) : null) : deps.cache;
   const budget = deps.budget ?? createRequestBudget(config);
+  // The state files hold one entry per account; this manager reads and writes the current one's.
+  const account = accountKeyOf(config);
   manager = new SessionManager({
     school: config.school,
     provider: provider.id,
-    store: deps.store ?? new FileSessionStore(config.stateDir),
+    store: deps.store ?? new FileSessionStore(config.stateDir, account),
     pending: deps.pending ?? new FilePendingLoginStore(config.stateDir),
     pid: deps.pid,
     now,
     history: new SessionHistoryRecorder(
-      deps.history ?? new FileSessionHistoryStore(config.stateDir),
+      deps.history ?? new FileSessionHistoryStore(config.stateDir, account),
       now,
     ),
     onEvent: (event) => {

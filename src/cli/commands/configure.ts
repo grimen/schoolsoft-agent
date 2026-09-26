@@ -1,11 +1,20 @@
 /**
  * `configure`: write config.json. Interactive (find the school by name)
  * when a prompt is available and no flags were given; otherwise
- * non-interactive via --school/--org-id.
+ * non-interactive via --school/--org-id. The school becomes the current
+ * account; other schools already configured are kept with their settings.
  */
 import type { Command } from "commander";
 import { join } from "node:path";
-import { createRequestBudget, defaultConfigDir, envSource, getProvider } from "../../core/index.js";
+import {
+  accountKey,
+  accountSource,
+  createRequestBudget,
+  defaultConfigDir,
+  envSource,
+  getProvider,
+  type AccountSettings,
+} from "../../core/index.js";
 import { writeConfigFile, readConfigFile } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit } from "../program.js";
@@ -27,6 +36,7 @@ export function registerConfigure(
         deps.env.SCHOOLSOFT_CONFIG_DIR ||
         defaultConfigDir(deps.home, deps.platform, deps.env);
       const existing = readConfigFile(configDir);
+      const providerId = g.provider ?? envSource(deps.env).provider;
 
       let school = g.school;
       let orgId = g.orgId;
@@ -41,7 +51,7 @@ export function registerConfigure(
           );
         }
         // The provider is known before the school is: env/flag, else the default.
-        const provider = getProvider(g.provider ?? envSource(deps.env).provider ?? "schoolsoft");
+        const provider = getProvider(providerId ?? "schoolsoft");
         // No session yet: a budget of the provider's defaults for this one command.
         const dir = provider.createSchoolDirectory(
           join(configDir, "schools.json"),
@@ -64,8 +74,16 @@ export function registerConfigure(
         orgId = String(pick.orgId);
       }
 
-      const next = { ...existing, school, ...(orgId ? { orgId } : {}) };
+      // The entry starts from what this school already had, never from another school's settings.
+      const account = accountKey(providerId, school);
+      const entry: AccountSettings = {
+        ...existing.accounts?.[account],
+        ...(providerId ? { provider: providerId } : {}),
+        school,
+        ...(orgId ? { orgId } : {}),
+      };
+      const next = { ...existing, account, accounts: { ...existing.accounts, [account]: entry } };
       const file = writeConfigFile(configDir, next);
-      emit({ status: "configured", file, config: next });
+      emit({ status: "configured", file, config: accountSource(next) });
     });
 }

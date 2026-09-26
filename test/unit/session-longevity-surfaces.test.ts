@@ -337,7 +337,7 @@ test("doctor: shows what has been observed, never fails on it, and copes with an
 
     let now = 1_000_000;
     const recorder = new SessionHistoryRecorder(
-      new FileSessionHistoryStore(join(dir, "state")),
+      new FileSessionHistoryStore(join(dir, "state"), "schoolsoft:taby"),
       () => now,
     );
     recorder.record({ type: "login" });
@@ -349,7 +349,7 @@ test("doctor: shows what has been observed, never fails on it, and copes with an
     const full = await check({ now: () => now });
     assert.equal(
       full.detail,
-      "keepalive=app; format v1; app login 60 min old, 0 refreshes, longest gap survived 0 min; " +
+      "keepalive=app; format v2; app login 60 min old, 0 refreshes, longest gap survived 0 min; " +
         "web login 10 min old, idle 10 min, longest gap survived 0 min; " +
         "1 observed losses, last: web session at 1970-01-01T01:06:40.000Z after 60 min (idle 50 min)" +
         " (full record: schoolsoft-agent auth-status)",
@@ -357,7 +357,10 @@ test("doctor: shows what has been observed, never fails on it, and copes with an
 
     // Sessions that predate the history have no known age.
     const old = mkdtempSync(join(tmpdir(), "ss-doctor-old-"));
-    const r2 = new SessionHistoryRecorder(new FileSessionHistoryStore(join(old, "state")), () => 5);
+    const r2 = new SessionHistoryRecorder(
+      new FileSessionHistoryStore(join(old, "state"), "schoolsoft:taby"),
+      () => 5,
+    );
     r2.record({ type: "refresh" });
     r2.record({ type: "session_lost", session: "app" });
     r2.record({ type: "refresh" });

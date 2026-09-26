@@ -119,7 +119,11 @@ test("configure: non-interactive with --school/--org-id writes config.json", asy
   const r = await run("--config-dir", dir, "--school", "taby", "--org-id", "20", "configure");
   assert.equal(r.code, EXIT.OK, r.err);
   const written = JSON.parse(readFileSync(join(dir, "config.json"), "utf8"));
-  assert.deepEqual(written, { version: 1, school: "taby", orgId: "20" });
+  assert.deepEqual(written, {
+    version: 2,
+    account: "schoolsoft:taby",
+    accounts: { "schoolsoft:taby": { school: "taby", orgId: "20" } },
+  });
   assert.equal(r.json().status, "configured");
 });
 
@@ -370,7 +374,7 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
 
   const { FileSessionStore } = await import("../../src/core/index.js");
   const stateDir = join(dir, "state");
-  new FileSessionStore(stateDir).save({
+  new FileSessionStore(stateDir, "schoolsoft:taby").save({
     school: "taby",
     data: {},
     savedAt: 1,
@@ -445,7 +449,7 @@ test("non-Error throws, doctor platform/engine/session variants, verify without 
 
   const dir = mkdtempSync(join(tmpdir(), "cfg-"));
   const { FileSessionStore } = await import("../../src/core/index.js");
-  new FileSessionStore(join(dir, "state")).save({
+  new FileSessionStore(join(dir, "state"), "schoolsoft:taby").save({
     school: "taby",
     data: {},
     savedAt: 1,

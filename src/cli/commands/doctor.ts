@@ -15,6 +15,7 @@ import {
   HISTORY_FORMAT,
   NotConfiguredError,
   SESSION_FORMAT,
+  accountKeyOf,
   describeVersion,
   emptyHistory,
   summarizeHistory,
@@ -40,27 +41,40 @@ export interface DoctorCheck {
 
 export const LEGACY_STATE_DIR = ".schoolsoft-mcp";
 
-/** The saved session and its format version; a session from a newer build fails the check. */
+/**
+ * The current account's saved session and the file's format version; a
+ * session from a newer build fails the check. Other stored accounts are counted.
+ */
 function sessionCheck(config: Config): DoctorCheck {
-  const store = new FileSessionStore(config.stateDir);
+  const account = accountKeyOf(config);
+  const store = new FileSessionStore(config.stateDir, account);
   let saved: PersistedSession | null;
   try {
     saved = store.load();
   } catch (e) {
     return { name: "session", ok: false, detail: (e as Error).message };
   }
+  if (!saved) {
+    return {
+      name: "session",
+      ok: false,
+      detail: `no session for ${account} in ${config.stateDir} — run: schoolsoft-agent login`,
+    };
+  }
+  const stored = store.accounts().length;
   return {
     name: "session",
-    ok: Boolean(saved),
-    detail: saved
-      ? `saved ${new Date(saved.savedAt).toISOString()} via ${saved.authMethod}, children=${saved.guardian?.children.length ?? "?"}; ${describeVersion(SESSION_FORMAT, store.storedVersion())}`
-      : `no session in ${config.stateDir} — run: schoolsoft-agent login`,
+    ok: true,
+    detail:
+      `saved ${new Date(saved.savedAt).toISOString()} via ${saved.authMethod}, children=${saved.guardian?.children.length ?? "?"}, ` +
+      `account=${account}${stored > 1 ? `, ${stored} accounts stored` : ""}; ` +
+      describeVersion(SESSION_FORMAT, store.storedVersion()),
   };
 }
 
 /** Observed lifetimes (informational, never a failure) unless the file is from a newer build. */
 function historyCheck(config: Config, now: number): DoctorCheck {
-  const store = new FileSessionHistoryStore(config.stateDir);
+  const store = new FileSessionHistoryStore(config.stateDir, accountKeyOf(config));
   let stored: SessionHistory | null;
   try {
     stored = store.read();

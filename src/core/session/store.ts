@@ -9,6 +9,13 @@
 import type { GuardianContext } from "../portal/guardian.js";
 import type { WebSession } from "../browser/web-login.js";
 import type { VersionedFormat } from "../versioned.js";
+import {
+  accountKey,
+  entryOf,
+  withAccount,
+  withoutAccount,
+  type AccountsDocument,
+} from "../accounts.js";
 
 export interface PersistedSession {
   /** School portal provider id (absent in files written before the provider seam: SchoolSoft). */
@@ -67,9 +74,60 @@ export function migratePersisted(raw: Record<string, unknown>): PersistedSession
   return { ...core, data } as unknown as PersistedSession;
 }
 
+/** The session file from v2 on: one saved session per account (accounts.ts). */
+export type SessionDocument = AccountsDocument<PersistedSession>;
+
+/**
+ * v1 → v2: the single saved session becomes the entry of the account it was
+ * saved for. A session that names no school cannot be keyed; it throws, which
+ * every loader treats as a corrupt file (logged out).
+ */
+export function keySessionByAccount(
+  raw: PersistedSession & { version?: unknown },
+): SessionDocument {
+  const { version: _version, ...session } = raw;
+  if (typeof session.school !== "string" || session.school === "") {
+    throw new Error("saved session names no school");
+  }
+  return { accounts: { [accountKey(session.provider, session.school)]: session } };
+}
+
 /**
  * The persisted session's format (the local session.enc and the connector's
- * encrypted session). v0 → v1 is the pre-provider-seam fold above; a new
- * format is one more migration here.
+ * encrypted session). v0 → v1 is the pre-provider-seam fold above, v1 → v2
+ * keys the session by account; a new format is one more migration here.
  */
-export const SESSION_FORMAT: VersionedFormat = { migrations: [migratePersisted] };
+export const SESSION_FORMAT: VersionedFormat = {
+  migrations: [migratePersisted, keySessionByAccount],
+};
+
+/** Where a whole keyed document is read and written (a file, an encrypted repository). */
+export interface DocumentRepository<D> {
+  /** The document; null when there is none. May throw (a newer file, a store that fails closed). */
+  read(): D | null;
+  write(doc: D): void;
+  /** Delete the document: called when its last account is cleared. */
+  remove(): void;
+}
+
+/**
+ * One account's view of a keyed session document: the SessionStore the
+ * session manager already uses. Saving re-reads the document first, so an
+ * entry another process wrote for another account in the meantime is kept.
+ */
+export function accountSessionStore(
+  repo: DocumentRepository<SessionDocument>,
+  account: string,
+): SessionStore {
+  return {
+    load: () => entryOf<PersistedSession>(repo.read(), account) ?? null,
+    save: (session) => repo.write(withAccount(repo.read() ?? { accounts: {} }, account, session)),
+    clear: () => {
+      const doc = repo.read();
+      if (!doc || entryOf(doc, account) === undefined) return;
+      const next = withoutAccount<SessionDocument, PersistedSession>(doc, account);
+      if (Object.keys(next.accounts).length === 0) repo.remove();
+      else repo.write(next);
+    },
+  };
+}

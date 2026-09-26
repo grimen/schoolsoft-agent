@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "provider": "schoolsoft",
+  "school": "taby",
+  "data": { "accessToken": "synthetic-access", "refreshToken": "synthetic-refresh" },
+  "guardian": {
+    "userId": 21,
+    "parentName": "Test Testsson",
+    "childInFocus": 100,
+    "children": [
+      {
+        "studentId": 100,
+        "firstName": "Ett",
+        "lastName": "T",
+        "schools": [{ "orgId": 20, "name": "Testskolan", "className": "4B" }]
+      }
+    ]
+  },
+  "savedAt": 1767225600000,
+  "authMethod": "bankid-browser"
+}

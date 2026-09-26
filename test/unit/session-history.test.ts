@@ -167,13 +167,16 @@ test("recording is best effort: a store that cannot be written never breaks the 
 test("file store: 0600 json in the state dir; absent, corrupt or malformed-version files read as nothing", () => {
   const dir = mkdtempSync(join(tmpdir(), "ss-history-"));
   try {
-    const store = new FileSessionHistoryStore(join(dir, "state"));
+    const store = new FileSessionHistoryStore(join(dir, "state"), "schoolsoft:taby");
     assert.equal(store.read(), null);
     const h = recorder(store);
     h.r.record({ type: "login" });
     const file = join(dir, "state", "session-history.json");
     assert.equal(statSync(file).mode & 0o777, 0o600);
-    assert.equal((JSON.parse(readFileSync(file, "utf8")) as SessionHistory).app?.activityCount, 0);
+    const stored = JSON.parse(readFileSync(file, "utf8")) as {
+      accounts: Record<string, SessionHistory>;
+    };
+    assert.equal(stored.accounts["schoolsoft:taby"].app?.activityCount, 0);
     assert.equal(store.read()?.events.length, 1);
     writeFileSync(file, "{broken");
     assert.equal(store.read(), null);
