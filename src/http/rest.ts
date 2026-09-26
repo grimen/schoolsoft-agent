@@ -5,8 +5,8 @@
  * as /mcp, and the same runtime call, so consent, child focus, the read cache, output
  * validation, recovery and revocation checks are the ones /mcp relies on.
  */
-import { Router, type Request, type RequestHandler, type Response } from "express";
-import type { Options as RateLimitOptions } from "express-rate-limit";
+import { Router, type Request, type Response } from "express";
+import { rateLimit, type Options as RateLimitOptions } from "express-rate-limit";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
 import type { OAuthTokenVerifier } from "@modelcontextprotocol/sdk/server/auth/provider.js";
 import { PortalPushbackError, type Lang } from "../core/index.js";
@@ -32,8 +32,8 @@ export interface RestOptions {
   runtime: Pick<ConnectorRuntime, "execute" | "executeForChild" | "status">;
   /** Language when the caller's Accept-Language names neither Swedish nor English. */
   lang: Lang;
-  /** The connector's per-caller limiter factory (server.ts), so REST shares its keying. */
-  limit: (extra: Partial<RateLimitOptions>) => RequestHandler;
+  /** The connector's per-caller keying (server.ts), so REST limits callers as the owner routes do. */
+  perCaller: Partial<RateLimitOptions>;
   /** Clock for Retry-After (tests). */
   now?: () => number;
 }
@@ -43,7 +43,7 @@ export function restApi({
   oauth,
   runtime,
   lang,
-  limit,
+  perCaller,
   now = Date.now,
 }: RestOptions): Router {
   const resourceMetadataUrl = publicUrl + "/.well-known/oauth-protected-resource/mcp";
@@ -75,8 +75,12 @@ export function restApi({
 
   const router = Router();
   router.use(
-    limit({
+    rateLimit({
+      windowMs: 60_000,
       limit: REST_REQUESTS_PER_MINUTE,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      ...perCaller,
       handler: (req, res) => send(req, res, refusals.rateLimited()),
     }),
   );
