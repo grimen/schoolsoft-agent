@@ -1,6 +1,7 @@
 /** Single-owner OAuth grants; storage is supplied by the encrypted deployment store. */
 import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import type { Response } from "express";
+import { unchanged, type VersionedFormat } from "../core/index.js";
 import type {
   OAuthServerProvider,
   AuthorizationParams,
@@ -68,6 +69,8 @@ export interface OAuthState {
   tokens: Record<string, Token>;
   refresh: Record<string, { key: string; counter: number; scopes: string[] }>;
 }
+/** The stored OAuthState's format (oauth.enc); a new shape is one more migration here. */
+export const OAUTH_STATE_FORMAT: VersionedFormat = { migrations: [unchanged] };
 export interface OAuthRepository {
   read(): OAuthState | undefined;
   write(state: OAuthState): void;

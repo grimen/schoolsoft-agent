@@ -75,7 +75,7 @@ try {
     "unprivileged",
   );
   const repo =
-    "import {EncryptedRepository} from './dist/http/storage.js'; const r=new EncryptedRepository('/data','smoke',Buffer.from('ab'.repeat(32),'hex'));";
+    "import {EncryptedRepository} from './dist/http/storage.js'; const r=new EncryptedRepository('/data','smoke',Buffer.from('ab'.repeat(32),'hex'),{migrations:[(d)=>d]});";
   assert.equal(node(repo + "r.write({fixture:true});console.log(r.read().fixture)"), "true");
   docker("restart", name);
   await health();
