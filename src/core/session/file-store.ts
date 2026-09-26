@@ -1,13 +1,9 @@
 /**
- * File-backed SessionStore: AES-256-GCM blob under the state directory,
- * key generated on first use and stored with 0600 permissions.
- *
- * Protects against casual file exposure (backups, sync folders), not
- * against an attacker with full access to the same user account. For
- * stronger protection, implement SessionStore against an OS keychain.
+ * File-backed SessionStore: session.enc under the state directory, sealed
+ * with the directory's key.bin (sealed.ts, which says what that protects
+ * against).
  */
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync, existsSync, rmSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   SESSION_FORMAT,
@@ -18,6 +14,9 @@ import {
 } from "./store.js";
 import { loadVersioned, storedVersion, writeVersioned } from "../versioned.js";
 import { accountsOf } from "../accounts.js";
+import { SealedStateFiles } from "./sealed.js";
+
+const SESSION_FILE = "session.enc";
 
 /**
  * session.enc holds one saved session per account (SessionDocument); an
@@ -41,51 +40,18 @@ export class FileSessionStore implements SessionStore {
     );
   }
 
-  private ensureDir(): void {
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-  }
-
-  private get keyPath(): string {
-    return join(this.dir, "key.bin");
-  }
-
   private get blobPath(): string {
-    return join(this.dir, "session.enc");
-  }
-
-  private loadOrCreateKey(): Buffer {
-    this.ensureDir();
-    if (existsSync(this.keyPath)) {
-      return readFileSync(this.keyPath);
-    }
-    const key = randomBytes(32);
-    writeFileSync(this.keyPath, key, { mode: 0o600 });
-    return key;
+    return join(this.dir, SESSION_FILE);
   }
 
   private writeDocument(doc: SessionDocument): void {
-    const key = this.loadOrCreateKey();
-    const iv = randomBytes(12);
-    const cipher = createCipheriv("aes-256-gcm", key, iv);
-    const plaintext = Buffer.from(JSON.stringify(writeVersioned(SESSION_FORMAT, doc)), "utf8");
-    const encrypted = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-    const tag = cipher.getAuthTag();
-    writeFileSync(this.blobPath, Buffer.concat([iv, tag, encrypted]), {
-      mode: 0o600,
-    });
+    // Sealed unbound: session.enc was written before sealed files were bound to their name.
+    new SealedStateFiles(this.dir).write(SESSION_FILE, writeVersioned(SESSION_FORMAT, doc), false);
   }
 
   /** The decrypted document; throws when the blob is corrupt or tampered with. */
   private decrypt(): unknown {
-    const key = this.loadOrCreateKey();
-    const data = readFileSync(this.blobPath);
-    const iv = data.subarray(0, 12);
-    const tag = data.subarray(12, 28);
-    const encrypted = data.subarray(28);
-    const decipher = createDecipheriv("aes-256-gcm", key, iv);
-    decipher.setAuthTag(tag);
-    const plaintext = Buffer.concat([decipher.update(encrypted), decipher.final()]);
-    return JSON.parse(plaintext.toString("utf8"));
+    return new SealedStateFiles(this.dir).read(SESSION_FILE, false);
   }
 
   /**

@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   AgentError,
   InputError,
+  MemoryPendingLoginStore,
   createSessionManager,
   createPortals,
   createKeepalive,
@@ -99,6 +100,8 @@ export class ConnectorRuntime {
     this.now = options.now ?? Date.now;
     this.manager = createSessionManager(options.config, {
       now: this.now,
+      // One process tracks its own login (this.pending); no marker is written to the data disk.
+      pending: new MemoryPendingLoginStore(),
       ...options.deps,
       store: options.store,
       redirectUri: options.redirectUri,

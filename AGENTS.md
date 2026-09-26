@@ -74,6 +74,11 @@ learned about SchoolSoft's API. This file is only what an agent must obey.
   A raw `Error` reaching a user is treated as a bug (exit 1) by design.
 - **Never automate BankID.** Login opens the user's browser; the CLI prints
   the URL too.
+- **State files are private.** Create files and directories only through
+  `src/core/private-files.ts` (0700 directories, 0600 files, whole-file
+  replacement); `make boundaries` refuses any other file-creating `node:fs`
+  import in `src`. Local state that names the user or the school is sealed
+  with `key.bin` (`src/core/session/sealed.ts`).
 - **Children's data stays out of git and logs.** `e2e-report.md`,
   `e2e-session-dump.json`, state dirs are ignored. Probes that print API
   responses must redact names, subjects and message bodies.

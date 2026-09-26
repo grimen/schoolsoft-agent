@@ -3,12 +3,12 @@
  * its orgId (~3400 entries, no auth). Used so a parent can configure by
  * school name instead of knowing the URL slug.
  */
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
-import { dirname } from "node:path";
+import { readFileSync, existsSync } from "node:fs";
 
 export const SCHOOL_LIST_URL = "https://sms.schoolsoft.se/internal/rest-api/login/schoollist";
 
 import { AgentError } from "../../core/errors/index.js";
+import { writePrivateFile } from "../../core/private-files.js";
 import {
   rankSchools,
   type RankedSchool,
@@ -72,9 +72,9 @@ export class SchoolDirectory implements SchoolDirectoryPort {
     }
   }
 
+  /** 0600 like every other file in the config directory, which this may be the first to create (0700). */
   private writeCache(schools: SchoolEntry[]): void {
-    mkdirSync(dirname(this.o.cacheFile), { recursive: true });
-    writeFileSync(
+    writePrivateFile(
       this.o.cacheFile,
       JSON.stringify({ fetchedAt: this.now(), schools } satisfies CacheShape),
     );

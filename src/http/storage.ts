@@ -4,18 +4,17 @@
  * where the GCM tag covers it (docs/planning/specs/2026-09-26-versioned-state.md).
  */
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
-import {
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-  unlinkSync,
-  openSync,
-  fsyncSync,
-  closeSync,
-} from "node:fs";
+import { readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
-import { InputError, loadVersioned, writeVersioned, type VersionedFormat } from "../core/index.js";
+import {
+  InputError,
+  ensurePrivateDir,
+  loadVersioned,
+  syncDirectory,
+  writePrivateFile,
+  writeVersioned,
+  type VersionedFormat,
+} from "../core/index.js";
 export class EncryptedRepository<T extends object> {
   private path: string;
   constructor(
@@ -24,7 +23,7 @@ export class EncryptedRepository<T extends object> {
     private key: Buffer,
     private format: VersionedFormat,
   ) {
-    mkdirSync(directory, { recursive: true, mode: 0o700 });
+    ensurePrivateDir(directory);
     this.path = join(directory, name + ".enc");
   }
   read(): T | undefined {
@@ -63,26 +62,14 @@ export class EncryptedRepository<T extends object> {
       cipher.update(JSON.stringify(writeVersioned(this.format, value))),
       cipher.final(),
     ]);
-    const temporary = this.path + ".tmp";
-    writeFileSync(temporary, Buffer.concat([iv, cipher.getAuthTag(), body]), {
-      mode: 0o600,
-      flush: true,
+    writePrivateFile(this.path, Buffer.concat([iv, cipher.getAuthTag(), body]), {
+      durable: true,
     });
-    renameSync(temporary, this.path);
-    this.syncDirectory();
-  }
-  private syncDirectory(): void {
-    const fd = openSync(this.directory, "r");
-    try {
-      fsyncSync(fd);
-    } finally {
-      closeSync(fd);
-    }
   }
   clear(): void {
     try {
       unlinkSync(this.path);
-      this.syncDirectory();
+      syncDirectory(this.directory);
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code !== "ENOENT") throw e;
     }

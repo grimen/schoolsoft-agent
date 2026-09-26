@@ -198,6 +198,13 @@ export {
 } from "./session/pending-login.js";
 export type { PendingLogin, PendingLoginStore } from "./session/pending-login.js";
 export { FileSessionStore } from "./session/file-store.js";
+export {
+  appendPrivateFile,
+  createPrivateFile,
+  ensurePrivateDir,
+  syncDirectory,
+  writePrivateFile,
+} from "./private-files.js";
 export type { AuthStrategy, LoginInfo } from "./auth/strategy.js";
 export { childOf, orgIdOf } from "./portal/guardian.js";
 export type { GuardianContext } from "./portal/guardian.js";

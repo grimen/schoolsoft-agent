@@ -66,11 +66,11 @@ The pseudonym goes with its request: at once when the request is approved or den
 
 ## Tasks & Acceptance
 
-- [ ] History: plaintext v0/v1/v2 migrates to `.enc` on the next event and the `.json` is deleted only after the write; a newer `.json` or `.enc` is refused and left byte for byte; a failed write keeps the `.json`; the `.enc` holds no plaintext.
-- [ ] Pending marker: sealed, legacy `.json` removed, connector writes no marker.
-- [ ] Every writer creates 0700 directories and 0600 files; the boundary scan catches a new writer.
-- [ ] `oauth.enc` never contains an address; flood protection behaves as before; restored addresses are replaced.
-- [ ] Data-handling, architecture and stability pages match.
+- [x] History: plaintext v0/v1/v2 migrates to `.enc` on the next event and the `.json` is deleted only after the write; a newer `.json` or `.enc` is refused and left byte for byte; a failed write keeps the `.json`; the `.enc` holds no plaintext.
+- [x] Pending marker: sealed, legacy `.json` removed, connector writes no marker.
+- [x] Every writer creates 0700 directories and 0600 files; the boundary scan catches a new writer.
+- [x] `oauth.enc` never contains an address; flood protection behaves as before; restored addresses are replaced.
+- [x] Data-handling, architecture and stability pages match.
 
 ## Verification
 

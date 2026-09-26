@@ -4,9 +4,14 @@
  * ended. It lets `login --background` return at once (hosts with short
  * command timeouts), `auth-status` report progress, and a second `login`
  * refuse to open a second browser window.
+ *
+ * One marker per state directory, not per account: the callback port and
+ * the user's browser are shared, so a second BankID login waits whatever
+ * the school (docs/planning/specs/2026-09-26-accounts-by-school.md).
  */
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { SealedStateFiles } from "./sealed.js";
 
 interface PendingBase {
   startedAt: number;
@@ -38,26 +43,41 @@ export class MemoryPendingLoginStore implements PendingLoginStore {
   }
 }
 
-/** `login-pending.json` in the state directory (0600; contains no credentials). */
+export const PENDING_LOGIN_FILE = "login-pending.enc";
+/** The plaintext marker of builds before E10.4: never read, removed on the next write or clear. */
+export const LEGACY_PENDING_LOGIN_FILE = "login-pending.json";
+
+/**
+ * `login-pending.enc` in the state directory, sealed with key.bin (sealed.ts):
+ * it holds the login URL and a failure message. Unversioned: it lives
+ * minutes, and anything unreadable reads as "no login running".
+ */
 export class FilePendingLoginStore implements PendingLoginStore {
-  constructor(private readonly dir: string) {}
+  private readonly sealed: SealedStateFiles;
+  constructor(private readonly dir: string) {
+    this.sealed = new SealedStateFiles(dir);
+  }
   private get path(): string {
-    return join(this.dir, "login-pending.json");
+    return join(this.dir, PENDING_LOGIN_FILE);
   }
   read(): PendingLogin | null {
     if (!existsSync(this.path)) return null;
     try {
-      return JSON.parse(readFileSync(this.path, "utf8")) as PendingLogin;
+      return this.sealed.read(PENDING_LOGIN_FILE) as PendingLogin;
     } catch {
       return null;
     }
   }
   write(p: PendingLogin): void {
-    mkdirSync(this.dir, { recursive: true, mode: 0o700 });
-    writeFileSync(this.path, JSON.stringify(p), { mode: 0o600 });
+    this.sealed.write(PENDING_LOGIN_FILE, p);
+    this.removeLegacy();
   }
   clear(): void {
-    if (existsSync(this.path)) rmSync(this.path);
+    rmSync(this.path, { force: true });
+    this.removeLegacy();
+  }
+  private removeLegacy(): void {
+    rmSync(join(this.dir, LEGACY_PENDING_LOGIN_FILE), { force: true });
   }
 }
 

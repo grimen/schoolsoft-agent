@@ -4,7 +4,7 @@
  * `--verify` for the live parse check of the typed operations (verify.ts).
  */
 import type { Command } from "commander";
-import { existsSync, mkdirSync, renameSync, readdirSync } from "node:fs";
+import { existsSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
   AgentError,
@@ -18,6 +18,7 @@ import {
   accountKeyOf,
   describeVersion,
   emptyHistory,
+  ensurePrivateDir,
   summarizeHistory,
   browserStatus,
   createRequestBudget,
@@ -147,7 +148,7 @@ export async function runDoctor(
     const hasLegacy = existsSync(join(legacy, "session.enc"));
     const hasCurrent = existsSync(join(config.stateDir, "session.enc"));
     if (hasLegacy && !hasCurrent && fix) {
-      mkdirSync(config.stateDir, { recursive: true, mode: 0o700 });
+      ensurePrivateDir(config.stateDir);
       for (const f of readdirSync(legacy)) renameSync(join(legacy, f), join(config.stateDir, f));
       checks.push({ name: "migration", ok: true, detail: `moved ${legacy} → ${config.stateDir}` });
     } else if (hasLegacy && !hasCurrent) {

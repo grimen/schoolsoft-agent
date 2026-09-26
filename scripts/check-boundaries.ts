@@ -13,6 +13,9 @@
  *     inbound servers import node:http(s)/net/tls/undici
  *   - src/client/** (the typed client, a package export for apps) imports only zod and its own
  *     files, and nothing else in src imports it
+ *   - files and directories are created only through src/core/private-files.ts (0700/0600):
+ *     nothing else imports a file-creating node:fs function, or node:fs as a whole
+ *     (docs/planning/specs/2026-09-26-privacy-small-fixes.md)
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, dirname, resolve } from "node:path";
@@ -63,6 +66,70 @@ function checkOutbound(rel: string, text: string): Violation[] {
   return out;
 }
 
+/** The one module that creates files and directories for the user. */
+const FILE_WRITER = "core/private-files.ts";
+/**
+ * Writers that do not touch user state: the fixture promotion tool moves reviewed
+ * captures into the repository's test/fixtures, which are ordinary project files.
+ */
+const FILE_WRITE_ALLOWED = new Set(["providers/schoolsoft/capture/promote.ts"]);
+/** node:fs functions that create a file or a directory (sync, callback and promise forms). */
+const FS_CREATES = new Set(
+  [
+    "writeFile",
+    "appendFile",
+    "mkdir",
+    "mkdtemp",
+    "copyFile",
+    "cp",
+    "open",
+    "symlink",
+    "link",
+  ].flatMap((name) => [name, `${name}Sync`]),
+);
+FS_CREATES.add("createWriteStream");
+
+/**
+ * Every state, config, cache and log write goes through core/private-files.ts, so a new
+ * writer cannot forget the modes. Reading functions may be imported anywhere, by name.
+ */
+function checkFileWrites(rel: string, text: string): Violation[] {
+  const out: Violation[] = [];
+  if (rel === FILE_WRITER || FILE_WRITE_ALLOWED.has(rel)) return out;
+  const lineOf = (index: number) => text.slice(0, index).split("\n").length;
+  const add = (index: number, message: string) =>
+    out.push({ file: rel, line: lineOf(index), message });
+  for (const m of text.matchAll(
+    /import\s+(type\s+)?([^;]*?)\s*from\s*["'](?:node:)?fs(?:\/promises)?["']/g,
+  )) {
+    if (m[1]) continue; // types create nothing
+    const named = /\{([^}]*)\}/.exec(m[2]);
+    const whole = m[2]
+      .replace(/\{[^}]*\}/, "")
+      .replace(/,/g, "")
+      .trim();
+    if (whole)
+      add(
+        m.index,
+        "node:fs is imported as a whole; import reading functions by name and create files through core/private-files.ts",
+      );
+    for (const name of (named?.[1] ?? "").split(",")) {
+      const imported = name
+        .trim()
+        .replace(/^type\s+/, "")
+        .split(/\s+as\s+/)[0];
+      if (FS_CREATES.has(imported))
+        add(
+          m.index,
+          `${imported} creates files outside core/private-files.ts; use its helpers (0700 directories, 0600 files)`,
+        );
+    }
+  }
+  for (const m of text.matchAll(/\bimport\s*\(\s*["'](?:node:)?fs(?:\/promises)?["']\s*\)/g))
+    add(m.index, "node:fs is imported dynamically; create files through core/private-files.ts");
+  return out;
+}
+
 /**
  * The typed client (src/client) ships to apps and browsers: it may import Zod and its own
  * files, nothing else, and nothing else imports it (it is reached only as a package export).
@@ -107,6 +174,7 @@ export function checkBoundaries(root: string): Violation[] {
     const source = readFileSync(file, "utf8");
     violations.push(...checkOutbound(rel, source));
     violations.push(...checkClient(rel, source, src, file));
+    violations.push(...checkFileWrites(rel, source));
     const lines = source.split("\n");
     lines.forEach((text, i) => {
       const m = /^\s*(?:import|export)\s[^"']*["']([^"']+)["']/.exec(text);

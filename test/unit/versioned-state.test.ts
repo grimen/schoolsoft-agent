@@ -44,6 +44,7 @@ import {
 import { runCli, type CliDeps } from "../../src/cli/program.js";
 import { runDoctor } from "../../src/cli/commands/doctor.js";
 import { assertNewer } from "../helpers/versioned.js";
+import { openSealed, sealWithStateKey } from "../helpers/sealed.js";
 
 const tmp = (prefix: string) => mkdtempSync(join(tmpdir(), `ss-versioned-${prefix}-`));
 
@@ -345,7 +346,7 @@ test("session.enc with a malformed version reads as logged out, like a corrupt b
   assert.equal(existsSync(join(dir, "session.enc")), false);
 });
 
-// ---------- local session-history.json ----------
+// ---------- local session history (plaintext session-history.json of older builds) ----------
 
 test("session-history.json v0 loads and the next event writes the current version, which loads", () => {
   const dir = tmp("hist0");
@@ -356,8 +357,9 @@ test("session-history.json v0 loads and the next event writes the current versio
   assert.equal(store.storedVersion(), 0);
   assert.deepEqual(store.read(), emptyHistory());
   new SessionHistoryRecorder(store, () => 5).record({ type: "login" });
-  const written = JSON.parse(readFileSync(file, "utf8"));
+  const written = openSealed(dir, "session-history.enc");
   assert.equal(written.version, 2);
+  assert.equal(existsSync(file), false);
   assert.equal(store.storedVersion(), 2);
   assert.equal(store.read()?.app?.startedAt, 5);
   assert.equal("version" in store.read()!, false);
@@ -407,7 +409,7 @@ function doctorDeps(home: string) {
   };
 }
 
-test("doctor reports the version of config.json, session.enc and session-history.json", async () => {
+test("doctor reports the version of config.json, session.enc and the session history", async () => {
   const dir = tmp("doctor");
   const state = join(dir, "state");
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
@@ -451,7 +453,7 @@ test("doctor fails the check of each file from a newer build with the update mes
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
   new FileSessionStore(state, "schoolsoft:taby").save(session);
   sealLocal(state, { ...session, version: 5 });
-  writeFileSync(join(state, "session-history.json"), JSON.stringify({ version: 5 }));
+  sealWithStateKey(state, "session-history.enc", { version: 5 });
   const result = await runDoctor(doctorDeps(dir), { configDir: dir }, false, "v22.0.0");
   const byName = Object.fromEntries(result.checks.map((c) => [c.name, c]));
   assert.equal(result.ok, false);
@@ -460,6 +462,6 @@ test("doctor fails the check of each file from a newer build with the update mes
   assert.equal(byName["session-history"].ok, false);
   assert.match(
     byName["session-history"].detail,
-    /session-history\.json was written by a newer version/,
+    /session-history\.enc was written by a newer version/,
   );
 });
