@@ -64,7 +64,10 @@ export function createConnectorApp({
   app.use((_req, res, next) => {
     res.set({
       "Cache-Control": "no-store",
-      "Referrer-Policy": "no-referrer",
+      // Never a Referer to another site. Not "no-referrer": under it, browsers send
+      // `Origin: null` on the owner pages' own form posts, which the Origin checks
+      // below then refuse, so a real browser could not sign in to the dashboard.
+      "Referrer-Policy": "same-origin",
       "X-Content-Type-Options": "nosniff",
       "Content-Security-Policy":
         "default-src 'none'; form-action 'self' https://claude.ai https://chatgpt.com; frame-ancestors 'none'; base-uri 'none'",
