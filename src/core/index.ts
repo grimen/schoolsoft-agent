@@ -90,6 +90,7 @@ export {
   InputError,
   EXIT_CODE_BY_KIND,
   describeError,
+  describeIssues,
   detectLang,
   guardNetwork,
   isTransient,

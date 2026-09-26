@@ -25,7 +25,7 @@ import {
   type HintKey,
 } from "../../src/core/errors/index.js";
 
-test("every message key renders in both languages with its parameters; every hint has both surfaces in both languages", () => {
+test("every message key renders in both languages with its parameters; every hint has all three surfaces in both languages", () => {
   const params = {
     reason: "r",
     detail: "d",
@@ -65,6 +65,7 @@ test("every message key renders in both languages with its parameters; every hin
     for (const lang of ["en", "sv"] as const) {
       assert.ok(HINTS[key][lang].cli.length > 5, `${key}.${lang}.cli`);
       assert.ok(HINTS[key][lang].mcp.length > 5, `${key}.${lang}.mcp`);
+      assert.ok(HINTS[key][lang].http.length > 5, `${key}.${lang}.http`);
     }
   }
 });
