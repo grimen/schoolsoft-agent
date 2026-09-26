@@ -5,10 +5,21 @@
  * exchange, no user interaction) and repeat the call. A second rejection
  * means the saved session is really gone, and the user is told to log in.
  * Web-session losses are not retried here: only the user can fix those.
+ *
+ * Writes (WRITE_CAPABILITIES) are never repeated. The session is renewed so
+ * the user's next call works, but the rejected request is not sent again:
+ * this wrapper cannot know what the portal did before it answered, and a
+ * duplicate absence report is worse than asking the user to confirm again.
  */
 import { AgentError } from "../errors/index.js";
 import { UpstreamError } from "../errors/index.js";
-import { CAPABILITIES, SessionLostError, type Capability, type Portal } from "./types.js";
+import {
+  CAPABILITIES,
+  WRITE_CAPABILITIES,
+  SessionLostError,
+  type Capability,
+  type Portal,
+} from "./types.js";
 
 export function isRecoverable(e: unknown): boolean {
   if (e instanceof UpstreamError) return e.sessionRejected;
@@ -35,6 +46,13 @@ export function withSessionRecovery(portal: Portal, o: RecoveryOptions): Portal 
       } catch (e) {
         if (!isRecoverable(e)) throw e;
         await o.recover();
+        if (WRITE_CAPABILITIES.includes(capability))
+          throw new AgentError({
+            kind: "upstream",
+            key: "write_not_repeated",
+            hint: "confirm_again",
+            cause: e,
+          });
         try {
           return await fn.apply(portal, args);
         } catch (again) {

@@ -31,6 +31,7 @@ Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state
 | `get-attendance-report` | Get attendance report | read-only, idempotent, needs login |
 | `get-assessment-criteria` | Get assessment criteria | read-only, idempotent, needs login |
 | `get-grade-prognosis` | Get grade prognosis dates | read-only, idempotent, needs login |
+| `report-absence` | Report a child absent | writes, destructive, needs login |
 | `login` | Log in to SchoolSoft | writes, no login needed |
 | `auth-status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -507,6 +508,47 @@ Use when: "har skolan gjort någon avstämning", "när är nästa avstämning".
 
 ```bash
 schoolsoft-agent get-grade-prognosis
+```
+
+## `schoolsoft-agent report-absence`
+
+Report a child absent (sjukanmälan / frånvaroanmälan). This CHANGES data at SchoolSoft.
+
+Two steps. Without confirm it sends nothing and returns a preview of exactly what
+would be reported. Show that preview to the user; call again with the same
+arguments and confirm: true only after they have said yes. It is not idempotent:
+never repeat a confirmed call on your own, also not after an error.
+
+Off by default: the user must set SCHOOLSOFT_ALLOW_WRITES=1 first.
+
+Args:
+  - child (optional): the child's first or full name. Or child_id from list_children.
+    Required when the guardian has more than one child.
+  - start_date, end_date (optional): inclusive YYYY-MM-DD in Europe/Stockholm, today or
+    later, at most 14 days. Default: today; end_date defaults to start_date.
+  - from_time, to_time (optional): HH:MM, both or neither, for part of a single day.
+  - reason (optional): a short comment for the school.
+  - confirm (optional): true sends the report.
+
+Returns: { status: "preview" | "reported", child, start_date, end_date, days, full_day,
+from_time?, to_time?, reason?, timezone, summary } and, when reported, response.
+
+Use when: "Report Ett sick today", "anmäl frånvaro för Ett imorgon",
+"sjukanmäl Två idag mellan 10 och 12".
+
+| Flag | Required | Description |
+|---|---|---|
+| `--child <value>` | no | Child's first or full name. |
+| `--child-id <number>` | no | Child's student id from list_children, as an alternative to child. |
+| `--start-date <value>` | no | First day absent, YYYY-MM-DD (Europe/Stockholm). Default today. |
+| `--end-date <value>` | no | Last day absent, YYYY-MM-DD. Default start_date. At most 14 days. |
+| `--from-time <value>` | no | Part of a day: start HH:MM. Needs to_time. |
+| `--to-time <value>` | no | Part of a day: end HH:MM. Needs from_time. |
+| `--reason <value>` | no | Optional short comment for the school. |
+| `--confirm` | no | true sends the report. Omitted: preview only, nothing is sent. |
+
+```bash
+schoolsoft-agent report-absence
 ```
 
 ## `schoolsoft-agent login`

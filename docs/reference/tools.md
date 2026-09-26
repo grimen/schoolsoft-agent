@@ -27,6 +27,7 @@ Server: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredCo
 | `schoolsoft_get_attendance_report` | Get attendance report | read-only, idempotent, needs login |
 | `schoolsoft_get_assessment_criteria` | Get assessment criteria | read-only, idempotent, needs login |
 | `schoolsoft_get_grade_prognosis` | Get grade prognosis dates | read-only, idempotent, needs login |
+| `schoolsoft_report_absence` | Report a child absent | writes, destructive, needs login |
 | `schoolsoft_login` | Log in to SchoolSoft | writes, no login needed |
 | `schoolsoft_auth_status` | Check SchoolSoft session status | read-only, idempotent, no login needed |
 | `schoolsoft_logout` | Log out of SchoolSoft | writes, destructive, idempotent, no login needed |
@@ -616,6 +617,52 @@ Example call:
 ```json
 {
   "name": "schoolsoft_get_grade_prognosis",
+  "arguments": {}
+}
+```
+
+## `schoolsoft_report_absence`
+
+Report a child absent (sjukanmälan / frånvaroanmälan). This CHANGES data at SchoolSoft.
+
+Two steps. Without confirm it sends nothing and returns a preview of exactly what
+would be reported. Show that preview to the user; call again with the same
+arguments and confirm: true only after they have said yes. It is not idempotent:
+never repeat a confirmed call on your own, also not after an error.
+
+Off by default: the user must set SCHOOLSOFT_ALLOW_WRITES=1 first.
+
+Args:
+  - child (optional): the child's first or full name. Or child_id from list_children.
+    Required when the guardian has more than one child.
+  - start_date, end_date (optional): inclusive YYYY-MM-DD in Europe/Stockholm, today or
+    later, at most 14 days. Default: today; end_date defaults to start_date.
+  - from_time, to_time (optional): HH:MM, both or neither, for part of a single day.
+  - reason (optional): a short comment for the school.
+  - confirm (optional): true sends the report.
+
+Returns: { status: "preview" | "reported", child, start_date, end_date, days, full_day,
+from_time?, to_time?, reason?, timezone, summary } and, when reported, response.
+
+Use when: "Report Ett sick today", "anmäl frånvaro för Ett imorgon",
+"sjukanmäl Två idag mellan 10 och 12".
+
+| Argument | Type | Required | Description |
+|---|---|---|---|
+| `child` | string | no | Child's first or full name. |
+| `child_id` | number | no | Child's student id from list_children, as an alternative to child. |
+| `start_date` | string | no | First day absent, YYYY-MM-DD (Europe/Stockholm). Default today. |
+| `end_date` | string | no | Last day absent, YYYY-MM-DD. Default start_date. At most 14 days. |
+| `from_time` | string | no | Part of a day: start HH:MM. Needs to_time. |
+| `to_time` | string | no | Part of a day: end HH:MM. Needs from_time. |
+| `reason` | string | no | Optional short comment for the school. |
+| `confirm` | boolean | no | true sends the report. Omitted: preview only, nothing is sent. |
+
+Example call:
+
+```json
+{
+  "name": "schoolsoft_report_absence",
   "arguments": {}
 }
 ```

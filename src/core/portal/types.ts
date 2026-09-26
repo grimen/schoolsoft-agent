@@ -50,6 +50,9 @@ export interface Portal {
   getAssessmentCriteria(subject: string, schoolType?: number): Promise<TablePage>;
   /** Avstämning: grade prognosis reconciliation dates (gated REST, web session). */
   getGradePrognosis(): Promise<{ reconciliationDates: unknown }>;
+  // ----- api: writes (never repeated by session recovery; see WRITE_CAPABILITIES) -----
+  /** Frånvaroanmälan: report the child in focus absent. Sends exactly one request. */
+  reportAbsence(notice: AbsenceNotice): Promise<AbsenceReceipt>;
 }
 
 export type Capability = keyof Portal;
@@ -78,7 +81,15 @@ export const CAPABILITIES: readonly Capability[] = [
   "getAttendanceReport",
   "getAssessmentCriteria",
   "getGradePrognosis",
+  "reportAbsence",
 ];
+
+/**
+ * Capabilities that change something at the school portal. Session recovery
+ * renews the session for them but never repeats the call: a write that may
+ * have been sent is not sent again without the user asking.
+ */
+export const WRITE_CAPABILITIES: readonly Capability[] = ["reportAbsence"];
 
 /** Provider order per capability, declared by each SchoolProvider. */
 export type CapabilityRouting = Partial<Record<Capability, readonly PortalProvider[]>>;
@@ -141,6 +152,26 @@ export interface PortalFile {
   category?: string;
   url: string;
   type: "file" | "link";
+}
+
+// ----- writes -----
+
+/** An absence report in vendor-neutral terms; dates and times are local wall-clock strings. */
+export interface AbsenceNotice {
+  studentId: number;
+  /** Inclusive, YYYY-MM-DD. */
+  startDate: string;
+  endDate: string;
+  fullDay: boolean;
+  /** HH:MM, only when fullDay is false. */
+  fromTime?: string;
+  toTime?: string;
+  reason?: string;
+}
+/** What the portal answered; the body is passed on as it came. */
+export interface AbsenceReceipt {
+  status: number;
+  response: unknown;
 }
 
 // ----- shapes shared with the API portal -----

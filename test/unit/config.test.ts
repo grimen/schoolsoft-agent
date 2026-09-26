@@ -66,6 +66,7 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     configDir: undefined,
     browserEngine: undefined,
     browserCdp: undefined,
+    allowWrites: undefined,
   });
 });
 

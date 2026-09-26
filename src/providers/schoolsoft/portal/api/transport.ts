@@ -13,6 +13,8 @@ export type ApiFetch = (
   options: {
     method?: string;
     headers?: Record<string, string>;
+    body?: string;
+    followRedirects?: boolean;
     responseType?: "json" | "text" | "buffer";
   },
   userAgent?: string,
@@ -44,9 +46,35 @@ export class SchoolsoftHttp {
     return this.unwrap<T>(r, path);
   }
 
-  /** JSON POST with cookies, for the legacy /rest endpoints' READ queries only. */
+  /** JSON POST with cookies for READ queries (legacy /rest endpoints); writes use postWrite. */
   async postJson<T>(path: string, cookie: string, body: unknown): Promise<T> {
-    const r = await guardNetwork(() =>
+    return this.unwrap<T>(await this.post(path, cookie, body), path);
+  }
+
+  /**
+   * JSON POST that changes data. Sends once; any 2xx is success (the write
+   * endpoints' success status is not verified), anything else an UpstreamError.
+   * Callers decide what a failure means for a request that may have arrived.
+   */
+  async postWrite(
+    path: string,
+    cookie: string,
+    body: unknown,
+  ): Promise<{ status: number; data: unknown }> {
+    // The HTTP helper re-issues a POST when it follows a 301/302/307/308;
+    // a write must reach the network once, so redirects are not followed.
+    const r = await this.post(path, cookie, body, { followRedirects: false });
+    if (r.status < 200 || r.status > 299) throw new UpstreamError(r.status, path);
+    return r;
+  }
+
+  private post(
+    path: string,
+    cookie: string,
+    body: unknown,
+    extra: { followRedirects?: false } = {},
+  ) {
+    return guardNetwork(() =>
       this.fetchImpl(
         ssUrl(this.school, path),
         this.school,
@@ -59,11 +87,11 @@ export class SchoolsoftHttp {
           },
           body: JSON.stringify(body),
           responseType: "json",
-        } as never,
+          ...extra,
+        },
         MOBILE_UA,
       ),
     );
-    return this.unwrap<T>(r, path);
   }
 
   /** Body-less PUT with cookies; returns the status for the caller to judge. */
