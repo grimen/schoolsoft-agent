@@ -23,6 +23,12 @@ export const MESSAGES = {
       "SchoolSoft returned an unexpected calendar response. The full calendar could not be read.",
     sv: () => "SchoolSoft returnerade ett oväntat kalendersvar. Hela kalendern kunde inte läsas.",
   },
+  response_drift: {
+    en: (p) =>
+      `The school portal's answer for ${p.operation} has changed shape (${p.detail}); nothing was returned rather than pass on data that may be wrong.`,
+    sv: (p) =>
+      `Skolportalens svar för ${p.operation} har ändrat form (${p.detail}); inget returnerades hellre än att skicka vidare uppgifter som kan vara fel.`,
+  },
   writes_disabled: {
     en: (p) =>
       `${p.what} changes data at SchoolSoft, and write operations are switched off in this configuration.`,
@@ -348,6 +354,16 @@ export const HINTS = {
     sv: {
       cli: `Kontrollera flaggorna (schoolsoft-agent <kommando> --help)`,
       mcp: `Kontrollera argumenten mot verktygets schema.`,
+    },
+  },
+  update_or_report: {
+    en: {
+      cli: `Retrying will not help. Update schoolsoft-agent; if the newest version fails too, run schoolsoft-agent doctor and open an issue naming this operation`,
+      mcp: `Retrying will not help. Tell the user the school portal changed: they should update schoolsoft-agent, or report the operation named here if the newest version fails too.`,
+    },
+    sv: {
+      cli: `Att försöka igen hjälper inte. Uppdatera schoolsoft-agent; om även den senaste versionen misslyckas, kör schoolsoft-agent doctor och öppna ett ärende som nämner den här åtgärden`,
+      mcp: `Att försöka igen hjälper inte. Berätta för användaren att skolportalen har ändrats: de bör uppdatera schoolsoft-agent, eller rapportera åtgärden som nämns här om även den senaste versionen misslyckas.`,
     },
   },
   report_bug: {

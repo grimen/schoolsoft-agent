@@ -109,6 +109,55 @@ export class InputError extends AgentError {
 }
 
 /**
+ * The portal answered, but in a shape the provider cannot map to the domain
+ * model, or an operation's result failed its declared output schema. Nothing
+ * is returned: bad data is never passed on. `where` is the capability or
+ * operation that noticed; `runOperation` names the operation the user ran.
+ * The detail holds field paths and issue codes only, never values, so no
+ * child's data reaches a message or a log.
+ */
+export class ResponseDriftError extends AgentError {
+  readonly where: string;
+  readonly detail: string;
+  readonly operation?: string;
+  constructor(where: string, detail: string, operation?: string) {
+    super({
+      kind: "upstream",
+      key: "response_drift",
+      params: {
+        operation: operation ?? where,
+        detail: operation === undefined || operation === where ? detail : `${where}: ${detail}`,
+      },
+      hint: "update_or_report",
+    });
+    this.where = where;
+    this.detail = detail;
+    this.operation = operation;
+  }
+
+  /** The same drift, named after the operation the user ran (kept if already named). */
+  forOperation(name: string): ResponseDriftError {
+    return this.operation !== undefined
+      ? this
+      : new ResponseDriftError(this.where, this.detail, name);
+  }
+}
+
+/** Zod-style issues as "path code" pairs, without the values that failed. */
+export function describeIssues(
+  issues: readonly { path: readonly PropertyKey[]; code: string; message: string }[],
+): string {
+  const shown = issues
+    .slice(0, 3)
+    .map(
+      (i) =>
+        `${i.path.map(String).join(".") || "(root)"} ${i.code === "custom" ? i.message : i.code}`,
+    );
+  const more = issues.length > 3 ? ` (+${issues.length - 3} more)` : "";
+  return shown.join(", ") + more;
+}
+
+/**
  * A failure that says nothing about the session: the network, or the portal
  * answering 5xx. Saved sessions are kept and keepalive backs off, because
  * throwing a session away would cost the user a BankID round for a wifi blip.
@@ -117,6 +166,14 @@ export function isTransient(e: unknown): boolean {
   return (
     e instanceof AgentError && (e.kind === "network" || (e.kind === "upstream" && e.retryable))
   );
+}
+
+/**
+ * Failures after which a saved session must be kept: transient ones, and
+ * drift (the credentials are fine; only the answer's shape is not).
+ */
+export function keepsSession(e: unknown): boolean {
+  return isTransient(e) || e instanceof ResponseDriftError;
 }
 
 export interface ErrorDescription {

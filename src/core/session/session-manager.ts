@@ -10,7 +10,7 @@ import type { PersistedSession, SessionStore } from "./store.js";
 import { childOf, type GuardianContext } from "../portal/guardian.js";
 import type { WebSession } from "../browser/web-login.js";
 import type { ProviderSession } from "../provider/types.js";
-import { AgentError, InputError, isTransient } from "../errors/index.js";
+import { AgentError, InputError, keepsSession } from "../errors/index.js";
 import {
   summarizeHistory,
   type SessionEvent,
@@ -330,7 +330,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
       this.persist(strategy.id); // tokens may have been refreshed
     } catch (e) {
       this.reset();
-      if (isTransient(e)) throw e; // the saved session may be fine; keep it
+      if (keepsSession(e)) throw e; // the saved session may be fine; keep it
       this.loseAppSession();
       throw new NotAuthenticatedError(`restore failed: ${e instanceof Error ? e.message : e}`);
     }
@@ -383,7 +383,7 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
       try {
         return await strategy.renew(this.getSession(), saved, { now: this.now(), leadMs });
       } catch (e) {
-        if (isTransient(e)) throw e;
+        if (keepsSession(e)) throw e;
         // Another process (a CLI command next to the MCP server) may have rotated the
         // credentials while we tried: its tokens are the live ones. Keep them, try later.
         const current = this.store.load();
