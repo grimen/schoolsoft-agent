@@ -9,20 +9,20 @@ what and why.
 Status as of 2026-09-26. Tags: **offline** can be built and verified without a SchoolSoft
 login; **live** needs one guardian BankID session; **owner** needs the repository owner.
 
-| Epic                                                                                                      | Goal                                                              | State                                       |
-| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------- |
-| [E1](#e1-land-the-stack) ([#24](https://github.com/grimen/schoolsoft-agent/issues/24))                    | Merge and release what is built                                   | E1.1 done; release not published (#55, #56) |
-| [E2](#e2-one-live-acceptance-session) ([#25](https://github.com/grimen/schoolsoft-agent/issues/25))       | Verify every offline assumption in one BankID login               | blocked on a live session; E2.1 ready       |
-| [E3](#e3-contracts-that-can-change) ([#26](https://github.com/grimen/schoolsoft-agent/issues/26))         | Make later changes non-breaking                                   | E3.1–E3.3 done                              |
-| [E4](#e4-typed-domain-model) ([#27](https://github.com/grimen/schoolsoft-agent/issues/27))                | Stable, validated outputs instead of raw portal JSON              | E4.1–E4.4 done                              |
-| [E5](#e5-rest-surface-for-custom-uis) ([#28](https://github.com/grimen/schoolsoft-agent/issues/28))       | A plain HTTP API a custom UI can build on                         | E5.1, E5.2 done; E5.3 in review (#57)       |
-| [E6](#e6-a-good-citizen-towards-the-portal) ([#29](https://github.com/grimen/schoolsoft-agent/issues/29)) | Never be the reason the portal blocks the client                  | E6.1, E6.2 done                             |
-| [E7](#e7-write-operations) ([#30](https://github.com/grimen/schoolsoft-agent/issues/30))                  | Safe writes beyond the first one                                  | first write merged (#21)                    |
-| [E8](#e8-session-longevity-live-half) ([#8](https://github.com/grimen/schoolsoft-agent/issues/8))         | Fewer BankID logins, from measured lifetimes                      | offline half merged (#22)                   |
-| [E9](#e9-connector-hardening-follow-ups) ([#31](https://github.com/grimen/schoolsoft-agent/issues/31))    | Close the documented security leftovers                           | not started                                 |
-| [E10](#e10-supportability) ([#32](https://github.com/grimen/schoolsoft-agent/issues/32))                  | Bug reports a non-technical parent can produce                    | not started                                 |
-| [E11](#e11-user-experience) ([#33](https://github.com/grimen/schoolsoft-agent/issues/33))                 | What a parent looks at: CLI, TUI, one Expo app for web and phones | E11.1 done                                  |
-| [Later](#later)                                                                                           | Worth doing, not yet worth scheduling                             |                                             |
+| Epic                                                                                                      | Goal                                                              | State                                            |
+| --------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | ------------------------------------------------ |
+| [E1](#e1-land-the-stack) ([#24](https://github.com/grimen/schoolsoft-agent/issues/24))                    | Merge and release what is built                                   | E1.1 done; release PR #65 waits (#56)            |
+| [E2](#e2-one-live-acceptance-session) ([#25](https://github.com/grimen/schoolsoft-agent/issues/25))       | Verify every offline assumption in one BankID login               | blocked on a live session; E2.1 ready            |
+| [E3](#e3-contracts-that-can-change) ([#26](https://github.com/grimen/schoolsoft-agent/issues/26))         | Make later changes non-breaking                                   | E3.1–E3.3 done                                   |
+| [E4](#e4-typed-domain-model) ([#27](https://github.com/grimen/schoolsoft-agent/issues/27))                | Stable, validated outputs instead of raw portal JSON              | E4.1–E4.4 done                                   |
+| [E5](#e5-rest-surface-for-custom-uis) ([#28](https://github.com/grimen/schoolsoft-agent/issues/28))       | A plain HTTP API a custom UI can build on                         | E5.1–E5.4, E5.6 done                             |
+| [E6](#e6-a-good-citizen-towards-the-portal) ([#29](https://github.com/grimen/schoolsoft-agent/issues/29)) | Never be the reason the portal blocks the client                  | E6.1, E6.2 done                                  |
+| [E7](#e7-write-operations) ([#30](https://github.com/grimen/schoolsoft-agent/issues/30))                  | Safe writes beyond the first one                                  | E7.1 in review (#59); host probe in review (#66) |
+| [E8](#e8-session-longevity-live-half) ([#8](https://github.com/grimen/schoolsoft-agent/issues/8))         | Fewer BankID logins, from measured lifetimes                      | offline half merged (#22)                        |
+| [E9](#e9-connector-hardening-follow-ups) ([#31](https://github.com/grimen/schoolsoft-agent/issues/31))    | Close the documented security leftovers                           | not started                                      |
+| [E10](#e10-supportability) ([#32](https://github.com/grimen/schoolsoft-agent/issues/32))                  | Bug reports a non-technical parent can produce                    | E10.2 done                                       |
+| [E11](#e11-user-experience) ([#33](https://github.com/grimen/schoolsoft-agent/issues/33))                 | What a parent looks at: CLI, TUI, one Expo app for web and phones | E11.1 done                                       |
+| [Later](#later)                                                                                           | Worth doing, not yet worth scheduling                             |                                                  |
 
 Naming stays as it is: this is a SchoolSoft project today, and the `schoolsoft_` tool
 prefix, the `SCHOOLSOFT_*` settings and the package name are kept. Another portal, if one
@@ -33,8 +33,8 @@ justify a rename now.
 
 Four pull requests formed one stack: #16 (parent-hosted connectors) ← #20 (connector
 hardening) ← #21 (absence report) ← #22 (session longevity). All four merged on
-2026-09-26 with CI on `main` green, followed by #45 to #54. The release after them was
-tagged but not published; #56 collects what is left.
+2026-09-26 with CI on `main` green, followed by the pull requests recorded per story
+below. The release after them was tagged but not published; #56 collects what is left.
 
 - **E1.1 Merge bottom-up** (owner; done). #16, then #20, #21, #22, each into `main` after
   retargeting. Done when `main` holds all four and CI on `main` is green.
@@ -53,23 +53,25 @@ tagged but not published; #56 collects what is left.
   under `~/Dev/schoolsoft-agent-*` and the old `schoolsoft-mcp-server` checkout.
 - **E1.6 First published release** ([#56](https://github.com/grimen/schoolsoft-agent/issues/56)) (owner).
   `v0.3.0` exists as a tag and a GitHub Release with no package: the plugin manifests were
-  still at 0.2.0, so Checks failed and Publish never ran. Merge #55 (the manifests follow
-  `package.json`), give the Publish job the permission its bundle upload needs, approve
-  and merge the 0.3.1 release pull request, and watch the first release run end to end.
-  Done when 0.3.1 is on GitHub Packages with the bundle attached and Verify passed at the
-  tag.
+  still at 0.2.0, so Checks failed and Publish never ran. #55 has merged (the manifests
+  follow `package.json`), and release-please opened #65 for 0.4.0. Left: give the Publish
+  job the permission its bundle upload needs, approve #65's CI run and merge it once every
+  check is green, and watch the first release run end to end. Done when 0.4.0 is on GitHub
+  Packages with the bundle attached and Verify passed at the tag.
 
 ## E2. One live acceptance session
 
 Everything below was built against fakes. One login should settle all of it, so the
-session is prepared first and spent once.
+session is prepared first and spent once. The
+[live-session runbook](docs/development/live-session.md) (#63) holds the preparation, the
+steps in order, the redaction review, the abort rules and the register of open questions.
 
 - **E2.1 Capture probe** (offline; done in #46). `make capture`: with an existing session,
   record the structures the offline work guessed at as redacted fixtures (no names,
   subjects or message bodies): the absence, leave and message forms, the Översikt page, a
   non-empty school-event response. Done when one command produces fixtures that pass the
-  redaction check. It has not run against a real session yet; that is the first step of
-  the live session.
+  redaction check. It has not run against a real session yet; that is phase 3 of the
+  runbook.
 - **E2.2 Connector acceptance** (live). SchoolSoft accepting the public HTTPS callback,
   a real BankID completion, Claude and ChatGPT consent and tool calls on web and mobile,
   restart and refresh with a real session. Done when the checklist in
@@ -146,22 +148,30 @@ checks. Minimum first.
 - **E5.2 `GET /api/v1/session`** (offline; done in #48). Logged in or not, which children
   the grant covers, whether the gated web login is present. Done when a UI can decide
   between showing data and linking to the owner dashboard.
-- **E5.3 Reference page** (offline). One same-origin page served by the connector that
-  renders a week for one child, as the smallest proof the surface is enough. In review in
-  #57; the gaps it found are folded into E5.4 to E5.6, E6 and E11.5.
-- **E5.4 OpenAPI and a typed client** (offline). Generated from the same Zod schemas.
-  Scheduled now: the E11 app is the second consumer this waited for, and E11.4 builds on
-  the client. The client owns token refresh, single-flight, because refresh tokens rotate
-  with reuse detection and two parallel refreshes revoke the grant. The docs say that the
-  OAuth resource is `<origin>/mcp` for REST too, or the protected-resource metadata is
-  also served for `/api/v1`.
+- **E5.3 Reference page** (offline; done in #57). One same-origin page served by the
+  connector that renders a week for one child, as the smallest proof the surface is
+  enough. The gaps it found went into E5.4 to E5.6, E6 and E11.5; the Referrer-Policy bug
+  it found was fixed in #58.
+- **E5.4 OpenAPI and a typed client** (offline; done in #61). Generated from the same Zod
+  schemas. Scheduled once the E11 app became the second consumer this waited for. The
+  client owns token refresh, single-flight, because refresh tokens rotate with reuse
+  detection and two parallel refreshes revoke the grant. The docs say that the OAuth
+  resource is `<origin>/mcp` for REST too, or the protected-resource metadata is also
+  served for `/api/v1`. Built as `docs/reference/openapi.json` and the subpath export
+  `schoolsoft-agent/client`; the resource stays `<origin>/mcp` and is documented, with no
+  `/api/v1` alias.
 - **E5.5 Response metadata** (offline). `fetched_at`, cached or fresh, ETags. Today a UI
   cannot tell a cached week from a fresh one and has to send `fresh=true` to be sure.
-- **E5.6 Composite overview** (offline). One operation per child for a dashboard's first
-  paint: schedule, lunch, next event, unread messages, unreported absence. One week view
-  is four requests today. Also closes two gaps from #57: the schedule week has no year
-  (add `year` and the week's dates, or a date range as the calendar takes), and a child
-  carries only a first name (add the school and class `list_children` already knows).
+- **E5.6 Composite overview** (offline; done in #60). One operation per child for a
+  dashboard's first paint: schedule, lunch, next event, unread messages, unreported
+  absence. One week view is four requests today. Also closes two gaps from #57: the
+  schedule week has no year (add `year` and the week's dates, or a date range as the
+  calendar takes), and a child carries only a first name (add the school and class
+  `list_children` already knows). Built as `GET /api/v1/children/{id}/overview` with
+  schedule, lunch and next event in one queue turn, and `year` and dates on
+  `get_schedule`. Unread messages and unreported absence are left out (the connector does
+  not offer the inbox, and absence needs the web session); each can join later as a
+  section.
 - **E5.7 Local serve mode** (offline). `serve` on 127.0.0.1 with a bearer token for a
   desktop UI; CORS allowlist for separately hosted pages.
 - **E5.8 Login from a UI** (offline). Start a login and poll it, on the existing
@@ -193,13 +203,19 @@ pattern for a second.
 - **E7.1 Write framework spec** (offline). A `writes` declaration on operations,
   preview then confirm with a confirmation token, idempotency keys, an audit log holding
   no child data, and a separate OAuth write scope that an existing grant cannot gain by
-  refresh.
+  refresh. In review in #59; with the host findings from #66, the owner channel (the
+  parent confirms on the connector's own page) is the default for remote writes.
 - **E7.2 Framework and migration** (offline). Build it and move `report_absence` onto it.
 - **E7.3 Leave application** (offline after E2.1, then live).
 - **E7.4 Send message** (offline after E2.1, then live).
 - **E7.5 Respond to bookings** (after E7.2).
 - **E7.6 Writes on the connector and REST surface** (after E7.2). Off until the write
   scope exists; consent screen names writes separately from reads.
+- **E7.7 Host-capability probe** (offline, then owner). A stub MCP server with fake tools
+  that records how Claude and ChatGPT treat write-style tools: prompts per annotation,
+  elicitation, step-up on a missing scope, "Always allow". It never contacts SchoolSoft,
+  so the owner can run it outside the BankID sitting. In review in #66; its observed
+  answers settle #59's host questions.
 
 ## E8. Session longevity, live half
 
@@ -228,6 +244,13 @@ Left open by #20, listed in its description.
 - **E9.3 Distributed exhaustion of pending consents** (offline). A flood from many
   networks can still displace a parent's pending request.
 - **E9.4 Quiet provider diagnostics** (offline). The one stderr line per portal login.
+  Some hosts keep MCP stderr in their own logs; see #64.
+- **E9.5 Connector OAuth for more clients**
+  ([#67](https://github.com/grimen/schoolsoft-agent/issues/67)) (offline). Claude Code's
+  remote OAuth uses a loopback callback, which the connector refuses; decide whether to
+  allow loopback redirects for public clients as RFC 8252 describes. An authorization
+  request without `scope` is refused with `invalid_scope`; decide on a documented default
+  or a clearer error, after the host probe (E7.7) shows which scopes hosts request.
 
 ## E10. Supportability
 
@@ -235,9 +258,16 @@ Left open by #20, listed in its description.
   versions, config shape, session ages, recent error kinds, `doctor --verify` results.
   No names, no content. Done when a parent can attach it to an issue without reading it
   first, and a test proves the redaction.
-- **E10.2 Data-handling statement** (offline). What is stored, where, for how long, and
-  what reaches the AI provider, in plain language, linked from the README.
+- **E10.2 Data-handling statement** (offline; done in #62). What is stored, where, for how
+  long, and what reaches the AI provider, in plain language, linked from the README.
 - **E10.3 Claude Desktop extension directory listing** (owner).
+- **E10.4 Privacy follow-ups** ([#64](https://github.com/grimen/schoolsoft-agent/issues/64))
+  (offline). What the data-handling statement found. First a product decision: other
+  families' names, e-mails and phone numbers (contacts, message recipients, comments)
+  reach the AI provider; drop them, redact them by default, or put them behind their own
+  consent scope, decided before E11.6 shows messages or contacts. Then one pull request of
+  small fixes: the plaintext local session history and pending-login file, file modes,
+  and pending-consent addresses kept past their request.
 
 ## E11. User experience
 
@@ -266,7 +296,7 @@ project in this repository, so the API and the app change together.
   that passes `fresh`. Done when it runs against the fake provider in tests and the
   artifact E2E drives it over a recorded session.
 - **E11.4 App workspace** ([#37](https://github.com/grimen/schoolsoft-agent/issues/37)) (offline, after E4.2 and E5.1 to E5.3). `packages/app` as one
-  Expo project with react-native-web, and `packages/client` as the typed client (E5.4).
+  Expo project with react-native-web, using the typed client `schoolsoft-agent/client` (E5.4).
   The repository is one package today, built with plain `tsc`; it becomes npm workspaces
   with the published `schoolsoft-agent` package unchanged in name and bins, the root keeps
   its coverage gate and boundary tests, and the app has its own test and lint job in CI.
@@ -276,7 +306,9 @@ project in this repository, so the API and the app change together.
   in the system browser, tokens in the platform keychain (on web, in memory plus refresh),
   session state from `/api/v1/session` (E5.2). Reuse the registration and keep the
   connection across tabs and restarts: today every new tab registers a new client and asks
-  the owner for consent again, which a wall display or a phone cannot live with. Done when
+  the owner for consent again, which a wall display or a phone cannot live with. A native
+  callback may need the loopback rule from E9.5, and a refresh answer lost to the network
+  leaves a spent refresh token (the E5.4 spec records a grace window as the fix). Done when
   the flow test against the fake portal passes on web and the native flow is on the E2
   checklist.
 - **E11.6 Core screens** ([#39](https://github.com/grimen/schoolsoft-agent/issues/39)) (offline). Today and week per child, lunch, messages, calendar,
@@ -310,18 +342,20 @@ project in this repository, so the API and the app change together.
 
 ## Suggested order
 
-Done so far: E1.1, E2.1, E3.1 to E3.3, E4.1 to E4.4, E5.1, E5.2, E6.1, E6.2 and E11.1.
-E5.3 is in review (#57), after the Referrer-Policy fix it surfaced (#58).
+Done so far: E1.1, E2.1, E3.1 to E3.3, E4.1 to E4.4, E5.1 to E5.4, E5.6, E6.1, E6.2,
+E10.2 and E11.1. In review: E7.1 (#59) and the host probe, E7.7 (#66).
 
-Next, in this order: E5.6 and then E5.4, since the reference page showed what a UI needs
-before it is comfortable (a week with a year, one request per view, a client that
-refreshes safely). E7.1 before any second write. E11.2 and E11.3, which need only the
-core. E6.3, then E10.2.
+Next, in this order:
 
-The live E2 session should come soon rather than whenever a login happens to be
-available. The Referrer-Policy bug locked every real browser out of the owner dashboard
-while all offline tests passed, because they set `Origin` themselves; offline tests miss
-what a real browser does. E2.1 and E4.4 are ready to make the one login count.
+1. The live E2 session, prepared with the
+   [runbook](docs/development/live-session.md), on a connector that runs a build with
+   #58: without it no real browser can use the owner dashboard. The Referrer-Policy bug
+   showed that offline tests miss what a real browser does, and E7.2 waits for the
+   session's write answers.
+2. E6.3.
+3. E11.2.
+4. E11.4, now unblocked by E5.3, E5.4 and E5.6.
+5. The E10.4 decision on other families' data, before E11.6 shows messages or contacts.
 
-The app stories start with E11.4 once #57 has merged. The first published release (E1.6)
-waits for the owner and does not block any of this.
+The first published release (E1.6, #65) waits for the owner and does not block any of
+this.
