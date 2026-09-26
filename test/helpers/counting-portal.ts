@@ -15,6 +15,21 @@ import type {
   SubjectRoom,
   TablePage,
 } from "../../src/core/index.js";
+import type { CalendarEvent, Lesson, LunchDay, Message } from "../../src/core/domain/schemas.js";
+
+/** A domain lesson whose title is the read's marker. */
+export function markedLesson(title: string): Lesson {
+  return {
+    id: `lesson:${title}`,
+    title,
+    start: "2026-09-07T08:30:00+02:00",
+    end: "2026-09-07T09:30:00+02:00",
+    room: null,
+    group: null,
+    teacher: null,
+    note: null,
+  };
+}
 
 export class CountingPortal implements Portal {
   readonly calls: string[] = [];
@@ -44,14 +59,26 @@ export class CountingPortal implements Portal {
   async getParent(): Promise<GuardianParent> {
     return { userId: 21, firstName: await this.read("getParent", []), lastName: "", children: [] };
   }
-  async getLunchWeek(orgId: number, week: number): Promise<unknown[]> {
-    return [await this.read("getLunchWeek", [orgId, week])];
+  async getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]> {
+    const description = await this.read("getLunchWeek", [orgId, week, year]);
+    return [{ date: "2026-09-07", weekday: 1, dishes: [{ kind: null, description }] }];
   }
   async getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
     return [await this.read("getNews", [userId, orgId, studentId])];
   }
-  async getInbox(userId: number, orgId: number): Promise<unknown[]> {
-    return [await this.read("getInbox", [userId, orgId])];
+  async getInbox(userId: number, orgId: number): Promise<Message[]> {
+    const subject = await this.read("getInbox", [userId, orgId]);
+    return [
+      {
+        id: 1,
+        subject,
+        preview: "",
+        read: false,
+        sender: null,
+        sentAt: "2026-09-07T08:30:00+02:00",
+        hasAttachments: false,
+      },
+    ];
   }
   async getMessage(userId: number, orgId: number, messageId: number): Promise<unknown> {
     return this.read("getMessage", [userId, orgId, messageId]);
@@ -62,11 +89,26 @@ export class CountingPortal implements Portal {
   async getSession(): Promise<unknown> {
     return this.read("getSession", []);
   }
-  async getScheduleWeek(week: number): Promise<unknown[]> {
-    return [await this.read("getScheduleWeek", [week])];
+  async getScheduleWeek(week: number): Promise<Lesson[]> {
+    return [markedLesson(await this.read("getScheduleWeek", [week]))];
   }
-  async getCalendar(startDate: string, endDate: string): Promise<unknown[]> {
-    return [await this.read("getCalendar", [startDate, endDate])];
+  async getCalendar(startDate: string, endDate: string): Promise<CalendarEvent[]> {
+    const title = await this.read("getCalendar", [startDate, endDate]);
+    return [
+      {
+        id: `lesson:${title}`,
+        kind: "lesson",
+        title,
+        allDay: false,
+        start: startDate,
+        end: endDate,
+        location: null,
+        teacher: null,
+        group: null,
+        category: null,
+        note: null,
+      },
+    ];
   }
   async getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {
     return [await this.read("getAssignmentsWeek", [week, year])];

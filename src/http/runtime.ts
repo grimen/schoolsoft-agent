@@ -251,8 +251,9 @@ export class ConnectorRuntime {
       if (name === "list_children") {
         check();
         return {
+          // The domain Child's id and first name only: an AI app learns no more than it needs.
           children: permitted.map((child) => ({
-            studentId: child.studentId,
+            id: child.studentId,
             firstName: child.firstName,
           })),
           childInFocus: permitted.some((child) => child.studentId === guardian.childInFocus)
@@ -300,9 +301,9 @@ export class ConnectorRuntime {
           validateFocus();
           return portal.getScheduleWeek(week);
         },
-        getLunchWeek: async (orgId, week) => {
+        getLunchWeek: async (orgId, week, year) => {
           validateFocus();
-          return portal.getLunchWeek(orgId, week);
+          return portal.getLunchWeek(orgId, week, year);
         },
       });
       const result = await runOperation(

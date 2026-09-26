@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { getOperation, NotAuthenticatedError, type Operation } from "../../src/core/index.js";
 import { makeContext } from "../helpers/fakes.js";
+import { isoWeekDate } from "../../src/core/domain/time.js";
 
 const op = (name: string) => getOperation(name) as Operation;
 const run = (
@@ -28,15 +29,15 @@ test("login → schedule defaults to the child in focus", async () => {
   assert.equal(login.status, "logged_in");
   const s = await run("get_schedule", ctx, { week: 35 });
   assert.equal(s.week, 35);
-  assert.equal(s.child.studentId, 100);
-  assert.equal(s.lessons[0].name, "Matematik");
+  assert.deepEqual(s.child, { id: 100, firstName: "Ett" });
+  assert.equal(s.lessons[0].title, "Matematik");
 });
 
 test("child_id switches focus, list_children reflects it, unknown ids are rejected before any side effect", async () => {
   const { ctx, strategy } = makeContext();
   await run("login", ctx);
   const s = await run("get_schedule", ctx, { child_id: 101 });
-  assert.equal(s.child.studentId, 101);
+  assert.equal(s.child.id, 101);
   const kids = await run("list_children", ctx);
   assert.equal(kids.children.length, 2);
   assert.equal(kids.childInFocus, 101);
@@ -48,7 +49,9 @@ test("lunch, assignments, assignment detail, news carry the child and pass ids t
   const { ctx } = makeContext();
   await run("login", ctx);
   const lunch = await run("get_lunch_menu", ctx, { week: 37 });
-  assert.equal(lunch.menu[0].week, 37);
+  assert.equal(lunch.week, 37);
+  assert.deepEqual(lunch.days[0].dishes, [{ kind: "Lunch", description: "Spagetti" }]);
+  assert.equal(lunch.days[0].date, isoWeekDate(lunch.year, 37, 5));
   const a = await run("get_assignments", ctx, { week: 37, year: 2026 });
   assert.deepEqual(a.assignments, [{ id: 7, title: "Läxa" }]);
   const d = await run("get_assignment_detail", ctx, { id: 7 });
@@ -127,9 +130,9 @@ test("defaults and explicit inputs: activity log limit, assignments week/year, l
   const a = await run("get_assignments", ctx);
   assert.ok(Array.isArray(a.assignments));
   const l = await run("get_lunch_menu", ctx, { week: 40 });
-  assert.equal(l.menu[0].week, 40);
+  assert.equal(l.week, 40);
   const thisWeek = await run("get_lunch_menu", ctx);
-  assert.ok(thisWeek.menu[0].week >= 1 && thisWeek.menu[0].week <= 53);
+  assert.ok(thisWeek.week >= 1 && thisWeek.week <= 53);
   const n = await run("get_news", ctx);
   assert.equal(n.news.length, 1);
   const c = await run("get_contacts", ctx);
@@ -153,8 +156,9 @@ test("list_children copes with a child without a school; auth_status: cleared st
   const fresh = makeContext({ store });
   await fresh.ctx.manager.ensureSession();
   const kids = await run("list_children", fresh.ctx);
-  const ny = kids.children.find((k: { studentId: number }) => k.studentId === 7);
-  assert.deepEqual(ny, { studentId: 7, firstName: "Ny", school: null, className: null });
+  const ny = kids.children.find((k: { id: number }) => k.id === 7);
+  assert.deepEqual(ny, { id: 7, firstName: "Ny", schoolName: null, className: null });
+  assert.equal(kids.guardianName, "Test Testsson");
 
   store.clear();
   const st = await run("auth_status", fresh.ctx);

@@ -1,0 +1,15 @@
+[
+  {
+    "week": 37,
+    "dayId": 1,
+    "dishes": [
+      { "mealType": "Lunch", "description": "Köttbullar med potatis" },
+      { "mealType": "Vegetarisk", "description": "Falafel" }
+    ]
+  },
+  {
+    "week": 37,
+    "dayId": 5,
+    "dishes": [{ "mealType": "Lunch", "description": "Spagetti" }]
+  }
+]

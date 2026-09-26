@@ -73,8 +73,9 @@ export function fakeUpstream() {
     if (/^\/rest-api\/parent\/calendar\/lessons\/week\/\d+$/.test(pathname))
       return reply(200, [
         {
+          eventId: 1,
           name: "Synthetic lesson",
-          servedForChild: Number(focus),
+          description: `servedForChild=${focus}`,
           startDate: "2026-09-07T08:00",
           endDate: "2026-09-07T09:00",
         },

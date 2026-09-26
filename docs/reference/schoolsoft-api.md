@@ -291,12 +291,14 @@ Protocol evidence: [upstream SchoolSoft adapter implementation](https://github.c
 Its recorded event agenda was empty. Our nonempty event fixtures are synthetic,
 not evidence of live compatibility for every school.
 
-Entries require `eventId`, `name`, `startDate`, `endDate` and `allDay`.
-Optional fields such as description, room, teachingGroup, teacher and category
-are retained. Each returned entry adds `source: "lessons" | "events"`; equal IDs
-across sources are not deduplicated. Date-only all-day entries and local
-timestamps are preserved. The response declares `timezone: "Europe/Stockholm"`;
-local timestamps must not be interpreted as UTC.
+Entries require `eventId`, `name`, `startDate`, `endDate` and `allDay`;
+`description`, `room`, `teachingGroup`, `teacher` and `category` are optional
+text. The provider maps each entry to a `CalendarEvent` (`kind: "lesson" |
+"event"` by source; equal IDs across sources are not deduplicated). Date-only
+values stay dates; local timestamps get the offset Stockholm had at that time.
+Other fields are not passed on. An entry that does not fit this shape is
+`response_drift`, never a partial calendar (see the
+[typed domain model](../planning/specs/2026-09-26-typed-domain-model.md)).
 
 The assistant-facing range is inclusive, accepts at most 366 days and defaults
 to Monday–Sunday in Stockholm. Both dates must be supplied together. Dates are

@@ -10,9 +10,9 @@
  */
 import type { BrowserSession } from "../../../core/browser/session.js";
 import {
-  AgentError,
   describeError,
   EXIT_CODE_BY_KIND,
+  ResponseDriftError,
   type Lang,
 } from "../../../core/errors/index.js";
 import { pageHtml } from "../portal/extractors.js";
@@ -123,7 +123,7 @@ export async function runCapture(d: CaptureDeps): Promise<CaptureEntry[]> {
       const end = shift(d.today(), after);
       const data = await d.getJson(`${a.path}?start_date=${start}&end_date=${end}`);
       if (!Array.isArray(data))
-        throw new AgentError({ kind: "upstream", key: "calendar_response", hint: "retry" });
+        throw new ResponseDriftError("school-event agenda", "expected a list");
       found = { data, start, end };
       if (data.length > 0) break;
     }

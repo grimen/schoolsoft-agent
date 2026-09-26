@@ -10,6 +10,31 @@ import {
   resolveConfig,
 } from "../../src/core/index.js";
 import { FakeTimer } from "../helpers/fake-timer.js";
+import { ResponseDriftError } from "../../src/core/errors/index.js";
+import {
+  DRIFT_FIELDS,
+  DRIFT_KINDS,
+  driftedList,
+  driftedParent,
+  rawLessonsWeek,
+  rawLunch,
+} from "../helpers/portal-json.js";
+import { lunchYear } from "../../src/core/operations/get-lunch-menu.js";
+import { isoWeekDate } from "../../src/core/domain/time.js";
+
+/** The one lesson the fake portal answers, titled with the cookie that read it. */
+const lessonsFor = (cookie: string) => [
+  {
+    id: "lesson:1@2026-09-07T08:30:00+02:00",
+    title: cookie,
+    start: "2026-09-07T08:30:00+02:00",
+    end: "2026-09-07T09:30:00+02:00",
+    room: null,
+    group: null,
+    teacher: null,
+    note: null,
+  },
+];
 
 function fixture(
   options: {
@@ -24,6 +49,7 @@ function fixture(
   let identity = options.pinned;
   let userId = 21;
   let failed = false;
+  let override: ((url: string) => unknown) | null = null;
   let children = [100, 101];
   let rejectRead = false;
   let onRead: (() => void) | undefined;
@@ -54,6 +80,9 @@ function fixture(
         request: { headers?: Record<string, string> },
       ) => {
         if (failed) throw new Error("upstream unavailable");
+        const replaced = override?.(url);
+        if (replaced !== undefined)
+          return { status: 200, data: replaced, headers: {}, setCookies: [] };
         if (url.includes("/login/token"))
           return {
             status: 200,
@@ -95,6 +124,7 @@ function fixture(
           return { status: 401, data: null, headers: {}, setCookies: [] };
         }
         await delay(5);
+        const lunchWeek = /\/lunchmenu\/(\d+)$/.exec(url);
         return {
           status: 200,
           data: url.includes("/agenda?")
@@ -105,10 +135,25 @@ function fixture(
                   startDate: "2026-09-07T09:00",
                   endDate: "2026-09-07T10:00",
                   allDay: false,
-                  cookie: request.headers?.Cookie,
+                  description: request.headers?.Cookie,
                 },
               ]
-            : [request.headers?.Cookie ?? "lunch"],
+            : lunchWeek
+              ? [
+                  {
+                    week: Number(lunchWeek[1]),
+                    dayId: 1,
+                    dishes: [{ mealType: "Lunch", description: "lunch" }],
+                  },
+                ]
+              : [
+                  {
+                    eventId: 1,
+                    name: request.headers?.Cookie,
+                    startDate: "2026-09-07T08:30",
+                    endDate: "2026-09-07T09:30",
+                  },
+                ],
           headers: {},
           setCookies: [],
         };
@@ -135,6 +180,10 @@ function fixture(
     },
     fail: () => {
       failed = true;
+    },
+    /** Answer matching URLs with other JSON (a drifted shape); undefined = the usual answer. */
+    override: (fn: ((url: string) => unknown) | null) => {
+      override = fn;
     },
   };
 }
@@ -164,7 +213,7 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
   assert.equal(f.runtime.callback(state, "CODE"), true);
   assert.equal(f.runtime.callback(state, "CODE"), false);
   assert.deepEqual(await f.runtime.execute("list_children", {}, [101]), {
-    children: [{ studentId: 101, firstName: "Child 101" }],
+    children: [{ id: 101, firstName: "Child 101" }],
     childInFocus: null,
   });
   assert.equal(f.identity(), "schoolsoft:taby:21");
@@ -197,10 +246,18 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
     f.runtime.execute("get_schedule", { child_id: 101 }, [100]),
     /not permitted/,
   );
+  const year = lunchYear(2);
   assert.deepEqual(await f.runtime.execute("get_lunch_menu", { week: 2 }, [100]), {
+    year,
     week: 2,
-    child: { studentId: 100, firstName: "Child 100" },
-    menu: ["lunch"],
+    child: { id: 100, firstName: "Child 100" },
+    days: [
+      {
+        date: isoWeekDate(year, 2, 1),
+        weekday: 1,
+        dishes: [{ kind: "Lunch", description: "lunch" }],
+      },
+    ],
   });
   await f.runtime.logout();
   assert.equal(f.store.load(), null);
@@ -223,13 +280,13 @@ test("concurrent reads keep focus and request atomic; logout waits for an active
   const [first, second] = await Promise.all([a, b]);
   assert.deepEqual(first, {
     week: 2,
-    child: { studentId: 101, firstName: "Child 101" },
-    lessons: ["JSESSIONID=101; hash=h; usertype=1"],
+    child: { id: 101, firstName: "Child 101" },
+    lessons: lessonsFor("JSESSIONID=101; hash=h; usertype=1"),
   });
   assert.deepEqual(second, {
     week: 3,
-    child: { studentId: 100, firstName: "Child 100" },
-    lessons: ["JSESSIONID=100; hash=h; usertype=1"],
+    child: { id: 100, firstName: "Child 100" },
+    lessons: lessonsFor("JSESSIONID=100; hash=h; usertype=1"),
   });
   assert.deepEqual(f.events, [
     "focus:101",
@@ -338,8 +395,8 @@ test("recovery revalidates the guardian and succeeds only for the original child
   const result = await f.runtime.execute("get_schedule", { child_id: 101, week: 2 }, [101]);
   assert.deepEqual(result, {
     week: 2,
-    child: { studentId: 101, firstName: "Child 101" },
-    lessons: ["JSESSIONID=101; hash=h; usertype=1"],
+    child: { id: 101, firstName: "Child 101" },
+    lessons: lessonsFor("JSESSIONID=101; hash=h; usertype=1"),
   });
   f.changeUser();
   f.rejectNextRead();
@@ -458,13 +515,11 @@ test("calendar reads are serialized across children and each source uses the sel
         [100, 101],
       ),
     ),
-  )) as { child: { studentId: number }; entries: { cookie: string }[] }[];
+  )) as { child: { id: number }; events: { note: string }[] }[];
   for (const [index, child] of [101, 100].entries()) {
-    assert.equal(results[index].child.studentId, child);
-    assert.equal(results[index].entries.length, 2);
-    assert.ok(
-      results[index].entries.every((entry) => entry.cookie.includes(`JSESSIONID=${child};`)),
-    );
+    assert.equal(results[index].child.id, child);
+    assert.equal(results[index].events.length, 2);
+    assert.ok(results[index].events.every((entry) => entry.note.includes(`JSESSIONID=${child};`)));
   }
   assert.deepEqual(f.events, [
     "focus:101",
@@ -523,10 +578,10 @@ test("calendar recovery restarts both sources for the same permitted child", asy
       if (++reads === failAt) f.rejectNextRead();
     });
     const result = (await f.runtime.execute("get_calendar", { child_id: 101 }, [101])) as {
-      entries: { cookie: string }[];
+      events: { note: string }[];
     };
-    assert.equal(result.entries.length, 2);
-    assert.ok(result.entries.every((entry) => entry.cookie.includes("JSESSIONID=101;")));
+    assert.equal(result.events.length, 2);
+    assert.ok(result.events.every((entry) => entry.note.includes("JSESSIONID=101;")));
     assert.equal(reads, failAt + 2);
     await f.runtime.close();
   }
@@ -573,13 +628,13 @@ test("cache: repeated reads are served from memory per child, fresh goes upstrea
   );
   assert.equal(reads(f).length, 1, "the second answer came from memory");
   const sibling = (await f.runtime.execute("get_schedule", { child_id: 101, week: 2 }, both)) as {
-    lessons: string[];
+    lessons: unknown[];
   };
-  assert.deepEqual(sibling.lessons, ["JSESSIONID=101; hash=h; usertype=1"]);
+  assert.deepEqual(sibling.lessons, lessonsFor("JSESSIONID=101; hash=h; usertype=1"));
   const back = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, both)) as {
-    lessons: string[];
+    lessons: unknown[];
   };
-  assert.deepEqual(back.lessons, ["JSESSIONID=100; hash=h; usertype=1"]);
+  assert.deepEqual(back.lessons, lessonsFor("JSESSIONID=100; hash=h; usertype=1"));
   assert.equal(
     reads(f).length,
     3,
@@ -654,13 +709,13 @@ test("cache: an app without permission for a child cannot obtain that child's ca
   }
   assert.equal(reads(f).length, before);
   const own = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, appB)) as {
-    child: { studentId: number };
-    lessons: string[];
+    child: { id: number };
+    lessons: unknown[];
   };
-  assert.equal(own.child.studentId, 100);
+  assert.equal(own.child.id, 100);
   assert.deepEqual(
     own.lessons,
-    ["JSESSIONID=100; hash=h; usertype=1"],
+    lessonsFor("JSESSIONID=100; hash=h; usertype=1"),
     "its own child, read for itself",
   );
   // Permission withdrawn for a child whose data is warm: refused, from memory too.
@@ -682,9 +737,9 @@ test("cache: logout empties it, and so does a focus change that slipped past ser
   f.runtime["manager"].guardian().childInFocus = 101;
   const hits = reads(f).length;
   const viaFocus = (await f.runtime.execute("get_schedule", { child_id: 100, week: 2 }, [100])) as {
-    lessons: string[];
+    lessons: unknown[];
   };
-  assert.deepEqual(viaFocus.lessons, ["JSESSIONID=100; hash=h; usertype=1"]);
+  assert.deepEqual(viaFocus.lessons, lessonsFor("JSESSIONID=100; hash=h; usertype=1"));
   assert.equal(reads(f).length, hits + 1, "refocused, cache cleared, read again");
   await f.runtime.logout();
   await login(f.runtime);
@@ -734,4 +789,55 @@ test("keepalive: off unless the deployment enables it; ticks queue behind reads,
   entry.run(); // a timer that had already fired when the connector closed
   await delay(5);
   assert.equal(pendingTimer.pending.size, 0, "it is refused and never re-arms");
+});
+
+test("drift: the connector refuses a drifted schedule or lunch answer, caches nothing and keeps the session", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  const cases = [
+    [
+      "get_schedule",
+      /\/lessons\/week\//,
+      (k: (typeof DRIFT_KINDS)[number]) => driftedList(rawLessonsWeek(), DRIFT_FIELDS.lessons, k),
+    ],
+    [
+      "get_lunch_menu",
+      /\/lunchmenu\//,
+      (k: (typeof DRIFT_KINDS)[number]) => driftedList(rawLunch(), DRIFT_FIELDS.lunch, k),
+    ],
+  ] as const;
+  for (const [name, pattern, drifted] of cases) {
+    for (const [index, kind] of DRIFT_KINDS.entries()) {
+      const week = 2 + index; // one cache key per round
+      f.override((url) => (pattern.test(url) ? drifted(kind) : undefined));
+      await assert.rejects(
+        f.runtime.execute(name, { week }, [100]),
+        (e: unknown) => e instanceof ResponseDriftError && e.operation === name,
+        `${name} ${kind}`,
+      );
+      f.override(null);
+      const before = f.events.length;
+      await f.runtime.execute(name, { week }, [100]);
+      assert.ok(f.events.length > before, "the drifted answer was not cached");
+    }
+  }
+  assert.notEqual(f.store.load(), null);
+  await f.runtime.close();
+});
+
+test("drift: a drifted guardian profile fails the login and never reaches the connector's state", async () => {
+  const f = fixture();
+  f.override((url) => (url.endsWith("/eva/api/v1/parent") ? driftedParent("renamed") : undefined));
+  const { url } = await f.runtime.beginLogin();
+  const state = new URLSearchParams(url.split("?")[1]).get("state")!;
+  assert.equal(f.runtime.callback(state, "CODE"), true);
+  await assert.rejects(
+    f.runtime.execute("list_children", {}, [100]),
+    /Not logged in|changed shape/,
+  );
+  const status = await f.runtime.status();
+  assert.equal(status.authenticated, false);
+  assert.equal(status.loginError, "upstream");
+  assert.equal(f.identity(), undefined, "no guardian identity was pinned from a drifted profile");
+  await f.runtime.close();
 });

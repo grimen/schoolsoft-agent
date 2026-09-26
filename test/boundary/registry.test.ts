@@ -3,7 +3,14 @@ import assert from "node:assert/strict";
 import { z } from "zod";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { operations, getOperation, CAPABILITIES } from "../../src/core/index.js";
+import {
+  operations,
+  getOperation,
+  runOperation,
+  CAPABILITIES,
+  type OperationContext,
+} from "../../src/core/index.js";
+import { ResponseDriftError } from "../../src/core/errors/index.js";
 import { BROWSER_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
 
 test("operation names are unique snake_case", () => {
@@ -109,4 +116,36 @@ test("registry lookups", () => {
   assert.equal(getOperation("get_schedule")?.title, "Get schedule");
   assert.equal(getOperation("nope"), undefined);
   assert.equal(operations.length, 25);
+});
+
+test("every operation that declares an output schema is validated by runOperation", async () => {
+  const typed = operations.filter((op) => op.output);
+  assert.deepEqual(
+    typed.map((op) => op.name),
+    ["list_children", "get_schedule", "get_calendar", "get_lunch_menu", "get_messages"],
+  );
+  const ctx = {} as OperationContext;
+  for (const op of typed) {
+    assert.ok(op.output instanceof z.ZodObject, `${op.name}: MCP needs an object output schema`);
+    const broken = { ...op, run: async () => ({ unexpected: true }) };
+    await assert.rejects(
+      runOperation(broken, ctx, {}),
+      (e: unknown) =>
+        e instanceof ResponseDriftError && e.operation === op.name && e.where === op.name,
+      op.name,
+    );
+  }
+  const untyped = operations.find((op) => !op.output)!;
+  const raw = { anything: [1, "two"] };
+  assert.equal(await runOperation({ ...untyped, run: async () => raw }, ctx, {}), raw);
+});
+
+test("runOperation returns the parsed result: undeclared keys never leave a typed operation", async () => {
+  const op = getOperation("get_messages")!;
+  const result = await runOperation(
+    { ...op, run: async () => ({ messages: [], vendorExtra: "raw" }) },
+    {} as OperationContext,
+    {},
+  );
+  assert.deepEqual(result, { messages: [] });
 });

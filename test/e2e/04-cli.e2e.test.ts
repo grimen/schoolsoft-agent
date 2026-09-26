@@ -24,7 +24,7 @@ test("C1: auth-status → authenticated, exit 0", { skip }, () => {
 test("C2: list-children, get-schedule, get-messages via the CLI", { skip }, () => {
   const kids = run("list-children");
   assert.equal(kids.code, 0, kids.err);
-  const data = kids.json() as { children: { studentId: number }[]; childInFocus: number };
+  const data = kids.json() as { children: { id: number }[]; childInFocus: number };
   assert.ok(data.children.length >= 1);
   const sched = run("get-schedule");
   assert.equal(sched.code, 0, sched.err);
@@ -36,11 +36,11 @@ test("C2: list-children, get-schedule, get-messages via the CLI", { skip }, () =
     "CLI surface (children/schedule/messages)",
     `${data.children.length} children; schedule ${sched.json().lessons.length} lessons; unread ${msgs.json().messages.length}`,
   );
-  const other = data.children.find((c) => c.studentId !== data.childInFocus);
+  const other = data.children.find((c) => c.id !== data.childInFocus);
   if (other) {
-    const sw = run("get-lunch-menu", "--child-id", String(other.studentId));
+    const sw = run("get-lunch-menu", "--child-id", String(other.id));
     assert.equal(sw.code, 0, sw.err);
-    assert.equal(sw.json().child.studentId, other.studentId);
+    assert.equal(sw.json().child.id, other.id);
   }
 });
 

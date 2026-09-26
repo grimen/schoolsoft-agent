@@ -116,7 +116,7 @@ test("M6: list_children + get_messages work for the guardian", { skip }, async (
   const kids = await call("schoolsoft_list_children");
   assert.notEqual(kids.isError, true, kids.content[0]?.text);
   const data = kids.structuredContent as {
-    children: { studentId: number }[];
+    children: { id: number }[];
     childInFocus: number;
   };
   assert.ok(data.children.length >= 1);
@@ -135,9 +135,9 @@ test("M6: list_children + get_messages work for the guardian", { skip }, async (
     assert.notEqual(one.isError, true, one.content[0]?.text);
   }
   // Switch to the other child if there is one — exercises the cookie re-bind.
-  const other = data.children.find((c) => c.studentId !== data.childInFocus);
+  const other = data.children.find((c) => c.id !== data.childInFocus);
   if (other) {
-    const sched = await call("schoolsoft_get_schedule", { child_id: other.studentId });
+    const sched = await call("schoolsoft_get_schedule", { child_id: other.id });
     assert.notEqual(sched.isError, true, sched.content[0]?.text);
   }
 });

@@ -76,7 +76,13 @@ The capability vocabulary (Portal), the operations and everything generated from
 
 The registry in `src/providers/index.ts` maps ids to providers; `config.provider` (env `SCHOOLSOFT_PROVIDER`) selects one and defaults to `schoolsoft`, so nothing changes for current users. `src/core/wiring.ts` is the only core module that may import providers (the boundary checker enforces it); providers import core modules directly, never `core/index.ts`, so there is no import cycle; adapters never see a provider. A capability a provider does not route fails with `CapabilityNotSupportedError` naming the provider.
 
-`test/contract/provider.contract.test.ts` runs the same assertions against every registered provider with no network: routing refers to real capabilities, pages declare anchors, the session serialises to JSON, every strategy implements the whole contract, and the portals cover the routing. A new vendor passes it before it gets a PR. Deliberately deferred until a second vendor exists: normalising the raw JSON capabilities into domain types, and renaming the `SCHOOLSOFT_*` env vars, the `schoolsoft_` tool prefix and the SchoolSoft-specific config keys (`userType`, `clientId`).
+`test/contract/provider.contract.test.ts` runs the same assertions against every registered provider with no network: routing refers to real capabilities, pages declare anchors, the session serialises to JSON, every strategy implements the whole contract, and the portals cover the routing. A new vendor passes it before it gets a PR. Deliberately deferred until a second vendor exists: renaming the `SCHOOLSOFT_*` env vars, the `schoolsoft_` tool prefix and the SchoolSoft-specific config keys (`userType`, `clientId`).
+
+## Typed outputs and drift
+
+Five operations (`list_children`, `get_schedule`, `get_calendar`, `get_lunch_menu`, `get_messages`) return a vendor-neutral domain model instead of the portal's JSON, specified in [typed domain model](../planning/specs/2026-09-26-typed-domain-model.md). The types (`Child`, `Lesson`, `CalendarEvent`, `LunchDay`, `Message`) are Zod schemas in `src/core/domain/`; dates are `YYYY-MM-DD` and times ISO-8601 with the offset Europe/Stockholm had at that instant. Each of these operations declares `output` next to `input`; `runOperation` validates the result for every surface and returns the parsed value, so undeclared keys never leave. MCP publishes the schema as the tool's `outputSchema`, and the generated references show an Output table.
+
+The mapping lives in the provider: `src/providers/schoolsoft/portal/domain/` holds one module per upstream shape, a Zod schema of the raw answer plus a function to the domain type, called by the API backends. The `Portal` methods therefore return domain types, and the guardian profile reaches the session without fields core never uses. Because the cache decorator wraps the portal, it stores mapped, validated values; a drifted answer throws before it could be stored. An answer that does not map, or a result that fails its schema, is a `ResponseDriftError` (kind `upstream`, exit 7, not retryable) naming the operation, with field paths and issue codes but no values. It never clears a saved session. The other operations still return raw JSON until E4.5.
 
 Swedish portals all end their login in BankID; the two capture paths above cover an OAuth-style redirect (SchoolSoft) and a plain SAML/e-tjänst web login (everyone else), so a new provider chooses one and writes no browser code.
 
@@ -204,13 +210,12 @@ Precedence: CLI flags → `SCHOOLSOFT_*` environment → `config.json` → defau
 
 **Versioned files.** `config.json`, `session.enc`, `session-history.json` and the connector's `session.enc`, `history.enc`, `oauth.enc` and `identity.enc` each carry a whole-number `version` in their JSON (for the encrypted files, inside the encrypted payload, where the authentication tag covers it). A file without one is v0, the format written before versions existed; it loads through the migrations and is stored with the current version on its next write. A file with a version newer than the build knows is refused with `NewerFormatError` (kind `not_available`, exit 5, "update schoolsoft-agent") and is never overwritten or deleted; the local session store also checks before `save` and `clear`, because a CLI and an MCP server of different builds can share one state directory. A malformed version is treated like any other corrupt copy of that file. The helper is `src/core/versioned.ts` (pure); each format is declared next to its type (`CONFIG_FORMAT`, `SESSION_FORMAT`, `HISTORY_FORMAT`, `OAUTH_STATE_FORMAT`, `IDENTITY_FORMAT`), and a format change is one migration function added to that list. `login-pending.json` (a marker that lives minutes), `schools.json` (a re-fetchable cache) and `key.bin` (raw key bytes) are not versioned. `doctor` prints the version of each file it inspects. See `docs/planning/specs/2026-09-26-versioned-state.md`.
 
-**Calendar reads.** The additive `get_calendar` operation validates a date range,
-then calls one API-only portal capability. SchoolSoft's provider combines the
-lessons and event agendas sequentially, validates their shapes and preserves
-their local dates and extra fields. It returns no partial success. The generic
+**Calendar reads.** `get_calendar` validates a date range, then calls one
+API-only portal capability. SchoolSoft's provider reads the lessons and event
+agendas sequentially and maps both to `CalendarEvent`s (date-only entries stay
+dates; `kind` says which source). It returns no partial success. The generic
 `beforeRead` host guard travels through API portal wiring to each HTTP GET, so
 connector consent and child focus are rechecked between requests and on retries.
-Existing `get_schedule` behavior is unchanged.
 
 **The first write.** `report_absence` is off until `allowWrites` is set, returns a
 preview unless called with `confirm: true`, and is not offered by the parent-hosted

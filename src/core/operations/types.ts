@@ -53,6 +53,14 @@ export interface Operation<
   description: string;
   /** Zod raw shape; MCP inputSchema and CLI flags derive from it. */
   input: I;
+  /**
+   * The result's shape, a Zod object built from the domain model
+   * (`core/domain`). When present, `runOperation` validates every result
+   * against it and returns the parsed value; MCP publishes it as the tool's
+   * outputSchema. Absent: the result is returned as it is (raw capabilities
+   * not yet mapped, see E4.5).
+   */
+  output?: z.ZodType<O>;
   annotations: OperationAnnotations;
   /** Portal capabilities this operation uses; empty for auth/config operations. */
   portal: readonly C[];

@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { OperationContext } from "./types.js";
 import type { GuardianChild } from "../portal/types.js";
 import { childOf, orgIdOf, type GuardianContext } from "../portal/guardian.js";
+import type { ChildRef } from "../domain/schemas.js";
 
 export function isoWeek(date = new Date()): number {
   const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
@@ -52,7 +53,10 @@ export interface ChildScope {
   guardian: GuardianContext;
   child: GuardianChild;
   orgId: number;
+  /** The child as untyped outputs name it (kept until E4.5 types them). */
   childSummary: { studentId: number; firstName: string };
+  /** The child as typed outputs name it. */
+  childRef: ChildRef;
 }
 
 /** Ensure a session, optionally switch child, and describe the child in focus. */
@@ -69,5 +73,6 @@ export async function withChild(
     child,
     orgId: orgIdOf(child),
     childSummary: { studentId: child.studentId, firstName: child.firstName },
+    childRef: { id: child.studentId, firstName: child.firstName },
   };
 }

@@ -25,6 +25,8 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         title: op.title,
         description: op.description,
         inputSchema: op.input,
+        // Typed operations publish their result shape; runOperation has already validated it.
+        ...(op.output ? { outputSchema: op.output } : {}),
         annotations: {
           readOnlyHint: op.annotations.readOnly,
           destructiveHint: op.annotations.destructive,
@@ -36,9 +38,9 @@ export function createMcpServer(options: McpServerOptions): McpServer {
         try {
           const ctx = await options.getContext();
           const result = await runOperation(op, ctx, args as never);
-          return ok(result as Record<string, unknown>);
+          return ok(result as Record<string, unknown>, op.output !== undefined);
         } catch (e) {
-          return fail(e, options.lang);
+          return fail(e, options.lang, op.output !== undefined);
         }
       },
     );

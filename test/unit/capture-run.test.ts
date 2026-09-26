@@ -251,7 +251,11 @@ test("an error without a hint prints one line; configuration errors from loading
   const io = { out: () => {}, err: (l: string) => err.push(l) };
   const code = await captureMain(
     () => {
-      throw new AgentError({ kind: "upstream", key: "calendar_response" });
+      throw new AgentError({
+        kind: "upstream",
+        key: "response_drift",
+        params: { operation: "o", detail: "d" },
+      });
     },
     io,
     "d",

@@ -46,6 +46,12 @@ test("read tool before login returns an actionable not-authenticated error", asy
   const res = await client.callTool({ name: "schoolsoft_get_schedule", arguments: {} });
   assert.equal(res.isError, true);
   assert.match(text(res), /schoolsoft_login/);
+  assert.equal(res.structuredContent, undefined, "typed tools: the two lines only");
+  const untyped = await client.callTool({ name: "schoolsoft_get_news", arguments: {} });
+  assert.equal(
+    (untyped.structuredContent as { error: { kind: string } }).error.kind,
+    "not_authenticated",
+  );
 });
 
 test("auth_status reports unauthenticated without prompting", async () => {
@@ -64,17 +70,17 @@ test("login → schedule → structured content, child switch, messages", async 
   const data = res.structuredContent as {
     week: number;
     lessons: typeof FAKE_LESSONS;
-    child: { studentId: number };
+    child: { id: number };
   };
   assert.equal(data.week, 35);
-  assert.equal(data.lessons.length, 2);
-  assert.equal(data.child.studentId, 100);
+  assert.deepEqual(data.lessons, FAKE_LESSONS);
+  assert.equal(data.child.id, 100);
 
   const sw = await client.callTool({
     name: "schoolsoft_get_schedule",
     arguments: { child_id: 101 },
   });
-  assert.equal((sw.structuredContent as { child: { studentId: number } }).child.studentId, 101);
+  assert.equal((sw.structuredContent as { child: { id: number } }).child.id, 101);
   const bad = await client.callTool({
     name: "schoolsoft_get_schedule",
     arguments: { child_id: 999 },
@@ -130,12 +136,12 @@ test("calendar is discoverable and reads date ranges through local MCP", async (
   });
   assert.notEqual(result.isError, true);
   const data = result.structuredContent as {
-    child: { studentId: number };
-    entries: unknown[];
+    child: { id: number };
+    events: unknown[];
     timezone: string;
   };
-  assert.equal(data.child.studentId, 101);
-  assert.ok(data.entries.length > 0);
+  assert.equal(data.child.id, 101);
+  assert.ok(data.events.length > 0);
   assert.equal(data.timezone, "Europe/Stockholm");
   const invalid = await client.callTool({
     name: "schoolsoft_get_calendar",

@@ -7,6 +7,7 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { z } from "zod";
 import { operations } from "../src/core/index.js";
 import { flagsFromSchema, kebab } from "../src/cli/flags.js";
 import { TOOL_PREFIX } from "../src/mcp/server.js";
@@ -43,10 +44,60 @@ function exampleArgs(op: (typeof operations)[number]): Record<string, unknown> {
   return ex;
 }
 
+interface JsonNode {
+  type?: string | string[];
+  format?: string;
+  const?: unknown;
+  enum?: unknown[];
+  description?: string;
+  anyOf?: JsonNode[];
+  items?: JsonNode;
+  properties?: Record<string, JsonNode>;
+}
+
+/** A JSON Schema node as a short type, e.g. `string (date-time)`, `object or null`. */
+function typeName(node: JsonNode): string {
+  if (node.anyOf) return node.anyOf.map(typeName).join(" or ");
+  if (node.const !== undefined) return `\`${JSON.stringify(node.const)}\``;
+  if (node.enum) return node.enum.map((v) => `\`${JSON.stringify(v)}\``).join(" \\| ");
+  if (node.type === "array") return `${typeName(node.items!)}[]`;
+  const type = Array.isArray(node.type) ? node.type.join(" or ") : node.type!;
+  return node.format ? `${type} (${node.format})` : type;
+}
+
+/** One row per field, nested objects and array items flattened into dotted paths. */
+function outputRows(node: JsonNode, path: string, rows: string[][]): string[][] {
+  const object =
+    node.type === "object"
+      ? node
+      : node.type === "array"
+        ? node.items!.type === "object"
+          ? node.items
+          : undefined
+        : node.anyOf?.find((n) => n.type === "object");
+  for (const [key, child] of Object.entries(object?.properties ?? {})) {
+    const at = path ? `${path}${node.type === "array" ? "[]" : ""}.${key}` : key;
+    rows.push([`\`${at}\``, typeName(child), child.description ?? ""]);
+    outputRows(child, at, rows);
+  }
+  return rows;
+}
+
+/** The validated result shape of a typed operation, generated from its output schema. */
+export function renderOutput(op: (typeof operations)[number]): string {
+  if (!op.output) return "";
+  const schema = z.toJSONSchema(op.output, { io: "output" }) as JsonNode;
+  let md =
+    "Output (validated; a response that does not fit is a `response_drift` error, exit 7):\n\n";
+  md += "| Field | Type | Description |\n|---|---|---|\n";
+  for (const row of outputRows(schema, "", [])) md += `| ${row.join(" | ")} |\n`;
+  return md + "\n";
+}
+
 export function renderTools(): string {
   let md =
     HEADER +
-    "# MCP tools\n\nServer: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredContent` plus a text copy (truncated at 25 000 characters).\n\n";
+    "# MCP tools\n\nServer: `schoolsoft-agent-mcp` (stdio). Every tool returns JSON as `structuredContent` plus a text copy (truncated at 25 000 characters). Tools with an Output table declare it as their `outputSchema`; their results are validated and always carry `structuredContent`, and their errors are the two text lines only.\n\n";
   md += "| Tool | Purpose | Annotations |\n|---|---|---|\n";
   for (const op of operations)
     md += `| \`${TOOL_PREFIX}${op.name}\` | ${op.title} | ${annotationBadges(op)} |\n`;
@@ -62,6 +113,7 @@ export function renderTools(): string {
     } else {
       md += "_No arguments._\n\n";
     }
+    md += renderOutput(op);
     md +=
       "Example call:\n\n```json\n" +
       JSON.stringify({ name: TOOL_PREFIX + op.name, arguments: exampleArgs(op) }, null, 2) +
@@ -75,7 +127,7 @@ export function renderCommands(): string {
     HEADER +
     "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are one line on stderr.\n\n";
   md +=
-    "Exit codes: `0` ok · `1` error · `2` not authenticated (run `login`) · `3` not configured (run `configure`).\n\n";
+    "Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not configured (run `configure`) · `4` network · `5` not available · `6` input · `7` upstream (including `response_drift`: the portal's answer changed shape).\n\n";
   md +=
     "Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`.\n\n";
   md += "| Command | Purpose | Annotations |\n|---|---|---|\n";
@@ -94,6 +146,7 @@ export function renderCommands(): string {
         md += `| \`${s.flag}\` | ${s.required ? "yes" : "no"} | ${s.description}${s.choices ? ` (${s.choices.join(", ")})` : ""} |\n`;
       md += "\n";
     }
+    md += renderOutput(op);
     const ex = exampleArgs(op);
     const flags = Object.entries(ex)
       .map(([k, v]) =>

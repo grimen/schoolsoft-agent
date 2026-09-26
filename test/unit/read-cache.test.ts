@@ -18,7 +18,11 @@ import {
   type Capability,
 } from "../../src/core/index.js";
 import { WEB_SESSION_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
-import { CountingPortal } from "../helpers/counting-portal.js";
+import { CountingPortal, markedLesson } from "../helpers/counting-portal.js";
+
+const lunchOf = (description: string) => [
+  { date: "2026-09-07", weekday: 1, dishes: [{ kind: null, description }] },
+];
 
 const MIN = 60_000;
 
@@ -134,24 +138,26 @@ test("a repeated read is answered from memory until its TTL; fresh bypasses and 
   assert.equal(s.upstream.calls.length, 1);
   assert.notDeepEqual(await s.portal.getScheduleWeek(38), first, "other arguments, other entry");
   const fresh = await s.fresh.getScheduleWeek(37);
-  assert.deepEqual(fresh, ["child 100 getScheduleWeek #3"]);
+  assert.deepEqual(fresh, [markedLesson("child 100 getScheduleWeek #3")]);
   assert.deepEqual(await s.portal.getScheduleWeek(37), fresh, "the fresh read replaced the entry");
   s.advance(30 * MIN);
-  assert.deepEqual(await s.portal.getScheduleWeek(37), ["child 100 getScheduleWeek #4"]);
+  assert.deepEqual(await s.portal.getScheduleWeek(37), [
+    markedLesson("child 100 getScheduleWeek #4"),
+  ]);
 });
 
 test("two children, same capability and arguments: each only ever gets its own data", async () => {
   const s = setup();
-  assert.deepEqual(await s.portal.getLunchWeek(20, 37), ["child 100 getLunchWeek #1"]);
+  assert.deepEqual(await s.portal.getLunchWeek(20, 37, 2026), lunchOf("child 100 getLunchWeek #1"));
   s.focus(101);
-  assert.deepEqual(await s.portal.getLunchWeek(20, 37), ["child 101 getLunchWeek #2"]);
+  assert.deepEqual(await s.portal.getLunchWeek(20, 37, 2026), lunchOf("child 101 getLunchWeek #2"));
   s.focus(100);
-  assert.deepEqual(await s.portal.getLunchWeek(20, 37), ["child 100 getLunchWeek #3"]);
+  assert.deepEqual(await s.portal.getLunchWeek(20, 37, 2026), lunchOf("child 100 getLunchWeek #3"));
   // Even a cache that was NOT cleared on the switch keeps the children apart, by key.
   s.setScope({ provider: "schoolsoft", school: "taby", userId: 21, childId: 101 });
-  assert.deepEqual(await s.portal.getLunchWeek(20, 37), ["child 101 getLunchWeek #4"]);
+  assert.deepEqual(await s.portal.getLunchWeek(20, 37, 2026), lunchOf("child 101 getLunchWeek #4"));
   s.setScope({ provider: "schoolsoft", school: "taby", userId: 21, childId: 100 });
-  assert.deepEqual(await s.portal.getLunchWeek(20, 37), ["child 100 getLunchWeek #3"]);
+  assert.deepEqual(await s.portal.getLunchWeek(20, 37, 2026), lunchOf("child 100 getLunchWeek #3"));
 });
 
 test("concurrent children: a read that overlaps a child switch is returned but never stored", async () => {
@@ -163,11 +169,11 @@ test("concurrent children: a read that overlaps a child switch is returned but n
   s.upstream.during = null;
   s.focus(101); // another caller switches child meanwhile
   const other = await s.portal.getScheduleWeek(37);
-  assert.deepEqual(other, ["child 101 getScheduleWeek #2"]);
+  assert.deepEqual(other, [markedLesson("child 101 getScheduleWeek #2")]);
   release();
   assert.deepEqual(
     await slow,
-    ["child 100 getScheduleWeek #1"],
+    [markedLesson("child 100 getScheduleWeek #1")],
     "the caller still gets its answer",
   );
   assert.equal(s.cache.size(), 1, "only child 101's read was stored");
@@ -175,7 +181,7 @@ test("concurrent children: a read that overlaps a child switch is returned but n
   s.focus(100);
   assert.deepEqual(
     await s.portal.getScheduleWeek(37),
-    ["child 100 getScheduleWeek #3"],
+    [markedLesson("child 100 getScheduleWeek #3")],
     "child 100 is read again rather than served anything stored during the overlap",
   );
 });

@@ -11,9 +11,13 @@
  *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
  *  - Absence (app cookies): the one write, absence-notice; body unverified.
  *
+ * Answers of the typed capabilities (profile, lunch, inbox, schedule,
+ * calendar) are mapped to the domain model in `domain/`; drift throws.
+ *
  * Verified live against Täby 2026-09-06; see docs/reference/schoolsoft-api.md.
  */
 import type { ApiPortalPart } from "../../../core/portal/composite.js";
+import type { CalendarEvent, Lesson, LunchDay, Message } from "../../../core/domain/schemas.js";
 import type {
   AbsenceNotice,
   AbsenceReceipt,
@@ -70,13 +74,13 @@ export class ApiPortal implements ApiPortalPart {
   getParent(): Promise<GuardianParent> {
     return this.eva.getParent();
   }
-  getLunchWeek(orgId: number, week: number): Promise<unknown[]> {
-    return this.eva.getLunchWeek(orgId, week);
+  getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]> {
+    return this.eva.getLunchWeek(orgId, week, year);
   }
   getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
     return this.eva.getNews(userId, orgId, studentId);
   }
-  getInbox(userId: number, orgId: number): Promise<unknown[]> {
+  getInbox(userId: number, orgId: number): Promise<Message[]> {
     return this.eva.getInbox(userId, orgId);
   }
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown> {
@@ -90,10 +94,10 @@ export class ApiPortal implements ApiPortalPart {
   getSession(): Promise<unknown> {
     return this.webview.getSession();
   }
-  getCalendar(startDate: string, endDate: string): Promise<unknown[]> {
+  getCalendar(startDate: string, endDate: string): Promise<CalendarEvent[]> {
     return this.webview.getCalendar(startDate, endDate);
   }
-  getScheduleWeek(week: number): Promise<unknown[]> {
+  getScheduleWeek(week: number): Promise<Lesson[]> {
     return this.webview.getScheduleWeek(week);
   }
   getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {

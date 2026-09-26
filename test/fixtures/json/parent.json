@@ -1,0 +1,26 @@
+{
+  "guid": "00000000-0000-4000-8000-000000000021",
+  "userId": 21,
+  "firstName": "Synthetic",
+  "lastName": "Guardian",
+  "children": [
+    {
+      "studentId": 100,
+      "firstName": "Ett",
+      "lastName": "Fixture",
+      "picture": null,
+      "guid": "00000000-0000-4000-8000-000000000100",
+      "schools": [{ "orgId": 20, "name": "Testskolan", "className": "4B" }],
+      "username": "synthetic.ett"
+    },
+    {
+      "studentId": 101,
+      "firstName": "Två",
+      "lastName": "Fixture",
+      "picture": null,
+      "guid": "00000000-0000-4000-8000-000000000101",
+      "schools": [{ "orgId": 20, "name": "Testskolan", "className": "1A" }],
+      "username": "synthetic.tva"
+    }
+  ]
+}

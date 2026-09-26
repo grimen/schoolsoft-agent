@@ -1,0 +1,26 @@
+[
+  {
+    "eventId": 5001,
+    "name": "Matematik",
+    "description": "Kapitel 3",
+    "startDate": "2026-09-07T08:30",
+    "endDate": "2026-09-07T09:50",
+    "room": "A12",
+    "teachingGroup": "4B",
+    "teacher": "Lärare Test",
+    "dayId": 1,
+    "category": "lesson"
+  },
+  {
+    "eventId": 5002,
+    "name": "Svenska",
+    "description": "",
+    "startDate": "2026-09-07T10:10",
+    "endDate": "2026-09-07T11:30",
+    "room": null,
+    "teachingGroup": "4B",
+    "teacher": "Lärare Test",
+    "dayId": 1,
+    "category": "lesson"
+  }
+]

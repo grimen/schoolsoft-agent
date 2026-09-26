@@ -1,0 +1,21 @@
+[
+  {
+    "eventId": 7001,
+    "name": "Matematik",
+    "startDate": "2026-09-07T08:30",
+    "endDate": "2026-09-07T09:50",
+    "allDay": false,
+    "room": "A12",
+    "teachingGroup": "4B",
+    "teacher": "Lärare Test",
+    "category": "lesson"
+  },
+  {
+    "eventId": 7002,
+    "name": "Lunch",
+    "startDate": "2026-09-07T11:30",
+    "endDate": "2026-09-07T12:00",
+    "allDay": false,
+    "category": "lunch"
+  }
+]

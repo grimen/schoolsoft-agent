@@ -1,7 +1,7 @@
 /** Optional live probe: counts only, manual existing login; no payloads in logs. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { getOperation } from "../../src/core/index.js";
+import { getOperation, runOperation } from "../../src/core/index.js";
 import { skip, e2eContext, record } from "./helpers.js";
 
 test(
@@ -14,9 +14,10 @@ test(
         : false),
   },
   async () => {
-    let result: { entries: { source: string }[]; timezone: string };
+    let result: { events: { kind: string }[]; timezone: string };
     try {
-      result = (await getOperation("get_calendar")!.run(e2eContext(), {
+      // Through runOperation, so the typed output is validated against the live answer.
+      result = (await runOperation(getOperation("get_calendar")!, e2eContext(), {
         start_date: process.env.SCHOOLSOFT_CALENDAR_START,
         end_date: process.env.SCHOOLSOFT_CALENDAR_END,
       })) as typeof result;
@@ -24,10 +25,10 @@ test(
       assert.fail("Calendar read failed. Check the session and date range privately.");
     }
     assert.equal(result.timezone, "Europe/Stockholm");
-    assert.ok(Array.isArray(result.entries));
-    const lessons = result.entries.filter((entry) => entry.source === "lessons").length;
-    const events = result.entries.filter((entry) => entry.source === "events").length;
-    assert.equal(lessons + events, result.entries.length);
+    assert.ok(Array.isArray(result.events));
+    const lessons = result.events.filter((entry) => entry.kind === "lesson").length;
+    const events = result.events.filter((entry) => entry.kind === "event").length;
+    assert.equal(lessons + events, result.events.length);
     record(
       "calendar",
       "Agenda response counts (visual and end-date comparison still required)",

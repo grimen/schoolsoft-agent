@@ -15,6 +15,10 @@ import {
   describeError,
   detectLang,
   guardNetwork,
+  ResponseDriftError,
+  describeIssues,
+  isTransient,
+  keepsSession,
   MESSAGES,
   HINTS,
   type MessageKey,
@@ -43,6 +47,7 @@ test("every message key renders in both languages with its parameters; every hin
     value: "v",
     expected: "x",
     max: "14",
+    operation: "o",
     file: "f",
     found: "2",
     supported: "1",
@@ -223,4 +228,58 @@ test("network guard describes cause-only and name-only transport failures", asyn
       NetworkError,
     );
   }
+});
+
+test("ResponseDriftError: upstream, exit 7, not retryable; names the operation, keeps the capability in the detail", () => {
+  const found = new ResponseDriftError("getScheduleWeek", "0.startDate invalid_type");
+  assert.equal(found.kind, "upstream");
+  assert.equal(found.retryable, false);
+  assert.equal(found.operation, undefined);
+  assert.match(
+    found.message,
+    /answer for getScheduleWeek has changed shape \(0\.startDate invalid_type\)/,
+  );
+  const named = found.forOperation("get_schedule");
+  assert.equal(named.forOperation("other"), named, "an operation name is never replaced");
+  assert.equal(named.where, "getScheduleWeek");
+  assert.equal(named.operation, "get_schedule");
+  const en = describeError(named, "en", "cli");
+  assert.equal(en.exitCode, 7);
+  assert.match(en.message, /get_schedule has changed shape \(getScheduleWeek: 0\.startDate/);
+  assert.match(en.hint!, /Update schoolsoft-agent/);
+  const sv = describeError(named, "sv", "mcp");
+  assert.match(sv.message, /Skolportalens svar för get_schedule har ändrat form/);
+  assert.match(sv.hint!, /uppdatera schoolsoft-agent/);
+  const self = new ResponseDriftError(
+    "list_children",
+    "children.0.id invalid_type",
+    "list_children",
+  );
+  assert.match(self.message, /list_children has changed shape \(children\.0\.id invalid_type\)/);
+});
+
+test("describeIssues: paths and codes only, at most three, custom issues by their fixed message", () => {
+  assert.equal(
+    describeIssues([
+      { path: [0, "startDate"], code: "invalid_type", message: "Expected string, received 42" },
+      { path: [], code: "custom", message: "not a date-time" },
+    ]),
+    "0.startDate invalid_type, (root) not a date-time",
+  );
+  const many = Array.from({ length: 5 }, (_, i) => ({
+    path: [i],
+    code: "invalid_type",
+    message: "x",
+  }));
+  assert.equal(describeIssues(many), "0 invalid_type, 1 invalid_type, 2 invalid_type (+2 more)");
+});
+
+test("keepsSession: transient failures and drift keep a saved session; rejections do not", () => {
+  const drift = new ResponseDriftError("getParent", "children.0.studentId invalid_type");
+  assert.equal(isTransient(drift), false);
+  assert.equal(keepsSession(drift), true);
+  assert.equal(keepsSession(new NetworkError("ENOTFOUND")), true);
+  assert.equal(keepsSession(new UpstreamError(503, "x")), true);
+  assert.equal(keepsSession(new UpstreamError(401, "x")), false);
+  assert.equal(keepsSession(new Error("bug")), false);
 });
