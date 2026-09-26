@@ -45,6 +45,20 @@ export {
   type KeepaliveDeps,
 } from "./wiring.js";
 export { runOperation } from "./operations/run.js";
+export { PortalBudget, portalHealth } from "./budget/budget.js";
+export type {
+  RequestBudget,
+  OutboundCall,
+  OutboundAnswer,
+  BudgetSnapshot,
+  BudgetTimer,
+  BreakerState,
+  PortalHealth,
+  PortalBudgetOptions,
+} from "./budget/budget.js";
+export { BUDGET_BOUNDS, DEFAULT_BREAKER_POLICY } from "./budget/policy.js";
+export type { BudgetLimits, BreakerPolicy } from "./budget/policy.js";
+export { parseRetryAfter } from "./budget/retry-after.js";
 export {
   MemorySessionHistoryStore,
   FileSessionHistoryStore,
@@ -88,6 +102,8 @@ export {
   NetworkError,
   UpstreamError,
   InputError,
+  PortalPushbackError,
+  RequestCancelledError,
   EXIT_CODE_BY_KIND,
   describeError,
   describeIssues,
