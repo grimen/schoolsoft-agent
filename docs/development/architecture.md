@@ -55,6 +55,23 @@ the HTTP adapter. Per-caller limits key on the socket address unless the deploym
 proxy hops (`SCHOOLSOFT_PROXY_HOPS`, default 0), with IPv6 callers grouped by /64; the
 correct owner password is never rate limited, so its randomness is the guess protection. Per-app revocation is separate from SchoolSoft logout.
 
+**REST surface.** `/api/v1` is a third adapter inside the connector, for custom UIs
+([reference](../reference/rest-api.md), [spec](../planning/specs/2026-09-26-rest-surface.md)).
+`src/http/routes.ts` generates one GET route per connector operation from the
+registry (`/children`, `/children/{childId}/<slug>`), with query parameters from
+the operation's Zod input minus `child_id`; `rest.ts` mounts them behind the
+connector's per-caller limiter and the SDK's bearer middleware with the same OAuth
+provider, tokens and scopes as `/mcp`, and calls `ConnectorRuntime.execute`, so the
+child from the path goes through the same grant check, serialized focus, cache,
+`runOperation` validation, recovery and revocation checks. Responses are the
+validated domain output; failures are `application/problem+json` (`problem.ts`)
+with the core's localized message and a hint for the `http` surface. `401` is
+always the app's token and `409` always the connector's SchoolSoft session, whose
+owner dashboard URL the body carries. `GET /api/v1/session` reports sign-in state,
+the granted children and routes without starting a login. The runtime marks its
+refusals with a reason (`ConnectorRefusedError`) so the adapter can answer `403` or
+`503` without parsing prose.
+
 The deployment is one process per private state volume. The storage key comes from
 the parent's deployment environment; the project author operates no central service.
 Hosting administrators may access plaintext during use, and requested results enter
@@ -88,7 +105,7 @@ Swedish portals all end their login in BankID; the two capture paths above cover
 
 ## Errors and recovery
 
-Every condition a user can meet is an `AgentError` (`src/core/errors`): a **kind** (fixes the exit code and whether a retry can help), a **message key with parameters** (rendered in English or Swedish), and a **hint key** (rendered as a shell command for the CLI or a tool name for MCP). Surfaces call `describeError` and print two lines, the problem and "Next: …"; MCP also returns `error.kind` and `retryable` as structured content. Anything that is not an `AgentError` is a bug and is rendered as one, with a report hint. Exit codes: 2 not authenticated, 3 not configured, 4 network, 5 not available, 6 input, 7 upstream, 1 bug.
+Every condition a user can meet is an `AgentError` (`src/core/errors`): a **kind** (fixes the exit code and whether a retry can help), a **message key with parameters** (rendered in English or Swedish), and a **hint key** (rendered as a shell command for the CLI, a tool name for MCP, or what a custom UI should tell the parent for the connector's REST surface). Surfaces call `describeError` and print two lines, the problem and "Next: …"; MCP also returns `error.kind` and `retryable` as structured content. Anything that is not an `AgentError` is a bug and is rendered as one, with a report hint. Exit codes: 2 not authenticated, 3 not configured, 4 network, 5 not available, 6 input, 7 upstream, 1 bug.
 
 Three mitigations remove the common dead ends:
 
@@ -153,7 +170,7 @@ src/providers/schoolsoft/  auth/ (BankID via SchoolSoft OAuth, token/cookie exch
 src/mcp/          server.ts (registry → tools), respond.ts, index.ts (bin)
 src/cli/          flags.ts, program.ts, exit-codes.ts, commands/{configure,doctor,browser}.ts, index.ts (bin)
 src/shared/       bootstrap.ts (env + config file → context), version.ts
-src/http/         parent-hosted HTTPS adapter: OAuth, owner pages, scoped runtime, encrypted storage and startup
+src/http/         parent-hosted HTTPS adapter: OAuth, owner pages, scoped runtime, REST routes (routes, rest, problem), encrypted storage and startup
 skills/schoolsoft SKILL.md, scripts/schoolsoft.sh, references/commands.md (generated)
 plugins/          claude/ (marketplace + two plugins), mcpb/, opencode/, openclaw/, hermes/, pi/
 docs/             README.md (index), getting-started/, integrations/ (AI clients), deployment/ (parent hosting), development/, reference/, planning/, diagrams/, assets/
