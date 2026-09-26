@@ -11,6 +11,7 @@ import { dirname, join } from "node:path";
 import { z } from "zod";
 import { operations } from "../src/core/index.js";
 import { flagsFromSchema, kebab } from "../src/cli/flags.js";
+import { textRenderer, TEXT_RENDERERS } from "../src/cli/text/registry.js";
 import { TOOL_PREFIX } from "../src/mcp/server.js";
 import { restRoutes } from "../src/http/routes.js";
 import { PROBLEMS, PROBLEM_TYPE_PREFIX } from "../src/http/problem.js";
@@ -135,11 +136,17 @@ export function renderTools(): string {
 export function renderCommands(): string {
   let md =
     HEADER +
-    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are one line on stderr.\n\n";
+    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are two lines on stderr (the problem, then what to do next).\n\n";
   md +=
     "Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not configured (run `configure`) · `4` network · `5` not available · `6` input · `7` upstream (including `response_drift`: the portal's answer changed shape).\n\n";
   md +=
-    "Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`.\n\n";
+    "Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`, `--format <json|text>`.\n\n";
+  md +=
+    "`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for " +
+    Object.keys(TEXT_RENDERERS)
+      .map((name) => `\`${kebab(name)}\``)
+      .join(", ") +
+    "; any other command prints pretty JSON and a one-line note on stderr.\n\n";
   md += "| Command | Purpose | Annotations |\n|---|---|---|\n";
   for (const op of operations)
     md += `| \`${kebab(op.name)}\` | ${op.title} | ${annotationBadges(op)} |\n`;
@@ -157,6 +164,8 @@ export function renderCommands(): string {
       md += "\n";
     }
     md += renderOutput(op);
+    if (textRenderer(op.name))
+      md += "`--format text` prints a view of this result for people instead of JSON.\n\n";
     const ex = exampleArgs(op);
     const flags = Object.entries(ex)
       .map(([k, v]) =>

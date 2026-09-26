@@ -50,6 +50,16 @@ export {
   type KeepaliveDeps,
 } from "./wiring.js";
 export { runOperation } from "./operations/run.js";
+export type {
+  CalendarEvent,
+  Child,
+  ChildRef,
+  Dish,
+  Lesson,
+  LunchDay,
+  Message,
+} from "./domain/schemas.js";
+export { DOMAIN_TIMEZONE, isoWeekDate } from "./domain/time.js";
 export { PortalBudget, portalHealth } from "./budget/budget.js";
 export type {
   RequestBudget,

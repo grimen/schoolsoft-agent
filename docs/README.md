@@ -3,14 +3,14 @@
 **New here? [Start with the parent setup guide](getting-started/README.md).**
 It helps you choose an assistant, connect SchoolSoft and check your first answer.
 
-| What you want to do                            | Where to go                                                                                                                                                  |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Get started or fix a setup problem             | [Getting started](getting-started/README.md) · [Computer basics](getting-started/computer-basics.md) · [Troubleshooting](getting-started/troubleshooting.md) |
-| Connect a particular AI assistant              | [Integrations](integrations/README.md) · [Support matrix](integrations/support-matrix.md)                                                                    |
-| Run your own connector server                  | [Deployment choices](deployment/README.md) · [Connector setup](deployment/connector.md)                                                                      |
-| Look up a tool, command or API                 | [Reference](reference/README.md)                                                                                                                             |
-| Contribute code or publish a release           | [Development](development/README.md)                                                                                                                         |
-| Read design decisions and implementation plans | [Planning archive](planning/README.md)                                                                                                                       |
+| What you want to do                            | Where to go                                                                                                                                                                                                  |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Get started or fix a setup problem             | [Getting started](getting-started/README.md) · [Computer basics](getting-started/computer-basics.md) · [Troubleshooting](getting-started/troubleshooting.md) · [Terminal views](getting-started/terminal.md) |
+| Connect a particular AI assistant              | [Integrations](integrations/README.md) · [Support matrix](integrations/support-matrix.md)                                                                                                                    |
+| Run your own connector server                  | [Deployment choices](deployment/README.md) · [Connector setup](deployment/connector.md)                                                                                                                      |
+| Look up a tool, command or API                 | [Reference](reference/README.md)                                                                                                                                                                             |
+| Contribute code or publish a release           | [Development](development/README.md)                                                                                                                                                                         |
+| Read design decisions and implementation plans | [Planning archive](planning/README.md)                                                                                                                                                                       |
 
 Integration guides describe **which assistant you use**. Deployment guides describe
 **where your connector runs**. For example, use the ChatGPT integration guide to

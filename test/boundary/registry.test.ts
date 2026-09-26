@@ -12,6 +12,7 @@ import {
 } from "../../src/core/index.js";
 import { ResponseDriftError } from "../../src/core/errors/index.js";
 import { BROWSER_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
+import { TEXT_RENDERERS } from "../../src/cli/text/registry.js";
 
 test("operation names are unique snake_case", () => {
   const names = operations.map((o) => o.name);
@@ -148,4 +149,9 @@ test("runOperation returns the parsed result: undeclared keys never leave a type
     {},
   );
   assert.deepEqual(result, { messages: [] });
+});
+
+test("every typed operation has a CLI text view, and every view names a typed operation", () => {
+  const typed = operations.filter((o) => o.output !== undefined).map((o) => o.name);
+  assert.deepEqual(Object.keys(TEXT_RENDERERS).sort(), [...typed].sort());
 });

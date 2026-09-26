@@ -41,9 +41,11 @@ Prerequisite: [Node.js](https://nodejs.org/en/download) 22 or newer.
 ```bash
 npx -y schoolsoft-agent configure --query "Rösjöskolan"   # finds your school
 npx -y schoolsoft-agent login                              # BankID in your browser
-npx -y schoolsoft-agent get-calendar --pretty              # lessons and school events this week
-npx -y schoolsoft-agent get-schedule --pretty              # this week's schedule
+npx -y schoolsoft-agent get-calendar --pretty              # lessons and school events this week (JSON)
+npx -y schoolsoft-agent get-schedule --format text         # this week's schedule, laid out for people
 ```
+
+Output is JSON for assistants and scripts; `--format text` shows children, schedule, calendar, lunch and messages as [views for people](docs/getting-started/terminal.md).
 
 Every command is in the [command reference](docs/reference/commands.md); every crucial one is also a `make` target in a checkout (`make help`). Messages come in Swedish when your system language is Swedish (or with `SCHOOLSOFT_LANG=sv`), always as "what went wrong" plus "Next: what to do".
 
