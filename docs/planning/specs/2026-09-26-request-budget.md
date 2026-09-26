@@ -128,7 +128,7 @@ Breaker and backoff (core defaults, not configurable, so a setting cannot remove
 - `src/providers/schoolsoft/net.ts`: the one transport; the provider's entry points wrap with it; `session.ts` verifies through it.
 - `src/http/`: `status().portal`, owner dashboard line, `/api/v1/session` `schoolsoft.portal`, problem `portal-pushback` (503 + `Retry-After`), signals passed to the portal.
 - `scripts/check-boundaries.ts`: the outbound rules.
-- Tests: `test/unit/request-budget.test.ts` (limiter, breaker, messages), `test/unit/request-budget-wiring.test.ts` (production wiring with the simulator), `test/unit/net.test.ts`, `test/boundary/outbound.test.ts`, `test/functional/request-budget-surfaces.test.ts` (CLI, MCP), the REST case in `test/functional/http-rest.test.ts`, the browser case in `test/unit/browser-session.test.ts`. `test/helpers/offline.ts` is preloaded into the offline suites and fails any request to the real portal.
+- Tests: `test/unit/request-budget.test.ts` (limiter, breaker, messages), `test/unit/request-budget-wiring.test.ts` (production wiring with the simulator), `test/unit/net.test.ts`, `test/boundary/outbound.test.ts`, `test/functional/request-budget-surfaces.test.ts` (CLI, MCP), the REST case in `test/functional/http-rest.test.ts`, the browser case in `test/unit/browser-session.test.ts`. `test/helpers/offline.mjs` is preloaded into the offline suites and fails any request to the real portal.
 
 ## Tasks & Acceptance
 
