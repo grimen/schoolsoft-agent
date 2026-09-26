@@ -6,12 +6,15 @@ of families' credentials. Start with the [parent setup guide](../../docs/deploym
 
 This is a release candidate. Offline tests cover implementation behavior; real
 SchoolSoft HTTPS callback login and Claude/ChatGPT web/mobile acceptance still need
-parent-led tests. The connector exposes children, schedule, calendar and lunch only.
+parent-led tests. The connector exposes children, schedule, calendar and lunch only,
+as MCP tools at `/mcp` and as read-only JSON at `/api/v1` for custom UIs.
 
 - `config.ts`, `start.ts`, `index.ts`: deployment validation and startup.
 - `server.ts`, `pages.ts`, `owner-session.ts`: HTTP routes, parent pages and owner sessions.
 - `oauth.ts`: client registration, consent, PKCE, tokens and revocation.
 - `runtime.ts`: remote SchoolSoft login, guardian pin, child consent and serialized reads.
+- `routes.ts`, `rest.ts`, `problem.ts`: REST routes generated from the registry, their
+  router (same bearer tokens, scopes and runtime as `/mcp`) and problem+json errors.
 - `storage.ts`: encrypted persistent state using the parent's deployment key.
 
 Adapters import core only through `../core/index.js`, never through `src/mcp` or

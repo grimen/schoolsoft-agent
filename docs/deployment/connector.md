@@ -243,6 +243,34 @@ replicas or let another container share this volume.
 Logging out here cannot delete answers already retained by Claude or ChatGPT, or
 backups kept by a hosting provider. Manage those separately in the relevant account.
 
+## Your own app or dashboard (REST API)
+
+The connector also answers plain JSON requests under `/api/v1`, for a family
+dashboard or a wall display. It is the same data as the AI tools, read-only, and
+it uses the **same connection approval**: an app connects like an AI app (it
+registers, you approve it on the owner page with the children and tools it may
+use, and it receives an access token), then sends that token with each request.
+There is no separate password, key or cookie, and nothing is open to anyone
+without an approval. Revoking the app on the owner page stops its API access
+immediately.
+
+This is groundwork for now. The approval page only returns to Claude's and
+ChatGPT's addresses, so no other app can finish connecting yet. A small page served
+by the connector itself is planned as the first app that can.
+
+`GET /api/v1/session` tells the app whether the connector is signed in to
+SchoolSoft and which children it may show. When the SchoolSoft sign-in has
+expired, every data request answers `409` with a link to your owner page, so the
+app can ask you to sign in again rather than showing an error it cannot explain.
+Requests from other websites are refused (the API only serves pages on the
+connector's own address for now), and each visitor may make 60 requests a minute.
+Error messages come in Swedish or English, following the app's language, or
+`SCHOOLSOFT_LANG` (`sv` or `en`) in the environment settings.
+
+The routes, fields and error types are in the [REST API reference](../reference/rest-api.md).
+Like the rest of the connector, this is tested offline against a synthetic portal;
+a real app against a real SchoolSoft sign-in is part of the acceptance test below.
+
 ## What still needs a real acceptance test?
 
 Before calling this a supported parent-facing deployment, verify one complete
@@ -317,7 +345,8 @@ daemon it prints a skip notice and exits successfully; set
 2. `test/packaging/connector-flow-container.mjs` replays a parent's whole journey
    inside the image: OAuth discovery, client registration, S256-only PKCE, owner
    login and consent for chosen children and tools, code exchange, MCP
-   `tools/list` and tool calls, refresh-token rotation and replay rejection, the
+   `tools/list` and tool calls, the REST API (session, children, a schedule, and a
+   refused child, scope and token), refresh-token rotation and replay rejection, the
    calendar scope limit, per-child denial, revoking an app from the dashboard and
    the owner-login rate limit. The school portal is a synthetic stand-in
    (`test/packaging/connector-smoke/fake-upstream.mjs`) mounted read-only beside a

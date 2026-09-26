@@ -1,12 +1,13 @@
 /**
  * Every user-facing message, in English and Swedish, keyed. Errors carry a
- * key and parameters instead of prose, so the surfaces (CLI, MCP) render
- * them in the user's language and with the right "what to do next" for
- * their surface (a shell command vs. a tool name). Developer-only errors
+ * key and parameters instead of prose, so the surfaces (CLI, MCP, the
+ * connector's REST API) render them in the user's language and with the
+ * right "what to do next" for their surface (a shell command, a tool name,
+ * or what a custom UI should tell the parent). Developer-only errors
  * stay plain `Error`s and are rendered as "internal".
  */
 export type Lang = "en" | "sv";
-export type Surface = "cli" | "mcp";
+export type Surface = "cli" | "mcp" | "http";
 
 type Template = (p: Record<string, string>) => string;
 type Catalog = Record<string, Record<Lang, Template>>;
@@ -209,6 +210,45 @@ export const MESSAGES = {
     sv: (p) =>
       `${p.file} skrevs av en nyare version av schoolsoft-agent (format ${p.found}; den här versionen läser upp till ${p.supported}). Filen har lämnats orörd.`,
   },
+  connector_child_refused: {
+    en: () => `This child is not part of this app's connection, or is no longer on the account.`,
+    sv: () =>
+      `Det här barnet ingår inte i den här appens anslutning, eller finns inte längre på kontot.`,
+  },
+  connector_scope_refused: {
+    en: (p) => `This app's connection was not approved for ${p.operation}.`,
+    sv: (p) => `Den här appens anslutning godkändes inte för ${p.operation}.`,
+  },
+  connector_token_invalid: {
+    en: () => `This app's access token is invalid, has expired or was revoked.`,
+    sv: () => `Appens åtkomsttoken är ogiltig, har gått ut eller har återkallats.`,
+  },
+  connector_busy: {
+    en: () => `The connector is busy or shutting down; nothing was read.`,
+    sv: () => `Anslutningen är upptagen eller håller på att stängas; inget lästes.`,
+  },
+  connector_child_changed: {
+    en: () => `The child's session changed while this request waited; nothing was returned.`,
+    sv: () => `Barnets session ändrades medan begäran väntade; inget returnerades.`,
+  },
+  connector_fault: {
+    en: () => `The connector could not complete this request; nothing was returned.`,
+    sv: () => `Anslutningen kunde inte slutföra begäran; inget returnerades.`,
+  },
+  rate_limited: {
+    en: () => `Too many requests from this address in the last minute.`,
+    sv: () => `För många förfrågningar från den här adressen den senaste minuten.`,
+  },
+  origin_refused: {
+    en: () => `Requests from other sites are refused; this API is same-origin only.`,
+    sv: () =>
+      `Förfrågningar från andra webbplatser nekas; det här API:et fungerar bara från samma ursprung.`,
+  },
+  route_not_found: {
+    en: () => `There is no REST route at this address, or it does not accept this method.`,
+    sv: () =>
+      `Det finns ingen REST-väg på den här adressen, eller så tar den inte emot den här metoden.`,
+  },
   input: {
     en: (p) => `Invalid input: ${p.detail}.`,
     sv: (p) => `Ogiltig inmatning: ${p.detail}.`,
@@ -231,160 +271,216 @@ export const HINTS = {
     en: {
       cli: `Run: schoolsoft-agent configure --query "<school name>"`,
       mcp: `Call schoolsoft_find_school with the school's name, then set SCHOOLSOFT_SCHOOL (or re-install with the slug).`,
+      http: `The connector's deployment has no school set; the parent sets SCHOOLSOFT_SCHOOL in the hosting account and restarts it.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent configure --query "<skolans namn>"`,
       mcp: `Anropa schoolsoft_find_school med skolans namn och sätt sedan SCHOOLSOFT_SCHOOL (eller installera om med slug).`,
+      http: `Anslutningens driftsättning saknar skola; föräldern sätter SCHOOLSOFT_SCHOOL i värdkontot och startar om den.`,
     },
   },
   login: {
     en: {
       cli: `Run: schoolsoft-agent login (opens your browser for BankID)`,
       mcp: `Call schoolsoft_login; a browser tab opens for BankID. Tell the user to complete it there.`,
+      http: `Ask the parent to open the connector's owner dashboard and sign in to SchoolSoft again with BankID; this app stays connected.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent login (öppnar webbläsaren för BankID)`,
       mcp: `Anropa schoolsoft_login; en webbläsarflik öppnas för BankID. Be användaren slutföra den där.`,
+      http: `Be föräldern öppna anslutningens ägarsida och logga in på SchoolSoft igen med BankID; den här appen förblir ansluten.`,
     },
   },
   login_web: {
     en: {
       cli: `Run: schoolsoft-agent login --web (a browser window opens for one more BankID)`,
       mcp: `Call schoolsoft_login with web: true; a browser window opens for one more BankID.`,
+      http: `This needs SchoolSoft's web login, which the connector does not offer.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent login --web (ett webbläsarfönster öppnas för ytterligare ett BankID)`,
       mcp: `Anropa schoolsoft_login med web: true; ett webbläsarfönster öppnas för ytterligare ett BankID.`,
+      http: `Det här kräver SchoolSofts webbinloggning, som anslutningen inte erbjuder.`,
     },
   },
   browser_install: {
     en: {
       cli: `Run: schoolsoft-agent browser install (downloads Chromium once), or set SCHOOLSOFT_BROWSER_CDP to a CDP endpoint`,
       mcp: `Ask the user to run "schoolsoft-agent browser install" once (downloads Chromium), or set SCHOOLSOFT_BROWSER_CDP.`,
+      http: `This needs SchoolSoft's web pages, which the connector does not read.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent browser install (laddar ner Chromium en gång), eller sätt SCHOOLSOFT_BROWSER_CDP till en CDP-adress`,
       mcp: `Be användaren köra "schoolsoft-agent browser install" en gång (laddar ner Chromium), eller sätt SCHOOLSOFT_BROWSER_CDP.`,
+      http: `Det här kräver SchoolSofts webbsidor, som anslutningen inte läser.`,
     },
   },
   retry: {
     en: {
       cli: `Try again in a moment; if it keeps failing, run: schoolsoft-agent doctor`,
       mcp: `Try again in a moment; if it keeps failing, ask the user to run "schoolsoft-agent doctor".`,
+      http: `Try again in a moment; if it keeps failing, ask the parent to check the connector's owner dashboard.`,
     },
     sv: {
       cli: `Försök igen om en stund; om det fortsätter, kör: schoolsoft-agent doctor`,
       mcp: `Försök igen om en stund; om det fortsätter, be användaren köra "schoolsoft-agent doctor".`,
+      http: `Försök igen om en stund; om det fortsätter, be föräldern kontrollera anslutningens ägarsida.`,
     },
   },
   list_children: {
     en: {
       cli: `Run: schoolsoft-agent list-children`,
       mcp: `Call schoolsoft_list_children and use one of the ids.`,
+      http: `Read GET /api/v1/children and use one of the ids.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent list-children`,
       mcp: `Anropa schoolsoft_list_children och använd ett av id:na.`,
+      http: `Läs GET /api/v1/children och använd ett av id:na.`,
     },
   },
   subject_rooms: {
     en: {
       cli: `Run: schoolsoft-agent get-subject-rooms to see the subject names`,
       mcp: `Call schoolsoft_get_subject_rooms to see the subject names.`,
+      http: `Subject names are not available through the connector.`,
     },
     sv: {
       cli: `Kör: schoolsoft-agent get-subject-rooms för att se ämnesnamnen`,
       mcp: `Anropa schoolsoft_get_subject_rooms för att se ämnesnamnen.`,
+      http: `Ämnesnamn är inte tillgängliga via anslutningen.`,
     },
   },
   wait_for_login: {
     en: {
       cli: `Wait for the browser window, then run: schoolsoft-agent auth-status`,
       mcp: `Wait for the user, then call schoolsoft_auth_status.`,
+      http: `Wait for the parent to finish BankID, then read GET /api/v1/session.`,
     },
     sv: {
       cli: `Vänta på webbläsarfönstret och kör sedan: schoolsoft-agent auth-status`,
       mcp: `Vänta på användaren och anropa sedan schoolsoft_auth_status.`,
+      http: `Vänta tills föräldern har slutfört BankID och läs sedan GET /api/v1/session.`,
     },
   },
   free_port: {
     en: {
       cli: `Close the program using the port or set SCHOOLSOFT_CALLBACK_PORT to a free one`,
       mcp: `Ask the user to close the program using the port or set SCHOOLSOFT_CALLBACK_PORT.`,
+      http: `Ask the parent to check the connector's port setting in the hosting account.`,
     },
     sv: {
       cli: `Stäng programmet som använder porten eller sätt SCHOOLSOFT_CALLBACK_PORT till en ledig`,
       mcp: `Be användaren stänga programmet som använder porten eller sätta SCHOOLSOFT_CALLBACK_PORT.`,
+      http: `Be föräldern kontrollera anslutningens portinställning i värdkontot.`,
     },
   },
   enable_writes: {
     en: {
       cli: `To allow it, set SCHOOLSOFT_ALLOW_WRITES=1 (or "allowWrites": true in config.json) and run the command again`,
       mcp: `Only the user can allow it: ask them to set SCHOOLSOFT_ALLOW_WRITES=1 in the server's environment and restart it.`,
+      http: `The connector only reads; changes are made in SchoolSoft itself.`,
     },
     sv: {
       cli: `För att tillåta det, sätt SCHOOLSOFT_ALLOW_WRITES=1 (eller "allowWrites": true i config.json) och kör kommandot igen`,
       mcp: `Bara användaren kan tillåta det: be dem sätta SCHOOLSOFT_ALLOW_WRITES=1 i serverns miljö och starta om den.`,
+      http: `Anslutningen läser bara; ändringar görs direkt i SchoolSoft.`,
     },
   },
   confirm_again: {
     en: {
       cli: `Check in SchoolSoft that nothing was registered, then run the command again with --confirm`,
       mcp: `Ask the user to check in SchoolSoft that nothing was registered; call again with confirm: true only if they ask.`,
+      http: `Check in SchoolSoft that nothing was registered before trying again.`,
     },
     sv: {
       cli: `Kontrollera i SchoolSoft att inget registrerades och kör sedan kommandot igen med --confirm`,
       mcp: `Be användaren kontrollera i SchoolSoft att inget registrerades; anropa igen med confirm: true bara om de ber om det.`,
+      http: `Kontrollera i SchoolSoft att inget registrerades innan du försöker igen.`,
     },
   },
   check_portal: {
     en: {
       cli: `Look in SchoolSoft before trying again; repeating it blindly may report the absence twice`,
       mcp: `Tell the user to look in SchoolSoft first. Do not call again on your own; a repeat may report the absence twice.`,
+      http: `Look in SchoolSoft first; do not repeat the request automatically.`,
     },
     sv: {
       cli: `Titta i SchoolSoft innan du försöker igen; en blind upprepning kan anmäla frånvaron två gånger`,
       mcp: `Be användaren titta i SchoolSoft först. Anropa inte igen på eget initiativ; en upprepning kan anmäla frånvaron två gånger.`,
+      http: `Titta i SchoolSoft först; upprepa inte begäran automatiskt.`,
     },
   },
   update_app: {
     en: {
       cli: `Update schoolsoft-agent to the latest version (npx -y schoolsoft-agent@latest, or npm install -g schoolsoft-agent@latest) and run the command again; do not delete the file`,
       mcp: `Ask the user to update schoolsoft-agent to the latest version and restart this server; the file must not be deleted.`,
+      http: `Ask the parent to update the connector to the latest version; its files must not be deleted.`,
     },
     sv: {
       cli: `Uppdatera schoolsoft-agent till senaste versionen (npx -y schoolsoft-agent@latest, eller npm install -g schoolsoft-agent@latest) och kör kommandot igen; radera inte filen`,
       mcp: `Be användaren uppdatera schoolsoft-agent till senaste versionen och starta om den här servern; filen får inte raderas.`,
+      http: `Be föräldern uppdatera anslutningen till senaste versionen; dess filer får inte raderas.`,
     },
   },
   fix_input: {
     en: {
       cli: `Check the flags (schoolsoft-agent <command> --help)`,
       mcp: `Check the arguments against the tool's input schema.`,
+      http: `Check the path and query parameters against the REST reference.`,
     },
     sv: {
       cli: `Kontrollera flaggorna (schoolsoft-agent <kommando> --help)`,
       mcp: `Kontrollera argumenten mot verktygets schema.`,
+      http: `Kontrollera sökvägen och frågeparametrarna mot REST-referensen.`,
     },
   },
   update_or_report: {
     en: {
       cli: `Retrying will not help. Update schoolsoft-agent; if the newest version fails too, run schoolsoft-agent doctor and open an issue naming this operation`,
       mcp: `Retrying will not help. Tell the user the school portal changed: they should update schoolsoft-agent, or report the operation named here if the newest version fails too.`,
+      http: `Retrying will not help. The school portal changed: ask the parent to update the connector, or report the operation named here if the newest version fails too.`,
     },
     sv: {
       cli: `Att försöka igen hjälper inte. Uppdatera schoolsoft-agent; om även den senaste versionen misslyckas, kör schoolsoft-agent doctor och öppna ett ärende som nämner den här åtgärden`,
       mcp: `Att försöka igen hjälper inte. Berätta för användaren att skolportalen har ändrats: de bör uppdatera schoolsoft-agent, eller rapportera åtgärden som nämns här om även den senaste versionen misslyckas.`,
+      http: `Att försöka igen hjälper inte. Skolportalen har ändrats: be föräldern uppdatera anslutningen, eller rapportera åtgärden som nämns här om även den senaste versionen misslyckas.`,
     },
   },
   report_bug: {
     en: {
       cli: `This looks like a bug: run schoolsoft-agent doctor and open an issue with its output`,
       mcp: `This looks like a bug; ask the user to run "schoolsoft-agent doctor" and report it.`,
+      http: `This looks like a bug in the connector; ask the parent to restart it and report the problem if it continues.`,
     },
     sv: {
       cli: `Det här ser ut som en bugg: kör schoolsoft-agent doctor och öppna ett ärende med utskriften`,
       mcp: `Det här ser ut som en bugg; be användaren köra "schoolsoft-agent doctor" och rapportera det.`,
+      http: `Det här ser ut som en bugg i anslutningen; be föräldern starta om den och rapportera problemet om det fortsätter.`,
+    },
+  },
+  reconnect: {
+    en: {
+      cli: `Connect the app again and allow this on the connector's approval page`,
+      mcp: `Ask the user to connect this app again and allow it on the connector's approval page.`,
+      http: `Ask the parent to connect this app again and allow it on the connector's approval page.`,
+    },
+    sv: {
+      cli: `Anslut appen igen och tillåt det här på anslutningens godkännandesida`,
+      mcp: `Be användaren ansluta appen igen och tillåta det på anslutningens godkännandesida.`,
+      http: `Be föräldern ansluta appen igen och tillåta det på anslutningens godkännandesida.`,
+    },
+  },
+  reauthorize: {
+    en: {
+      cli: `Get a new access token with the refresh token; if that is refused, connect the app again`,
+      mcp: `Get a new access token with the refresh token; if that is refused, connect this app again.`,
+      http: `Get a new access token with the refresh token; if that is refused, connect this app again.`,
+    },
+    sv: {
+      cli: `Hämta en ny åtkomsttoken med förnyelsetoken; om det nekas, anslut appen igen`,
+      mcp: `Hämta en ny åtkomsttoken med förnyelsetoken; om det nekas, anslut appen igen.`,
+      http: `Hämta en ny åtkomsttoken med förnyelsetoken; om det nekas, anslut appen igen.`,
     },
   },
 } satisfies Record<string, Record<Lang, Record<Surface, string>>>;

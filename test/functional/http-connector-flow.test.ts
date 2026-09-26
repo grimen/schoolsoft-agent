@@ -21,7 +21,7 @@ import {
   FAKE_UPSTREAM_SECRETS,
 } from "../packaging/connector-smoke/fake-upstream.mjs";
 
-test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and throttling agree end to end", async (t) => {
+test("owner sign-in, OAuth consent, scoped MCP and REST reads, rotation, revocation and throttling agree end to end", async (t) => {
   const stateDir = mkdtempSync(join(tmpdir(), "connector-flow-"));
   const config = connectorConfig({
     SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
@@ -46,7 +46,7 @@ test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and t
       origin: config.publicUrl,
       adminPassword: config.adminPassword,
     });
-    assert.equal(steps.length, 11);
+    assert.equal(steps.length, 12);
     // The limited grant never reached the calendar endpoints; only the full grant did, once.
     const agenda = upstream.calls.filter((call) => call.includes("/agenda"));
     assert.deepEqual(agenda, [
@@ -54,8 +54,9 @@ test("owner sign-in, OAuth consent, scoped MCP reads, rotation, revocation and t
       "GET /rest-api/parent/calendar/event/agenda",
     ]);
     // The refused child never became the session's child in focus under the limited grant:
-    // every weekly-schedule read was for the approved child (asserted in the flow by its echo).
-    assert.equal(upstream.calls.filter((call) => call.includes("/lessons/week/")).length, 1);
+    // every weekly-schedule read was for the approved child (asserted in the flow by its echo):
+    // one through MCP, one through REST with fresh=true (the refused REST read never left).
+    assert.equal(upstream.calls.filter((call) => call.includes("/lessons/week/")).length, 2);
     const files = readdirSync(stateDir);
     assert.deepEqual(files.sort(), ["history.enc", "identity.enc", "oauth.enc", "session.enc"]);
     for (const file of files) {

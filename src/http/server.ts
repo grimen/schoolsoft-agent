@@ -8,13 +8,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
-import { AgentError, operations } from "../core/index.js";
+import { AgentError, operations, type Lang } from "../core/index.js";
 import type { ConnectorConfig } from "./config.js";
 import type { ConnectorOAuthProvider } from "./oauth.js";
 import { CONNECTOR_OPERATIONS, type ConnectorRuntime } from "./runtime.js";
 import { OwnerSessions } from "./owner-session.js";
 import { clientKey } from "./client-key.js";
 import { escapeHtml as esc, page, form, hidden, signInHistory } from "./pages.js";
+import { restApi } from "./rest.js";
+import { API_BASE } from "./routes.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
@@ -22,6 +24,8 @@ export interface ServerOptions {
   sessions?: OwnerSessions;
   /** Operator-facing notices; never receives request data. Default: stderr. */
   warn?: (message: string) => void;
+  /** Language of REST problem details when the caller names neither sv nor en. */
+  lang?: Lang;
 }
 function sameToken(received: unknown, expected: string): boolean {
   if (typeof received !== "string") return false;
@@ -36,6 +40,7 @@ export function createConnectorApp({
   runtime,
   sessions = new OwnerSessions(config.adminPassword),
   warn = (message) => void process.stderr.write(message + "\n"),
+  lang = "en",
 }: ServerOptions) {
   const app = express();
   app.disable("x-powered-by");
@@ -368,6 +373,11 @@ export function createConnectorApp({
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
     },
+  );
+  // Read-only REST for custom UIs: same tokens, scopes, grants and runtime as /mcp.
+  app.use(
+    API_BASE,
+    restApi({ publicUrl: config.publicUrl, oauth, runtime, lang, limit: perMinute }),
   );
   app.use((_req, res) => {
     res.status(404).send(page("Page not found", '<p><a href="/owner">Open your connector</a></p>'));

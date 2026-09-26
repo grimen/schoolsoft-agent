@@ -36,6 +36,22 @@ export interface ConnectorRuntimeOptions {
   keepaliveDeps?: Pick<KeepaliveDeps, "timer" | "random" | "hourOf" | "fetchImpl" | "log">;
 }
 export type LoginFailure = "expired" | "cancelled" | "different_guardian" | "upstream";
+/**
+ * Why the runtime refused a request that was well-formed: the child is outside the
+ * grant or no longer on the account, the connector is busy or closing, or the child in
+ * focus moved while the request waited. Still an input error with the same message (the
+ * MCP surface is unchanged); the reason lets an adapter answer with a precise status
+ * without parsing prose.
+ */
+export type RefusalReason = "child" | "unavailable" | "child_changed";
+export class ConnectorRefusedError extends InputError {
+  constructor(
+    readonly reason: RefusalReason,
+    detail: string,
+  ) {
+    super(detail);
+  }
+}
 export interface ExecutionAuthorization {
   check?: () => void;
   signal?: AbortSignal;
@@ -184,6 +200,8 @@ export class ConnectorRuntime {
     loginInProgress: boolean;
     children: { id: number; name: string }[];
     loginError?: LoginFailure;
+    /** Whether a gated web-login session is stored (only reported while signed in). */
+    webSession?: boolean;
     /** Observed SchoolSoft sign-in lifetimes: timestamps and counters only. */
     sessionHistory?: SessionHistorySummary | null;
   }> {
@@ -202,6 +220,7 @@ export class ConnectorRuntime {
         return {
           authenticated: true,
           loginInProgress: false,
+          webSession: this.manager.getWebSession() !== null,
           sessionHistory: this.manager.sessionHistory(),
           children: this.manager
             .guardian()
@@ -226,10 +245,12 @@ export class ConnectorRuntime {
     authorization: ExecutionAuthorization = {},
   ): Promise<unknown> {
     if (this.outstanding >= 16)
-      return Promise.reject(new InputError("Connector is busy. Try again shortly."));
+      return Promise.reject(
+        new ConnectorRefusedError("unavailable", "Connector is busy. Try again shortly."),
+      );
     this.outstanding++;
     const check = () => {
-      if (this.closed) throw new InputError("Connector is closed.");
+      if (this.closed) throw new ConnectorRefusedError("unavailable", "Connector is closed.");
       if (authorization.signal?.aborted) throw new InputError("Request cancelled.");
       authorization.check?.();
     };
@@ -240,6 +261,13 @@ export class ConnectorRuntime {
       const operation = getOperation(name)!;
       const parsed = z.object(operation.input).strict().safeParse(args);
       if (!parsed.success) throw new InputError("Check the operation arguments.");
+      const requested = parsed.data.child_id as number | undefined;
+      // A child named outside the grant is refused before the session is even restored.
+      if (requested !== undefined && !allowedChildIds.includes(requested))
+        throw new ConnectorRefusedError(
+          "child",
+          "This child was not permitted for this connection.",
+        );
       await this.manager.ensureSession();
       this.checkIdentity();
       const guardian = this.manager.guardian();
@@ -247,7 +275,10 @@ export class ConnectorRuntime {
         allowedChildIds.includes(child.studentId),
       );
       if (!permitted.length)
-        throw new InputError("No permitted children. Reconnect and choose a child.");
+        throw new ConnectorRefusedError(
+          "child",
+          "No permitted children. Reconnect and choose a child.",
+        );
       if (name === "list_children") {
         check();
         return {
@@ -261,9 +292,12 @@ export class ConnectorRuntime {
             : null,
         };
       }
-      const childId = (parsed.data.child_id as number | undefined) ?? guardian.childInFocus;
+      const childId = requested ?? guardian.childInFocus;
       if (!permitted.some((child) => child.studentId === childId))
-        throw new InputError("This child was not permitted for this connection.");
+        throw new ConnectorRefusedError(
+          "child",
+          "This child was not permitted for this connection.",
+        );
       const validateChild = () => {
         check();
         this.checkIdentity();
@@ -271,14 +305,18 @@ export class ConnectorRuntime {
           !allowedChildIds.includes(childId) ||
           !this.manager.guardian().children.some((child) => child.studentId === childId)
         )
-          throw new InputError(
+          throw new ConnectorRefusedError(
+            "child",
             "This child is no longer permitted or available. Reconnect and choose a child.",
           );
       };
       const validateFocus = () => {
         validateChild();
         if (this.manager.guardian().childInFocus !== childId)
-          throw new InputError("The child's session changed. Try again.");
+          throw new ConnectorRefusedError(
+            "child_changed",
+            "The child's session changed. Try again.",
+          );
       };
       validateChild();
       await this.manager.focusChild(childId);
