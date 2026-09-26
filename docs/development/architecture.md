@@ -51,7 +51,9 @@ Each AI app gets OAuth authorization for selected read operations and children.
 Unknown or unapproved children are rejected before focusing or fetching, including
 an unapproved default child. Listing children returns only the approved subset.
 Owner login, CSRF protection, OAuth grants and encrypted persistent state belong to
-the HTTP adapter. Per-app revocation is separate from SchoolSoft logout.
+the HTTP adapter. Per-caller limits key on the socket address unless the deployment declares its
+proxy hops (`SCHOOLSOFT_PROXY_HOPS`, default 0), with IPv6 callers grouped by /64; the
+correct owner password is never rate limited, so its randomness is the guess protection. Per-app revocation is separate from SchoolSoft logout.
 
 The deployment is one process per private state volume. The storage key comes from
 the parent's deployment environment; the project author operates no central service.
@@ -59,7 +61,11 @@ Hosting administrators may access plaintext during use, and requested results en
 the AI provider's conversation. See [parent setup and trust boundaries](../deployment/connector.md).
 
 The connector is a release candidate with offline security, lifecycle and protocol
-tests. HTTP modules are included in the 100% coverage gate. This does not establish
+tests. HTTP modules are included in the 100% coverage gate. One scripted scenario
+(`test/packaging/connector-smoke/flow.mjs`) walks the whole parent journey over HTTP
+with the portal replaced at the injected fetch seam: the functional suite runs it
+against the in-process composition, and `make connector-smoke` replays it inside the
+Docker image with `--network none`. This does not establish
 real SchoolSoft callback compatibility, BankID on the same phone, or acceptance by
 actual Claude/ChatGPT accounts. Those checks remain explicit before calling the
 parent deployment supported.

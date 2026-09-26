@@ -1,12 +1,12 @@
 /** Composition root for one parent-owned connector process. */
 import { resolveConfig, type SessionDeps, type PersistedSession } from "../core/index.js";
-import { connectorConfig } from "./config.js";
+import { connectorConfig, type ConnectorConfig } from "./config.js";
 import { EncryptedRepository } from "./storage.js";
 import { ConnectorOAuthProvider, type OAuthState } from "./oauth.js";
 import { ConnectorRuntime, CONNECTOR_OPERATIONS } from "./runtime.js";
 import { createConnectorApp } from "./server.js";
-export function startConnector(env: Record<string, string | undefined>, deps?: SessionDeps) {
-  const config = connectorConfig(env);
+/** The object graph without a listener, so callers choose where (and whether) to listen. */
+export function composeConnector(config: ConnectorConfig, deps?: SessionDeps) {
   const session = new EncryptedRepository<PersistedSession>(
     config.stateDir,
     "session",
@@ -32,7 +32,11 @@ export function startConnector(env: Record<string, string | undefined>, deps?: S
     deps,
     redirectUri: config.publicUrl + "/schoolsoft/callback",
   });
-  const app = createConnectorApp({ config, oauth, runtime });
+  return { app: createConnectorApp({ config, oauth, runtime }), runtime };
+}
+export function startConnector(env: Record<string, string | undefined>, deps?: SessionDeps) {
+  const config = connectorConfig(env);
+  const { app, runtime } = composeConnector(config, deps);
   const server = app.listen(config.port, "0.0.0.0");
   return { server, runtime };
 }

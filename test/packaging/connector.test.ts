@@ -19,10 +19,13 @@ test("connector deployment recipes retain private state and require independent 
     "SCHOOLSOFT_ADMIN_PASSWORD",
     "SCHOOLSOFT_STORAGE_KEY",
     "SCHOOLSOFT_STATE_DIR",
+    "SCHOOLSOFT_PROXY_HOPS",
   ]) {
     assert.ok(render.includes(key), `Render misses ${key}`);
     assert.ok(compose.includes(key), `Compose misses ${key}`);
   }
+  // The connector trusts no forwarding header by default; each proxied recipe opts in.
+  assert.match(read("compose.cloudflare.yaml"), /SCHOOLSOFT_PROXY_HOPS: "1"/);
   assert.match(render, /numInstances: 1/);
   assert.match(render, /autoDeployTrigger: off/);
   assert.match(render, /mountPath: \/data/);

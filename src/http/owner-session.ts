@@ -4,30 +4,40 @@ export interface OwnerSession {
   csrf: string;
   expires: number;
 }
+/** Longest admin password in UTF-8 bytes; config.ts refuses longer ones before this is built. */
+export const OWNER_PASSWORD_MAX_BYTES = 1022;
+// Both sides of the comparison are laid out in one fixed-size slot, a two-byte length
+// followed by the bytes and zero padding, so neither the length nor the content of the
+// deployment secret is observable through timing. No hash is involved: nothing is stored,
+// and the secret is a high-entropy deployment value, not a user's password. A candidate
+// that is too long keeps its true (unreachable) length, so it can never match.
+function slot(value: string): Buffer {
+  const bytes = Buffer.from(value);
+  const out = Buffer.alloc(2 + OWNER_PASSWORD_MAX_BYTES);
+  out.writeUInt16BE(Math.min(bytes.length, 0xffff));
+  bytes.copy(out, 2, 0, OWNER_PASSWORD_MAX_BYTES);
+  return out;
+}
 export class OwnerSessions {
   private sessions = new Map<string, OwnerSession>();
-  private readonly passwordBytes: Buffer;
-  private attempts = new Map<string, number[]>();
+  private readonly passwordSlot: Buffer;
   constructor(
     password: string,
     private now: () => number = Date.now,
   ) {
-    this.passwordBytes = Buffer.from(password);
+    this.passwordSlot = slot(password);
   }
-  login(password: unknown, client = "local"): { token: string; session: OwnerSession } | undefined {
+  /** Constant-time check of a candidate; anything but a string never matches. */
+  matches(password: unknown): boolean {
+    return typeof password === "string" && timingSafeEqual(slot(password), this.passwordSlot);
+  }
+  // A correct password is never refused: any per-address refusal would let whoever
+  // shares the owner's address keep the owner out. Guessing is made impractical by the
+  // enforced 32+ character deployment secret, and wrong-password floods are bounded by
+  // the route's rate limiter in server.ts, which requests carrying the secret bypass.
+  login(password: unknown): { token: string; session: OwnerSession } | undefined {
+    if (!this.matches(password)) return undefined;
     const now = this.now();
-    const attempts = (this.attempts.get(client) ?? []).filter((t) => t > now - 60_000);
-    if (attempts.length >= 5) return undefined;
-    if (this.attempts.size >= 1024) this.attempts.delete(this.attempts.keys().next().value!);
-    this.attempts.set(client, [...attempts, now]);
-    // This is a high-entropy deployment secret, not a stored user-password hash.
-    if (typeof password !== "string") return undefined;
-    const candidate = Buffer.from(password);
-    if (
-      candidate.length !== this.passwordBytes.length ||
-      !timingSafeEqual(candidate, this.passwordBytes)
-    )
-      return undefined;
     for (const [token, session] of this.sessions)
       if (session.expires <= now) this.sessions.delete(token);
     if (this.sessions.size >= 16) this.sessions.clear();

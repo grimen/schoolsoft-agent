@@ -5,11 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectorConfig } from "../../src/http/config.js";
 import { EncryptedRepository } from "../../src/http/storage.js";
-import { OwnerSessions } from "../../src/http/owner-session.js";
+import { OwnerSessions, OWNER_PASSWORD_MAX_BYTES } from "../../src/http/owner-session.js";
+import { clientKey } from "../../src/http/client-key.js";
 import { escapeHtml, page, form, hidden } from "../../src/http/pages.js";
 const env = {
   SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
-  SCHOOLSOFT_ADMIN_PASSWORD: "p".repeat(32),
+  SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
   SCHOOLSOFT_STORAGE_KEY: "a".repeat(64),
   SCHOOLSOFT_SCHOOL: "example",
 };
@@ -41,7 +42,9 @@ test("connector settings reject unsafe/missing configuration without disclosing 
   assert.throws(() =>
     connectorConfig({ ...env, SCHOOLSOFT_PUBLIC_URL: "https://:pw@example.com" }),
   );
-  for (const password of [undefined, "short"])
+  // Length alone is not enough: a correct password is never throttled, so the secret's
+  // unpredictability is the guess protection and typed-in patterns are refused.
+  for (const password of [undefined, "short", "p".repeat(32), "abcdefg".repeat(5)])
     assert.throws(() => connectorConfig({ ...env, SCHOOLSOFT_ADMIN_PASSWORD: password }));
   for (const key of [
     undefined,
@@ -87,7 +90,7 @@ test("encrypted repository authenticates files, writes atomically and survives r
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test("owner sessions bound attempts, expire, discard malformed cookies and reset", () => {
+test("owner sessions never refuse the correct password, expire, discard malformed cookies and reset", () => {
   let now = 0;
   const sessions = new OwnerSessions("correct", () => now);
   assert.equal(sessions.get(undefined), undefined);
@@ -98,11 +101,12 @@ test("owner sessions bound attempts, expire, discard malformed cookies and reset
   const result = sessions.login("correct")!;
   assert.ok(result);
   assert.equal(sessions.get("other=x; __Host-owner=" + result.token), result.session);
-  assert.equal(sessions.login("wrong"), undefined);
-  assert.equal(sessions.login("wrong"), undefined);
-  assert.equal(sessions.login("correct"), undefined);
-  now += 60_001;
+  // However many guesses came before, from whomever: the owner still gets in.
+  for (let i = 0; i < 100; i++) assert.equal(sessions.login("wrong-" + i), undefined);
   assert.ok(sessions.login("correct"));
+  assert.equal(sessions.matches("correct"), true);
+  assert.equal(sessions.matches("wrong"), false);
+  assert.equal(sessions.matches(["correct"]), false);
   now += 30 * 60_000;
   assert.equal(sessions.get("__Host-owner=" + result.token), undefined);
   for (let i = 0; i < 18; i++) {
@@ -114,6 +118,42 @@ test("owner sessions bound attempts, expire, discard malformed cookies and reset
   assert.equal(sessions.get("__Host-owner=" + last.token), undefined);
   assert.ok(new OwnerSessions("a").login("a"));
 });
+test("owner password comparison rejects wrong-length, same-length and non-string candidates", () => {
+  const secret = "synthetic-owner-secret-0123456789abcdef";
+  const attempt = (sessions: OwnerSessions, candidate: unknown) => sessions.login(candidate);
+  const sessions = new OwnerSessions(secret, () => 0);
+  for (const wrongLength of ["", "s", secret.slice(0, -1), secret + "x", secret.repeat(2)])
+    assert.equal(attempt(sessions, wrongLength), undefined, JSON.stringify(wrongLength));
+  const sameLength = secret.slice(0, -1) + "X";
+  assert.equal(sameLength.length, secret.length);
+  assert.equal(attempt(sessions, sameLength), undefined);
+  assert.equal(attempt(sessions, "X" + secret.slice(1)), undefined);
+  for (const nonString of [undefined, null, 12, true, [secret], { password: secret }])
+    assert.equal(attempt(sessions, nonString), undefined, JSON.stringify(nonString));
+  assert.ok(attempt(sessions, secret));
+  // Multi-byte secrets compare by bytes; a different string of equal UTF-16 length fails.
+  const unicode = new OwnerSessions("lösenord-åäö", () => 0);
+  assert.equal(unicode.login("losenord-aao"), undefined);
+  assert.ok(unicode.login("lösenord-åäö"));
+  // The fixed slot: zero padding is not part of the secret, and a candidate longer than
+  // the slot never matches, also when it starts with the secret or fills the slot exactly.
+  assert.equal(attempt(sessions, secret + "\0"), undefined);
+  assert.equal(attempt(sessions, secret + "x".repeat(OWNER_PASSWORD_MAX_BYTES)), undefined);
+  assert.equal(attempt(sessions, secret + "x".repeat(70_000)), undefined);
+  const longest = "k".repeat(OWNER_PASSWORD_MAX_BYTES);
+  const full = new OwnerSessions(longest, () => 0);
+  assert.ok(full.login(longest));
+  assert.equal(full.login(longest + "k"), undefined);
+  assert.equal(full.login(longest.slice(1)), undefined);
+  assert.throws(
+    () =>
+      connectorConfig({
+        ...env,
+        SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-0123456789".repeat(60),
+      }),
+    /at most 1022 bytes/,
+  );
+});
 test("HTML rendering escapes every interpolated field", () => {
   assert.equal(escapeHtml("&<>\"'"), "&amp;&lt;&gt;&quot;&#39;");
   assert.match(page("<script>", "<p>trusted</p>"), /&lt;script&gt;/);
@@ -121,19 +161,25 @@ test("HTML rendering escapes every interpolated field", () => {
   assert.match(hidden("<", '"'), /&lt;/);
 });
 
-test("owner throttling separates callers and dashboard sign-out preserves other sessions", () => {
+test("dashboard sign-out preserves other sessions; proxy hops default to none and are bounded", () => {
   const sessions = new OwnerSessions("correct", () => 0);
-  for (let i = 0; i < 5; i++) assert.equal(sessions.login("wrong", "attacker"), undefined);
-  assert.equal(sessions.login("correct", "attacker"), undefined);
-  const owner = sessions.login("correct", "owner")!;
-  const other = sessions.login("correct", "other")!;
+  const owner = sessions.login("correct")!;
+  const other = sessions.login("correct")!;
   sessions.logout("__Host-owner=" + owner.token);
   assert.equal(sessions.get("__Host-owner=" + owner.token), undefined);
   assert.ok(sessions.get("__Host-owner=" + other.token));
   sessions.logout(undefined);
-  for (let i = 0; i < 1025; i++) sessions.login("wrong", "client-" + i);
-  assert.ok(sessions.login("correct", "new-owner"));
   for (const hops of ["bad", "-1", "3", "1.5"])
     assert.throws(() => connectorConfig({ ...env, SCHOOLSOFT_PROXY_HOPS: hops }));
-  assert.equal(connectorConfig({ ...env, SCHOOLSOFT_PROXY_HOPS: "0" }).proxyHops, 0);
+  assert.equal(connectorConfig(env).proxyHops, 0, "no forwarding header is trusted by default");
+  assert.equal(connectorConfig({ ...env, SCHOOLSOFT_PROXY_HOPS: "2" }).proxyHops, 2);
+});
+
+test("callers are keyed by IPv4 address or IPv6 /64 so address rotation shares one budget", () => {
+  assert.equal(clientKey("203.0.113.7"), "203.0.113.7");
+  assert.equal(clientKey("::ffff:203.0.113.7"), "203.0.113.7");
+  assert.notEqual(clientKey("203.0.113.7"), clientKey("203.0.113.8"));
+  assert.equal(clientKey("2001:db8:1:2::1"), clientKey("2001:db8:1:2:ffff:ffff:ffff:ffff"));
+  assert.notEqual(clientKey("2001:db8:1:2::1"), clientKey("2001:db8:1:3::1"));
+  assert.equal(clientKey(undefined), "unknown");
 });

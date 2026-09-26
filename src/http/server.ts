@@ -1,32 +1,58 @@
 /* oxlint-disable oxc/no-async-endpoint-handlers -- Express 5 forwards rejected promises; http-owner.test.ts verifies sanitized failures. */
 /** HTTP transport and owner-only routes. School data is accessed only through the runtime. */
-import { rateLimit } from "express-rate-limit";
+import { timingSafeEqual } from "node:crypto";
+import { rateLimit, type Options as RateLimitOptions } from "express-rate-limit";
 import express, { type Request, type Response, type NextFunction } from "express";
+import { OAuthError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { mcpAuthRouter } from "@modelcontextprotocol/sdk/server/auth/router.js";
 import { requireBearerAuth } from "@modelcontextprotocol/sdk/server/auth/middleware/bearerAuth.js";
-import { operations } from "../core/index.js";
+import { AgentError, operations } from "../core/index.js";
 import type { ConnectorConfig } from "./config.js";
 import type { ConnectorOAuthProvider } from "./oauth.js";
 import { CONNECTOR_OPERATIONS, type ConnectorRuntime } from "./runtime.js";
 import { OwnerSessions } from "./owner-session.js";
+import { clientKey } from "./client-key.js";
 import { escapeHtml as esc, page, form, hidden } from "./pages.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
   runtime: Pick<ConnectorRuntime, "beginLogin" | "callback" | "status" | "execute" | "logout">;
   sessions?: OwnerSessions;
+  /** Operator-facing notices; never receives request data. Default: stderr. */
+  warn?: (message: string) => void;
+}
+function sameToken(received: unknown, expected: string): boolean {
+  if (typeof received !== "string") return false;
+  const a = Buffer.from(received);
+  const b = Buffer.from(expected);
+  // The token length is public (fixed by its generator); only its content is secret.
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 export function createConnectorApp({
   config,
   oauth,
   runtime,
   sessions = new OwnerSessions(config.adminPassword),
+  warn = (message) => void process.stderr.write(message + "\n"),
 }: ServerOptions) {
   const app = express();
   app.disable("x-powered-by");
-  app.set("trust proxy", config.proxyHops ?? 1);
+  app.set("trust proxy", config.proxyHops);
+  // With no trusted hop every caller is keyed by its socket address. A forwarding header
+  // then means a proxy is in front that was not declared: all visitors share the proxy's
+  // budget until SCHOOLSOFT_PROXY_HOPS says how many hops to trust. Say so once.
+  let warnedForwarded = config.proxyHops !== 0;
+  app.use((req, _res, next) => {
+    if (!warnedForwarded && req.headers["x-forwarded-for"] !== undefined) {
+      warnedForwarded = true;
+      warn(
+        "Connector notice: a request carried X-Forwarded-For but SCHOOLSOFT_PROXY_HOPS is 0, so it was ignored. If a reverse proxy or tunnel is in front of this service, set SCHOOLSOFT_PROXY_HOPS to the number of proxies you operate or trust; see the parent connector guide.",
+      );
+    }
+    next();
+  });
   app.use((_req, res, next) => {
     res.set({
       "Cache-Control": "no-store",
@@ -53,12 +79,26 @@ export function createConnectorApp({
   app.get("/", (_req, res) => {
     res.redirect("/owner");
   });
-  const ownerAuthLimit = rateLimit({
-    windowMs: 60_000,
-    limit: 20,
-    standardHeaders: "draft-8",
-    legacyHeaders: false,
-  });
+  // Every per-caller limit uses the same address normalisation (IPv6 by /64). The
+  // library's forwarding-header check is replaced by the single notice above.
+  const perCaller: Partial<RateLimitOptions> = {
+    keyGenerator: (req) => clientKey(req.ip),
+    validate: { xForwardedForHeader: false, keyGeneratorIpFallback: false },
+  };
+  const perMinute = (extra: Partial<RateLimitOptions> = {}) =>
+    rateLimit({
+      windowMs: 60_000,
+      limit: 20,
+      standardHeaders: "draft-8",
+      legacyHeaders: false,
+      ...perCaller,
+      ...extra,
+    });
+  // Flood guard for wrong passwords. A request carrying the owner's secret bypasses it,
+  // so nobody who shares the owner's address can keep the owner out (see OwnerSessions).
+  const ownerLoginLimit = perMinute({ skip: (req) => sessions.matches(req.body?.password) });
+  // Reachable only with an owner session; separate so login floods cannot spend it.
+  const upstreamLoginLimit = perMinute();
   app.get("/owner/login", (req, res) => {
     const request = typeof req.query.request === "string" ? req.query.request : "";
     res.send(
@@ -68,12 +108,12 @@ export function createConnectorApp({
       ),
     );
   });
-  app.post("/owner/login", ownerAuthLimit, (req, res) => {
+  app.post("/owner/login", ownerLoginLimit, (req, res) => {
     if (req.get("origin") !== config.publicUrl) {
       res.status(403).end();
       return;
     }
-    const result = sessions.login(req.body.password, req.ip);
+    const result = sessions.login(req.body?.password);
     if (!result) {
       res
         .status(401)
@@ -112,14 +152,14 @@ export function createConnectorApp({
     res.locals.csrf = session.csrf;
     if (
       req.method === "POST" &&
-      (req.get("origin") !== config.publicUrl || req.body.csrf !== session.csrf)
+      (req.get("origin") !== config.publicUrl || !sameToken(req.body?.csrf, session.csrf))
     ) {
       res.status(403).end();
       return;
     }
     next();
   });
-  app.get("/owner", async (_req, res) => {
+  app.get("/owner", async (req, res) => {
     const status = await runtime.status();
     const csrf = res.locals.csrf as string;
     const loginMessage = status.loginError
@@ -135,7 +175,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Your SchoolSoft connector",
-        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><h2>Connected apps</h2>${oauth
+        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
           .listGrants()
           .map(
             (g) =>
@@ -147,7 +187,7 @@ export function createConnectorApp({
       ),
     );
   });
-  app.post("/owner/schoolsoft/login", ownerAuthLimit, async (_req, res) => {
+  app.post("/owner/schoolsoft/login", upstreamLoginLimit, async (_req, res) => {
     const { url } = await runtime.beginLogin();
     res.send(
       page(
@@ -156,7 +196,11 @@ export function createConnectorApp({
       ),
     );
   });
-  app.get("/schoolsoft/callback", (req, res) => {
+  // Unauthenticated by design (the portal redirects the parent's browser here), so bound
+  // state guessing per caller. Separate from ownerAuthLimit: returning from BankID must
+  // not spend the owner's login budget, and the reverse.
+  const callbackLimit = perMinute();
+  app.get("/schoolsoft/callback", callbackLimit, (req, res) => {
     if (
       typeof req.query.state !== "string" ||
       typeof req.query.code !== "string" ||
@@ -201,7 +245,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Choose what this app may read",
-        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Select at least one child. The selected data will be sent to your AI provider when you use these tools.</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
+        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. The selected data will be sent to your AI provider when you use these tools.</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
       ),
     );
   });
@@ -253,6 +297,10 @@ export function createConnectorApp({
       issuerUrl: new URL(config.publicUrl),
       resourceServerUrl: new URL(config.publicUrl + "/mcp"),
       scopesSupported: [...CONNECTOR_OPERATIONS],
+      authorizationOptions: { rateLimit: perCaller },
+      tokenOptions: { rateLimit: perCaller },
+      clientRegistrationOptions: { rateLimit: perCaller },
+      revocationOptions: { rateLimit: perCaller },
     }),
   );
   app.all(
@@ -324,13 +372,32 @@ export function createConnectorApp({
   app.use((_req, res) => {
     res.status(404).send(page("Page not found", '<p><a href="/owner">Open your connector</a></p>'));
   });
-  app.use((_error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((error: unknown, _req: Request, res: Response, _next: NextFunction) => {
+    // The caller's mistake: an OAuth protocol error, a rejected input, or a body the
+    // parsers refused (they attach a 4xx status). Anything else is a fault on this side.
+    const status = (error as { status?: unknown } | null)?.status;
+    const callerFault =
+      error instanceof OAuthError ||
+      (error instanceof AgentError && error.kind === "input") ||
+      (typeof status === "number" && status >= 400 && status < 500);
+    if (callerFault) {
+      res
+        .status(400)
+        .send(
+          page(
+            "Could not complete this step",
+            '<p>Return to your connector and try again. If sign-in has expired, reconnect your AI app.</p><a href="/owner">Open your connector</a>',
+          ),
+        );
+      return;
+    }
+    // No detail leaves the process: the body is fixed and nothing is logged.
     res
-      .status(400)
+      .status(500)
       .send(
         page(
-          "Could not complete this step",
-          '<p>Return to your connector and try again. If sign-in has expired, reconnect your AI app.</p><a href="/owner">Open your connector</a>',
+          "The connector had a problem",
+          '<p>Try again in a moment; if it keeps happening, restart the service in your hosting account.</p><a href="/owner">Open your connector</a>',
         ),
       );
   });

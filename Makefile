@@ -79,6 +79,9 @@ check-package: build ## Package shape (publint) + pack/install smoke of the tarb
 e2e-artifact: build skills mcpb-stage ## Shipped-artifact E2E without SchoolSoft: stdio smoke, CLI spawn, staged mcpb (what CI's E2E stage runs)
 	bash scripts/e2e/artifact-smoke.sh
 
+connector-smoke: ## Build the connector Docker image and run the network-isolated container smokes incl. the full OAuth + MCP flow against a fake portal (skips without Docker)
+	bash scripts/e2e/connector-smoke.sh
+
 e2e: build ## Live E2E against SchoolSoft (needs `configure` + one BankID login; never in CI)
 	npm run test:e2e
 
@@ -180,6 +183,6 @@ help: ## List available targets
 
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
-	e2e-artifact e2e login login-web status logout configure doctor browser browser-verify fingerprints docs diagrams skills mcpb-stage mcpb \
+	e2e-artifact connector-smoke e2e login login-web status logout configure doctor browser browser-verify fingerprints docs diagrams skills mcpb-stage mcpb \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help

@@ -18,7 +18,7 @@ test("production composition writes encrypted login and clears credentials witho
   await once(probe, "close");
   const env = {
     SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
-    SCHOOLSOFT_ADMIN_PASSWORD: "p".repeat(32),
+    SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
     SCHOOLSOFT_STORAGE_KEY: "a".repeat(64),
     SCHOOLSOFT_SCHOOL: "synthetic",
     SCHOOLSOFT_STATE_DIR: dir,

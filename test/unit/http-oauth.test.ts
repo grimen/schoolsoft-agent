@@ -9,7 +9,8 @@ const callback = "https://claude.ai/api/mcp/auth_callback";
 const scopes = ["list_children", "get_schedule", "get_lunch_menu"];
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 let fixtureId = 0;
-function setup(initial?: OAuthState, defaults = false) {
+type Limits = { clients?: number; pending?: number; pendingPerRequester?: number };
+function setup(initial?: OAuthState, defaults = false, limits?: Limits) {
   const fixture = ++fixtureId;
   let clock = 1_000_000;
   let sequence = 0;
@@ -24,6 +25,7 @@ function setup(initial?: OAuthState, defaults = false) {
     resourceUrl: resource.href,
     scopes,
     repository,
+    limits,
     ...(defaults ? {} : { now: () => clock, randomToken: () => `opaque-${fixture}-${++sequence}` }),
   });
   return {
@@ -46,6 +48,7 @@ async function consent(
   p: ConnectorOAuthProvider,
   c: OAuthClientInformationFull,
   custom: Record<string, unknown> = {},
+  ip?: string,
 ) {
   let location = "";
   await p.authorize(
@@ -61,6 +64,7 @@ async function consent(
       redirect: (value: string) => {
         location = value;
       },
+      ...(ip ? { req: { ip } } : {}),
     } as Response,
   );
   return new URL(location, resource).searchParams.get("request")!;
@@ -106,12 +110,37 @@ test("client registration is bounded, copies data and never fetches callback URL
   assert.equal((await s.provider.clientsStore.getClient(c.client_id))!.redirect_uris.length, 1);
   for (const redirect_uris of [[], ["https://evil.example"]])
     assert.throws(() => s.provider.clientsStore.registerClient!({ redirect_uris }));
+});
+test("a full client table evicts the oldest idle registration, never one holding a grant or consent", async () => {
+  const s = await connected(setup(undefined, false, { clients: 4 }));
+  const idleOld = await client(s.provider, "Idle old");
+  s.advance(1000);
+  const waiting = await client(s.provider, "Waiting for consent");
+  const waitingId = await consent(s.provider, waiting);
+  s.advance(1000);
+  const idleNew = await client(s.provider, "Idle new");
+  s.advance(1000);
+  const added = await client(s.provider, "Newcomer");
+  const has = async (c: OAuthClientInformationFull) =>
+    (await s.provider.clientsStore.getClient(c.client_id)) !== undefined;
+  assert.deepEqual(
+    [await has(s.c), await has(idleOld), await has(waiting), await has(idleNew), await has(added)],
+    [true, false, true, true, true],
+  );
+  await s.provider.verifyAccessToken(s.tokens.access_token);
+  s.provider.pending(waitingId);
+  // Registrations without an issue time count as oldest.
   const state = s.state();
-  for (let i = 0; i < 256; i++) state.clients[`client-${i}`] = c;
-  assert.throws(() => clientRegistration(setup(state).provider));
-  function clientRegistration(p: ConnectorOAuthProvider) {
-    p.clientsStore.registerClient!({ redirect_uris: [callback] });
-  }
+  delete state.clients[added.client_id].client_id_issued_at;
+  const reloaded = setup(state, false, { clients: 4 });
+  await client(reloaded.provider, "Another");
+  assert.equal(await reloaded.provider.clientsStore.getClient(added.client_id), undefined);
+  assert.ok(await reloaded.provider.clientsStore.getClient(idleNew.client_id));
+  // Only when every slot is in use is a registration turned away.
+  const busy = await connected(setup(undefined, false, { clients: 2 }));
+  await consent(busy.provider, await client(busy.provider));
+  await assert.rejects(client(busy.provider), /limit reached/);
+  assert.ok(await busy.provider.clientsStore.getClient(busy.c.client_id));
 });
 test("authorization binds scope, callback, resource and PKCE before creating consent", async () => {
   const s = setup();
@@ -154,11 +183,35 @@ test("authorization binds scope, callback, resource and PKCE before creating con
   const expired = await consent(s.provider, c);
   s.advance(600_000);
   assert.throws(() => s.provider.pending(expired));
-  const limited = s.state();
-  const p = limited.pending[expired];
-  p.expiresAt += 600_000;
-  for (let i = 0; i < 128; i++) limited.pending[`pending-${i}`] = p;
-  await assert.rejects(consent(setup(limited).provider, c));
+});
+test("pending consent makes room by displacing the largest requester, so a flood cannot block a parent", async () => {
+  const s = setup(undefined, false, { pending: 4, pendingPerRequester: 3 });
+  const c = await client(s.provider);
+  const alive = (id: string) => {
+    try {
+      s.provider.pending(id);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const parent = await consent(s.provider, c, {}, "203.0.113.5");
+  // One network, rotating inside its IPv6 /64, is one requester with a small share.
+  const flood: string[] = [];
+  for (let i = 1; i <= 3; i++) flood.push(await consent(s.provider, c, {}, `2001:db8:9:9::${i}`));
+  assert.deepEqual([alive(parent), ...flood.map(alive)], [true, true, true, true]);
+  flood.push(await consent(s.provider, c, {}, "2001:db8:9:9::4"));
+  assert.deepEqual([alive(parent), ...flood.map(alive)], [true, false, true, true, true]);
+  // A newcomer at a full table displaces the largest holder's oldest request, not the parent's.
+  const newcomer = await consent(s.provider, c, {}, "198.51.100.1");
+  assert.deepEqual(
+    [alive(parent), alive(newcomer), ...flood.map(alive)],
+    [true, true, false, false, true, true],
+  );
+  // Rejected requests displace nothing.
+  await assert.rejects(consent(s.provider, c, { scopes: ["write"] }, "198.51.100.2"));
+  assert.ok(alive(parent) && alive(newcomer));
+  assert.equal(Object.keys(s.state().pending).length, 4);
 });
 test("codes are one-use, short-lived, PKCE/client/callback/resource bound and stored hashed", async () => {
   const s = setup();
@@ -179,9 +232,6 @@ test("codes are one-use, short-lived, PKCE/client/callback/resource bound and st
   assert.equal(tokens.scope, "get_schedule");
   assert.equal(JSON.stringify(s.state()).includes(tokens.access_token), false);
   assert.equal(JSON.stringify(s.state()).includes(tokens.refresh_token!), false);
-  await assert.rejects(
-    s.provider.exchangeAuthorizationCode(c, code, undefined, callback, resource),
-  );
   const info = await s.provider.verifyAccessToken(tokens.access_token);
   assert.equal(info.clientId, c.client_id);
   assert.equal(info.resource!.href, resource.href);
@@ -195,6 +245,34 @@ test("codes are one-use, short-lived, PKCE/client/callback/resource bound and st
   await assert.rejects(s.provider.challengeForAuthorizationCode(c, nextCode));
   s.advance(240_000);
   await assert.rejects(s.provider.verifyAccessToken(tokens.access_token));
+});
+test("a second use of an authorization code withdraws the tokens issued from it", async () => {
+  const s = await connected();
+  const other = await client(s.provider);
+  const bystander = await connected(s);
+  // Another client presenting the code learns nothing and harms nothing.
+  await assert.rejects(s.provider.challengeForAuthorizationCode(other, s.code));
+  await s.provider.verifyAccessToken(s.tokens.access_token);
+  // The SDK asks for the challenge before it checks PKCE, so a thief without the verifier
+  // is recognised at this first step.
+  await assert.rejects(s.provider.challengeForAuthorizationCode(s.c, s.code), /reused/);
+  await assert.rejects(s.provider.verifyAccessToken(s.tokens.access_token));
+  await assert.rejects(
+    s.provider.exchangeRefreshToken(s.c, s.tokens.refresh_token!, undefined, resource),
+  );
+  await assert.rejects(
+    s.provider.exchangeAuthorizationCode(s.c, s.code, undefined, callback, resource),
+  );
+  assert.deepEqual(
+    s.provider.listGrants().map((grant) => grant.clientId),
+    [bystander.c.client_id],
+  );
+  await s.provider.verifyAccessToken(bystander.tokens.access_token);
+  // The marker lives only as long as the code would have: afterwards it is just unknown.
+  const late = await connected();
+  late.advance(60_000);
+  await assert.rejects(late.provider.challengeForAuthorizationCode(late.c, late.code), /Invalid/);
+  await late.provider.verifyAccessToken(late.tokens.access_token);
 });
 test("refresh rotates tokens, narrows scope, rejects cross-client replay and revokes the family", async () => {
   const s = await connected();
