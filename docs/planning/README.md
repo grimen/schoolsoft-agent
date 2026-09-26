@@ -8,6 +8,7 @@ and [architecture](../development/architecture.md) for the current system.
 
 - [Two-surface foundation](specs/2026-09-06-two-surface-foundation-design.md)
 - [Parent-hosted connectors](specs/2026-09-07-parent-hosted-connectors.md)
+- [Capture probe](specs/2026-09-26-capture-probe.md)
 
 ## Implementation plans
 
