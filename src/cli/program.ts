@@ -1,7 +1,8 @@
 /**
- * CLI surface: one subcommand per operation (kebab-case) plus `configure`
- * and `doctor`. JSON on stdout, one-line errors on stderr, exit codes from
- * exit-codes.ts. Everything external is injected through CliDeps so the
+ * CLI surface: one subcommand per operation (kebab-case) plus `configure`,
+ * `doctor`, `browser` and `setup` (the guided first run, also what a bare
+ * `schoolsoft-agent` starts on an unconfigured terminal). JSON on stdout,
+ * one-line errors on stderr, exit codes from exit-codes.ts. Everything external is injected through CliDeps so the
  * whole program is testable in-process.
  */
 import { Command, CommanderError } from "commander";
@@ -20,6 +21,8 @@ import { EXIT, type ExitCode } from "./exit-codes.js";
 import { registerConfigure } from "./commands/configure.js";
 import { registerDoctor } from "./commands/doctor.js";
 import { registerBrowser } from "./commands/browser.js";
+import { registerSetup, startsGuide } from "./commands/setup.js";
+import { runFirstRun } from "./guide/first-run.js";
 import { emitText, FORMATS } from "./text/emit.js";
 
 export interface CliDeps {
@@ -74,7 +77,9 @@ export function globalOverrides(opts: Record<string, unknown>): ConfigSource {
 
 export function buildProgram(deps: CliDeps): Command {
   const program = new Command("schoolsoft-agent")
-    .description("SchoolSoft for AI agents — guardian access via BankID. Output is JSON.")
+    .description(
+      "SchoolSoft for AI agents — guardian access via BankID. Output is JSON. New here? Run: schoolsoft-agent setup",
+    )
     .version(deps.version)
     .option("--school <slug>", "School slug (overrides config/env), e.g. taby")
     .option("--org-id <id>", "School orgId (rarely needed)")
@@ -134,6 +139,7 @@ export function buildProgram(deps: CliDeps): Command {
   registerConfigure(program, deps, emit);
   registerDoctor(program, deps, emit);
   registerBrowser(program, deps, emit);
+  registerSetup(program, deps, emit);
   return program;
 }
 
@@ -197,7 +203,9 @@ function firstLine(s: string): string {
 export async function runCli(argv: string[], deps: CliDeps): Promise<ExitCode> {
   const program = buildProgram(deps);
   try {
-    await program.parseAsync(argv, { from: "user" });
+    // A person at a terminal with nothing configured gets the guided first run, not the help.
+    if (argv.length === 0 && startsGuide(deps)) await runFirstRun(deps, {}, { login: true });
+    else await program.parseAsync(argv, { from: "user" });
     return EXIT.OK;
   } catch (e) {
     return toExitCode(e, deps.stderr, detectLang(deps.env));

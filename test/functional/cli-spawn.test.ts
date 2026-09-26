@@ -42,3 +42,30 @@ test(
     assert.equal(JSON.parse(fs.stdout).schools[0].orgId, 20);
   },
 );
+
+test(
+  "built CLI, no terminal: bare prints help and exits 6 as before; setup without a school exits 3 and asks nothing",
+  { skip },
+  () => {
+    const cfg = mkdtempSync(join(tmpdir(), "cfg-"));
+    const env = {
+      ...process.env,
+      SCHOOLSOFT_CONFIG_DIR: cfg,
+      SCHOOLSOFT_SCHOOL: "",
+      SCHOOLSOFT_LANG: "en",
+      CI: "",
+    };
+
+    const bare = spawnSync(process.execPath, [bin], { env, encoding: "utf8", input: "" });
+    assert.equal(bare.status, 6, bare.stderr);
+    assert.match(bare.stderr, /Usage: schoolsoft-agent/);
+    assert.match(bare.stderr, /setup/);
+    assert.equal(bare.stdout, "");
+
+    const setup = spawnSync(process.execPath, [bin, "setup"], { env, encoding: "utf8", input: "" });
+    assert.equal(setup.status, 3, setup.stderr);
+    assert.equal(setup.stdout, "");
+    assert.match(setup.stderr, /Not configured/);
+    assert.doesNotMatch(setup.stderr, /What is the school called/);
+  },
+);

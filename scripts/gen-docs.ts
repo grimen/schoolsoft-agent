@@ -151,7 +151,8 @@ export function renderTools(): string {
 export function renderCommands(): string {
   let md =
     HEADER +
-    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are two lines on stderr (the problem, then what to do next).\n\n";
+    "# CLI commands\n\nBinary: `schoolsoft-agent`. Output is JSON on stdout; errors are two lines on stderr (the problem, then what to do next).\n\n" +
+    "New here? `schoolsoft-agent setup` is a guided first run: it finds the school, saves it, opens BankID in your own browser, checks that the portal answers and shows this week's schedule, in Swedish or English. Run with no arguments in a terminal (stdin and stdout a terminal, `CI` unset) on a machine with no school configured, `schoolsoft-agent` starts the same guide; anywhere else it prints this help and exits 6.\n\n";
   md +=
     "Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not configured (run `configure`) · `4` network · `5` not available · `6` input · `7` upstream (including `response_drift`: the portal's answer changed shape).\n\n";
   md +=
@@ -170,7 +171,9 @@ export function renderCommands(): string {
   md +=
     "| `doctor` | Diagnose environment, config, session, connectivity (`--fix` migrates a legacy store) | no login needed |\n";
   md +=
-    "| `doctor --verify` | Check that each typed read still parses against the live portal; prints statuses, never data (`--all-children` checks every child) | read-only, needs a saved session; exit 7 on drift |\n\n";
+    "| `doctor --verify` | Check that each typed read still parses against the live portal; prints statuses, never data (`--all-children` checks every child) | read-only, needs a saved session; exit 7 on drift |\n";
+  md +=
+    "| `setup` | Guided first run: school, settings, BankID login, a check, this week's schedule (`--query <name>` and `--no-login` answer without asking; without a terminal it never asks) | the guide on stderr, a JSON result on stdout; exit 3 without a school, 2 with `--no-login` and no login |\n\n";
   for (const op of operations) {
     md += `## \`schoolsoft-agent ${kebab(op.name)}\`\n\n${op.description.trim()}\n\n`;
     const specs = flagsFromSchema(op.input);
