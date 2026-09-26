@@ -1,4 +1,4 @@
-/** Scripted owner + OAuth + MCP acceptance flow against a running connector whose
+/** Scripted owner + OAuth + MCP + REST acceptance flow against a running connector whose
  * upstream is fake-upstream.mjs. Everything goes over real HTTP to `base`; the login
  * link the connector shows is only parsed for its state, never opened.
  *
@@ -11,7 +11,12 @@ import { createHash, randomBytes } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
-import { FAKE_GUARDIAN, FAKE_LUNCH_DISH, FAKE_UPSTREAM_CODE } from "./fake-upstream.mjs";
+import {
+  FAKE_GUARDIAN,
+  FAKE_LUNCH_DISH,
+  FAKE_UPSTREAM_CODE,
+  FAKE_UPSTREAM_SECRETS,
+} from "./fake-upstream.mjs";
 
 const CALLBACK = "https://claude.ai/api/mcp/auth_callback";
 const [ALLOWED, OTHER] = FAKE_GUARDIAN.children;
@@ -313,6 +318,47 @@ export async function runConnectorFlow({ base, origin, adminPassword, log = () =
   assert.equal(upgrade.status, 400);
   assert.equal(json(upgrade).error, "invalid_scope");
   step("per-child denial and calendar scope limit, including via refresh");
+
+  // --- REST for custom UIs, same token and grant ------------------------------
+  const api = (path, token = limited.tokens.access_token) =>
+    request("/api/v1" + path, { headers: { Authorization: `Bearer ${token}` } });
+  const problemType = (response) => {
+    assert.match(response.headers["content-type"], /^application\/problem\+json/);
+    return json(response).type.replace("urn:schoolsoft-agent:problem:", "");
+  };
+  const session = await api("/session");
+  assert.equal(session.status, 200);
+  const about = json(session);
+  assert.deepEqual(about.schoolsoft, { signedIn: true, loginInProgress: false, webSession: false });
+  assert.deepEqual(about.children, [{ id: ALLOWED.studentId, firstName: ALLOWED.firstName }]);
+  assert.deepEqual(about.scopes, limitedScopes);
+  assert.equal(about.ownerDashboard, origin + "/owner");
+  for (const secret of [
+    limited.tokens.access_token,
+    limited.tokens.refresh_token,
+    ...FAKE_UPSTREAM_SECRETS,
+    "JSESSIONID",
+    OTHER.firstName,
+  ])
+    assert.ok(!session.text.includes(secret), "the session endpoint must not leak " + secret);
+  assert.deepEqual(json(await api("/children")).children, [
+    { id: ALLOWED.studentId, firstName: ALLOWED.firstName },
+  ]);
+  const restSchedule = await api(`/children/${ALLOWED.studentId}/schedule?week=37&fresh=true`);
+  assert.equal(restSchedule.status, 200);
+  assert.equal(json(restSchedule).child.id, ALLOWED.studentId);
+  assert.equal(json(restSchedule).lessons[0].note, `servedForChild=${ALLOWED.studentId}`);
+  const restOther = await api(`/children/${OTHER.studentId}/schedule?week=37`);
+  assert.equal(restOther.status, 403);
+  assert.equal(problemType(restOther), "child-not-permitted");
+  assert.doesNotMatch(restOther.text, /Synthetic lesson|Synthetic Bo/);
+  const restCalendar = await api(`/children/${ALLOWED.studentId}/calendar`);
+  assert.equal(restCalendar.status, 403);
+  assert.equal(problemType(restCalendar), "scope-not-granted");
+  const restAnonymous = await api("/session", "not-a-token");
+  assert.equal(restAnonymous.status, 401);
+  assert.match(restAnonymous.headers["www-authenticate"], /resource_metadata=/);
+  step("REST: session, children and schedule; refused child, scope and token");
 
   // --- Refresh rotation ----------------------------------------------------
   const rotatedResponse = await refresh(limited.clientId, limited.tokens.refresh_token);

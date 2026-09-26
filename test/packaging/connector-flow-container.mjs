@@ -1,5 +1,5 @@
 /** Explicit Docker artifact smoke: node test/packaging/connector-flow-container.mjs [image].
- * Replays the owner + OAuth + MCP flow (connector-smoke/flow.mjs) inside the built image
+ * Replays the owner + OAuth + MCP + REST flow (connector-smoke/flow.mjs) inside the built image
  * with --network none. The portal is connector-smoke/fake-upstream.mjs, mounted read-only
  * next to a test-only entry; the image itself is unchanged. No SchoolSoft or AI calls are
  * possible. The production entrypoint, privilege drop and persistence are covered by the
@@ -77,7 +77,7 @@ try {
     );
   }
   console.log(output);
-  assert.match(output, /Connector flow passed: 11 stages\./);
+  assert.match(output, /Connector flow passed: 12 stages\./);
   docker("stop", "--timeout", "5", name);
   assert.equal(
     docker("inspect", "--format", "{{.State.ExitCode}}", name),
@@ -85,7 +85,7 @@ try {
     docker("logs", name),
   );
   console.log(
-    "Container flow smoke passed: full owner, OAuth and MCP flow inside the image; no network.",
+    "Container flow smoke passed: full owner, OAuth, MCP and REST flow inside the image; no network.",
   );
 } finally {
   try {
