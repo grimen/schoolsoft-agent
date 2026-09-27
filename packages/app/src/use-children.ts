@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { Children, ConnectorClient } from "schoolsoft-agent/client";
+import { ConnectorError, type Children, type ConnectorClient } from "schoolsoft-agent/client";
 
 export type ChildrenState =
   | { status: "loading" }
@@ -21,13 +21,29 @@ export function useChildren(client: ConnectorClient | undefined, generation: num
     let current = true;
     // oxlint-disable-next-line react/set-state-in-effect -- resets to "loading" for each new client/generation/attempt, synchronizing with the fetch started below.
     setState({ status: "loading" });
-    client.children().then(
-      (answer) => {
+    // Reads /session, not /children: a grant's scopes (e.g. the reference page's
+    // get_schedule/get_lunch_menu/get_calendar) may never include list_children, but
+    // the session's own `children` field is readable with any grant.
+    client.session().then(
+      (session) => {
         if (!current) return;
+        if (!session.schoolsoft.signedIn) {
+          setState({
+            status: "error",
+            error: new ConnectorError({
+              kind: "not_authenticated",
+              problem: "schoolsoft-session",
+              retryable: true,
+              status: null,
+              message: "The connector needs a new SchoolSoft sign-in.",
+            }),
+          });
+          return;
+        }
         setState(
-          answer.children.length === 0
+          session.children.length === 0
             ? { status: "empty" }
-            : { status: "list", children: answer.children },
+            : { status: "list", children: session.children },
         );
       },
       (error: unknown) => {

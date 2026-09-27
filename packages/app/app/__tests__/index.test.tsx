@@ -36,6 +36,21 @@ const token = json({
 // Same-origin (production-like): the page origin is the connector's own resource origin.
 const discovery = json({ resource: "http://localhost:8080/mcp" });
 const WELL_KNOWN = "/.well-known/oauth-protected-resource/mcp";
+// A schema-valid `Session`: the typed client validates every answer against it.
+const session = (children: Array<{ id: number; firstName: string }>) =>
+  json({
+    schoolsoft: {
+      signedIn: true,
+      loginInProgress: false,
+      webSession: false,
+      portal: { state: "ok", retryAt: null },
+    },
+    children,
+    scopes: ["get_schedule", "get_lunch_menu", "get_calendar"],
+    routes: [],
+    ownerDashboard: "https://localhost:8080/dashboard",
+    connectionExpiresAt: "2026-12-31T00:00:00Z",
+  });
 
 test("lists the children's first names", async () => {
   const fetch = (async (u: RequestInfo | URL) =>
@@ -43,13 +58,10 @@ test("lists the children's first names", async () => {
       ? discovery.clone()
       : String(u).endsWith("/token")
         ? token.clone()
-        : json({
-            children: [
-              { id: 1, firstName: "Synthetic Alva" },
-              { id: 2, firstName: "Synthetic Bo" },
-            ],
-            childInFocus: null,
-          })) as typeof globalThis.fetch;
+        : session([
+            { id: 1, firstName: "Synthetic Alva" },
+            { id: 2, firstName: "Synthetic Bo" },
+          ])) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText("Synthetic Alva")).toBeTruthy());
   expect(screen.getByText("Synthetic Bo")).toBeTruthy();
@@ -61,7 +73,7 @@ test("an empty grant says so", async () => {
       ? discovery.clone()
       : String(u).endsWith("/token")
         ? token.clone()
-        : json({ children: [], childInFocus: null })) as typeof globalThis.fetch;
+        : session([])) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText(/covers no children/)).toBeTruthy());
 });
