@@ -59,7 +59,7 @@ function metroMessage(body) {
 }
 
 function fail(message, detail = "") {
-  const lines = stripVTControlCharacters(detail).split("\n").slice(0, 40).join("\n");
+  const lines = stripVTControlCharacters(detail).split("\n").slice(0, 60).join("\n");
   throw new Error(`${message}${lines ? `\n${lines}` : ""}`);
 }
 
@@ -90,7 +90,10 @@ try {
   const response = await fetch(url, { signal: AbortSignal.timeout(BUNDLE_TIMEOUT_MS) });
   const body = await response.text();
   if (response.status !== 200)
-    fail(`GET ${url.pathname}${url.search} answered ${response.status}`, metroMessage(body));
+    fail(
+      `GET ${url.pathname}${url.search} answered ${response.status}`,
+      `${metroMessage(body)}\n\nExpo's log (last lines):\n${log.trim().split("\n").slice(-25).join("\n")}`,
+    );
   const missing = MARKERS.filter((m) => !body.includes(m));
   if (missing.length) fail(`the dev bundle lacks the app's code: ${missing.join(", ")}`);
   console.log(`dev bundle ok: ${url.pathname} (${body.length} bytes, 200)`);
