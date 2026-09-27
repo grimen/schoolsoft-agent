@@ -129,11 +129,12 @@ host-probe-stdio: ## Host capability probe over stdio for Claude Desktop / Claud
 
 # ---------- App (packages/app) ----------
 
-app-check: build ## The app's lint, typecheck, tests with its coverage gate, proxy tests and production export check
+app-check: build ## The app's lint, typecheck, tests with its coverage gate, proxy tests, live dev-server bundle smoke and production export check
 	npm run lint --workspace packages/app
 	npm run typecheck --workspace packages/app
 	npm run test:coverage --workspace packages/app
 	node --test packages/app/scripts/dev-proxy.test.mjs
+	node packages/app/scripts/dev-bundle-smoke.mjs
 	npm run export:web --workspace packages/app
 	node packages/app/scripts/check-export.mjs packages/app/dist-web
 

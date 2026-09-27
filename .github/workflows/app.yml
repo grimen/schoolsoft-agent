@@ -23,7 +23,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Audit the app's dependencies (packages/app/audit-ci.jsonc allowlist)
         run: npx audit-ci --config packages/app/audit-ci.jsonc
-      - name: Lint, typecheck, tests with the plumbing gate, proxy tests, production export check
+      - name: Lint, typecheck, tests with the plumbing gate, proxy tests, dev-bundle smoke, production export check
         run: make app-check
       - name: Cache Playwright browsers
         uses: actions/cache@v6
