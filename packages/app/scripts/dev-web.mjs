@@ -1,7 +1,12 @@
-// `make app-web`: check the connector, start Expo's web dev server (or serve a static export), put the proxy in front.
-import { spawn } from "node:child_process";
+// `make app-web`: check the connector, put the proxy up, then start Expo's web dev server
+// behind it (or serve a static export). Either one failing stops both, with a non-zero exit.
+import net from "node:net";
 import { parseArgs } from "node:util";
 import { checkConnector, createProxy } from "./dev-proxy.mjs";
+import { startExpoWeb } from "./expo-web.mjs";
+
+// IPv4 loopback, not "localhost": that name may resolve to [::1] only, leaving 127.0.0.1 refused.
+const HOST = "127.0.0.1";
 
 const { values } = parseArgs({
   options: {
@@ -22,23 +27,58 @@ try {
   process.exit(1);
 }
 const port = Number(values.port);
+const appPort = port + 1;
 let expo;
-let proxy;
-if (values.static) {
-  proxy = createProxy({ connector, staticDir: values.static });
-} else {
-  const appPort = port + 1;
-  expo = spawn("npx", ["expo", "start", "--web", "--port", String(appPort)], {
-    stdio: "inherit",
-    env: { ...process.env, BROWSER: "none", CI: "1" },
-  });
-  proxy = createProxy({ connector, app: new URL(`http://localhost:${appPort}`) });
-}
-proxy.listen(port, "localhost", () => console.log(`ready http://localhost:${port}`));
-const stop = () => {
+let stopping = false;
+
+function stop(code, message) {
+  if (stopping) return;
+  stopping = true;
+  if (message) console.error(message);
   proxy.close();
-  expo?.kill();
-  process.exit(0);
-};
-process.on("SIGINT", stop);
-process.on("SIGTERM", stop);
+  if (expo && expo.exitCode === null && expo.signalCode === null) expo.kill("SIGTERM");
+  process.exit(code);
+}
+
+/** Something already answers there (Expo would pick another port, or prompt to). */
+function answering(p) {
+  return new Promise((resolve) => {
+    const socket = net.connect(p, HOST);
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+}
+
+const proxy = values.static
+  ? createProxy({ connector, staticDir: values.static })
+  : createProxy({ connector, app: new URL(`http://${HOST}:${appPort}`) });
+proxy.on("error", (error) =>
+  stop(
+    1,
+    error.code === "EADDRINUSE"
+      ? `port ${port} on ${HOST} is already in use; stop whatever holds it and try again.`
+      : `the proxy on http://${HOST}:${port} failed: ${error.message}`,
+  ),
+);
+proxy.listen(port, HOST, async () => {
+  if (!values.static) {
+    if (await answering(appPort))
+      return stop(
+        1,
+        `port ${appPort}, which Expo's dev server needs behind the proxy, is already in use; stop whatever holds it and try again.`,
+      );
+    expo = startExpoWeb(appPort);
+    expo.on("error", (error) => stop(1, `Expo's dev server could not start: ${error.message}`));
+    expo.on("exit", (code, signal) =>
+      stop(1, `Expo's dev server stopped (${signal ?? `exit code ${code}`}); stopping the proxy.`),
+    );
+  }
+  console.log(
+    `ready http://${HOST}:${port}${expo ? ` (open this, not Expo's own port ${appPort})` : ""}`,
+  );
+});
+process.on("SIGINT", () => stop(0));
+process.on("SIGTERM", () => stop(0));

@@ -138,7 +138,7 @@ app-check: build ## The app's lint, typecheck, tests with its coverage gate, pro
 	npm run export:web --workspace packages/app
 	node packages/app/scripts/check-export.mjs packages/app/dist-web
 
-app-web: build ## Serve the app on http://localhost:8080 against a running connector: make app-web CONNECTOR_URL=http://localhost:3000
+app-web: build ## Serve the app on http://127.0.0.1:8080 against a running connector: make app-web CONNECTOR_URL=http://localhost:3000
 	@test -n "$(CONNECTOR_URL)" || (echo "CONNECTOR_URL is required, e.g. make app-web CONNECTOR_URL=http://localhost:3000" >&2; exit 2)
 	cd packages/app && node scripts/dev-web.mjs --connector "$(CONNECTOR_URL)"
 
