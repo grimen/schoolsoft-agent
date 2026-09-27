@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { once } from "node:events";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkConnector, createProxy, upstreamFor } from "./dev-proxy.mjs";
@@ -78,14 +78,39 @@ test("serves a static export with a single-page fallback", async () => {
   try {
     assert.equal(await (await fetch(new URL("/main.js", base))).text(), "console.log(1)");
     assert.equal(await (await fetch(new URL("/dev-connect", base))).text(), "<html>app</html>");
-    assert.equal(
-      await (await fetch(new URL("/../../etc/passwd", base))).text(),
-      "<html>app</html>",
-    );
   } finally {
     proxy.close();
     connectorServer.close();
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("never serves a file outside the static export", async () => {
+  const parent = mkdtempSync(join(tmpdir(), "app-static-"));
+  const dir = join(parent, "export");
+  mkdirSync(dir);
+  writeFileSync(join(dir, "index.html"), "<html>app</html>");
+  writeFileSync(join(parent, "secret.txt"), "secret");
+  const connectorServer = echo("connector");
+  const connector = await listen(connectorServer);
+  const proxy = createProxy({ connector, staticDir: dir });
+  const base = await listen(proxy);
+  try {
+    // fetch() would normalize the dots away before sending; the raw request doesn't, and
+    // the escaped slashes only become separators once the proxy decodes the path.
+    for (const path of [
+      "/..%2fsecret.txt",
+      "/%2e%2e%2fsecret.txt",
+      "/..%2f..%2fetc%2fpasswd",
+      "/%2e%2e%2f%2e%2e%2fetc%2fpasswd",
+    ]) {
+      const answer = await rawRequest(base, path);
+      assert.deepEqual(answer, { status: 200, text: "<html>app</html>" }, path);
+    }
+  } finally {
+    proxy.close();
+    connectorServer.close();
+    rmSync(parent, { recursive: true, force: true });
   }
 });
 
