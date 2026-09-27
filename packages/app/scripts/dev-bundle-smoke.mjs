@@ -13,12 +13,25 @@ const MARKERS = ["signInLater", "/.well-known/oauth-protected-resource/mcp"];
 const START_TIMEOUT_MS = 120_000;
 const BUNDLE_TIMEOUT_MS = 300_000;
 
+/**
+ * A free port outside the OS's ephemeral range (macOS 49152+, Linux 32768+): a port from
+ * that range can be taken by any outgoing connection before Expo binds it, and Expo then
+ * skips its dev server rather than prompt without a terminal.
+ */
 async function freePort() {
-  const probe = net.createServer().listen(0, "127.0.0.1");
-  await once(probe, "listening");
-  const { port } = probe.address();
-  await new Promise((r) => probe.close(r));
-  return port;
+  for (let attempt = 0; attempt < 50; attempt++) {
+    const port = 20_000 + Math.floor(Math.random() * 10_000);
+    const probe = net.createServer();
+    const free = await new Promise((resolve) => {
+      probe.once("error", () => resolve(false));
+      probe.listen(port, () => resolve(true)); // every interface, as Expo checks
+    });
+    if (free) {
+      await new Promise((r) => probe.close(r));
+      return port;
+    }
+  }
+  throw new Error("no free port between 20000 and 29999");
 }
 
 const port = await freePort();
