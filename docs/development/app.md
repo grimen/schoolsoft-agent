@@ -21,14 +21,21 @@ the two origins are the same.
    has, the whole connection is revoked. Don't paste one token into two tabs.
 5. `make app-web CONNECTOR_URL=http://localhost:3000` (must equal the connector's own
    `SCHOOLSOFT_PUBLIC_URL`; `make app-web` checks this at start-up against the connector's OAuth
-   issuer and refuses to start otherwise), then open http://localhost:8080 and paste the two values.
+   issuer and refuses to start otherwise), then open http://127.0.0.1:8080 (the address it
+   prints; not Expo's own port 8081) and paste the two values. Edits reload in the page.
 
 The proxy on port 8080 makes the app and the connector one origin: it forwards `/api/v1/*`,
 `/token`, `/revoke` and `/.well-known/*` to the connector, rewriting `Origin` to the
 connector's, and everything else to Expo's dev server. It exists only in development. The
-`Origin` rewrite matters for a same-origin non-GET REST call (a future write); this flow's
-calls are all GETs, which carry no `Origin` header, so the rewrite itself is covered by the
-proxy's own unit tests rather than by `make app-e2e`.
+REST surface refuses a request whose `Origin` isn't the connector's own, so the rewrite
+matters for REST calls that carry `Origin`: non-GET ones, such as future writes. This
+flow's REST reads are GETs, which carry no `Origin`; its token refresh is a `POST /token`,
+which does, but the connector's token endpoint doesn't check it. So the rewrite itself is
+covered by the proxy's own unit tests rather than by `make app-e2e`.
+
+`metro.config.js` resolves `schoolsoft-agent/client` straight to the root's
+`dist/client/index.js` (hence `make app-web` builds first): the workspace links the root
+package into itself, and Metro's dev server can't bundle through that link.
 
 The children list comes from `GET /api/v1/session` (its `children` field), which any grant
 may read, rather than `GET /api/v1/children` (which needs the `list_children` scope a
@@ -37,14 +44,18 @@ reference-page grant doesn't have). Children show a first name only.
 ## Checks
 
 - `make app-check`: lint, typecheck, tests (100% on `src/connection/`, `src/messages.ts`,
-  `src/use-children.ts`), proxy tests, and a production export that must contain no development code.
+  `src/use-children.ts`), proxy tests, a dev-bundle smoke (Expo's live dev server, as
+  `make app-web` starts it, must bundle the app), and a production export that must contain no
+  development code.
 - `make app-e2e`: the connector against the fake portal, a grant from the reference page, and the
   app listing the children in headless Chromium.
-- CI runs both in the `App / Test` job when the app, the typed client or the dependencies change.
-  The root jobs install the root package only and never see Expo.
+- CI runs both in the `App / Test` job when the app, the typed client, the dependencies, or what
+  `make app-e2e` runs (the connector's `src/http/`, the fake portal, the Makefile) change. The root
+  jobs install the root package only and never see Expo.
 
 ## Rules
 
 - The app imports nothing from the root package but `schoolsoft-agent/client` (`make boundaries`).
-- The development connect screen never ships in a production build.
+- The development connect screen never ships in a production build, nor does its text
+  (`src/dev/words.ts`, not `src/messages.ts`).
 - Sign-in (E11.5) replaces the connect screen; until then, a production build shows a notice.

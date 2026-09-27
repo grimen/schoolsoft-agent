@@ -203,15 +203,21 @@ Found during planning and implementation; none changes the frozen scope above.
    address and `Host`.
 2. **The `/dev-connect` route in production.** Expo Router routes are files, so the route
    file ships in every build. In production it only redirects to `/`, and the development
-   component is `require`d behind `__DEV__`, so the minifier removes it. The production
-   check asserts the development code (marker strings) is absent and that `/dev-connect`
-   redirects.
+   component is `require`d behind `__DEV__`, so the minifier removes it, together with
+   its text (`src/dev/words.ts`, not `messages.ts`). The production export check
+   (`check-export.mjs`) asserts the development code is absent (marker strings, including
+   the connect screen's warning text). Jest tests run with `__DEV__` false and assert the
+   production branches: `/dev-connect` redirects to `/` without loading the development
+   screen, and `/` shows the sign-in notice.
 3. **Children show a first name only.** `GET /api/v1/children` returns `{ id, firstName }`
    per child; the spec's "school and class, as far as the connector provides them" means
    first names today.
 4. **E2E build.** `make app-e2e` serves a development-mode static export
    (`expo export --platform web --dev`) through the same proxy, instead of the live dev
-   server, for speed and determinism. `make app-web` uses the live dev server.
+   server, for speed and determinism. `make app-web` uses the live dev server, which that
+   export never exercises, so `make app-check` also runs a dev-bundle smoke
+   (`scripts/dev-bundle-smoke.mjs`): it starts Expo's dev server as `make app-web` does
+   and fetches the web entry bundle. See 8.
 5. **The typed client's `resource` needs the connector's own origin (R16).** The
    connector's OAuth `resource` must equal its own public URL, which differs from the
    page (proxy) origin the app is served from. `clientFor` discovers the connector's
@@ -224,13 +230,21 @@ Found during planning and implementation; none changes the frozen scope above.
    `GET /api/v1/children` needs. `useChildren` reads the session's own `children` field
    instead, which any grant may read; a SchoolSoft session that needs a new sign-in
    surfaces as its own error state, carrying the connector's dashboard link.
-7. **The Origin rewrite proof, and what it actually covers (R18).** Every call this flow
-   makes is a same-origin `GET`, which carries no `Origin` header, so `make app-e2e`
-   cannot exercise the rewrite by disabling it. Instead it proves a load-bearing part of
-   the same proxy (the E2E fails when `/api/v1/*` isn't forwarded, and passes again once
-   restored); the `Origin` rewrite itself is covered by the proxy's unit tests
-   (`dev-proxy.test.mjs`) and matters for a same-origin non-GET REST call, such as a
-   future write.
+7. **The Origin rewrite proof, and what it actually covers (R18).** This flow's REST reads
+   are same-origin `GET`s, which carry no `Origin` header. Its token refresh is a
+   same-origin `POST /token`, which does carry `Origin` (the proxy rewrites it), but the
+   connector's token endpoint doesn't check `Origin`. So `make app-e2e` cannot exercise
+   the rewrite by disabling it. Instead it proves a load-bearing part of the same proxy
+   (the E2E fails when `/api/v1/*` isn't forwarded, and passes again once restored); the
+   `Origin` rewrite itself is covered by the proxy's unit tests (`dev-proxy.test.mjs`)
+   and matters for REST calls that carry `Origin`: non-`GET` ones, such as future writes.
+8. **Metro resolves the typed client directly (R20).** The workspace links the root
+   package into itself (`node_modules/schoolsoft-agent -> ..`). Metro's dev server failed
+   to bundle through that link ("Failed to collapse" in its file map; `expo export` was
+   unaffected), and no gate noticed, because 4 moved the E2E to a static export. The
+   app's `metro.config.js` resolves `schoolsoft-agent/client` straight to the root's
+   `dist/client/index.js`, and the dev-bundle smoke in `make app-check` guards it.
+   `make app-web` runs Expo without `CI=1`, so Metro watches and reloads.
 
 ## Tasks & Acceptance
 
