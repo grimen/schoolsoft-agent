@@ -77,7 +77,10 @@ test("the provider's defaults come from the browser and the device", async () =>
     expect(["sv", "en"]).toContain(result.current.language);
     expect(result.current.persistent).toBe(true);
   } finally {
-    (globalThis as { location?: unknown }).location = previousLocation;
-    (globalThis as { sessionStorage?: unknown }).sessionStorage = previousSessionStorage;
+    const g = globalThis as { location?: unknown; sessionStorage?: unknown };
+    if (previousLocation === undefined) delete g.location;
+    else g.location = previousLocation;
+    if (previousSessionStorage === undefined) delete g.sessionStorage;
+    else g.sessionStorage = previousSessionStorage;
   }
 });

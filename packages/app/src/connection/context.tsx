@@ -58,7 +58,7 @@ export function ConnectionProvider(props: {
         ? clientFor(connection, storage, { origin, language, fetch: props.fetch })
         : undefined,
     // A new client per connection; token rotation is kept in storage, not in React state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [generation, connection?.clientId],
   );
 

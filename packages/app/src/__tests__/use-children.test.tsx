@@ -73,6 +73,19 @@ test("a late answer from an earlier connection is dropped", async () => {
   expect(result.current.state).toMatchObject({ children: [{ firstName: "New" }] });
 });
 
+test("disconnecting clears a previous connection's children, not just adds a new one", async () => {
+  const client = fakeClient([list(["Alva"])]);
+  const { result, rerender } = await renderHook(
+    ({ c, g }: { c: ConnectorClient | undefined; g: number }) => useChildren(c, g),
+    { initialProps: { c: client, g: 0 } },
+  );
+  await waitFor(() =>
+    expect(result.current.state).toMatchObject({ children: [{ firstName: "Alva" }] }),
+  );
+  await rerender({ c: undefined, g: 1 });
+  expect(result.current.state).toEqual({ status: "loading" });
+});
+
 test("a late failure from an earlier connection is dropped too", async () => {
   let fail!: () => void;
   const slow = () => new Promise<unknown>((_r, reject) => (fail = () => reject(new Error("old"))));

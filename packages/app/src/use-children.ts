@@ -13,7 +13,11 @@ export function useChildren(client: ConnectorClient | undefined, generation: num
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    if (!client) return;
+    if (!client) {
+      // oxlint-disable-next-line react/set-state-in-effect -- never keeps a previous connection's children on screen once it is gone.
+      setState({ status: "loading" });
+      return;
+    }
     let current = true;
     // oxlint-disable-next-line react/set-state-in-effect -- resets to "loading" for each new client/generation/attempt, synchronizing with the fetch started below.
     setState({ status: "loading" });
