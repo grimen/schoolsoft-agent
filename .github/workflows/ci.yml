@@ -69,6 +69,11 @@ jobs:
     needs: [checks]
     if: needs.checks.outputs.docs-only != 'true'
     uses: ./.github/workflows/test.yml
+  app:
+    name: App
+    needs: [checks]
+    if: needs.checks.outputs.app-changed == 'true'
+    uses: ./.github/workflows/app.yml
   e2e:
     name: E2E
     needs: [unit]
