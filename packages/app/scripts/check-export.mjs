@@ -1,9 +1,13 @@
 // Fails when development-only code reaches a production web export (spec: Production safety).
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2] ?? "dist-web";
 const FORBIDDEN = ["schoolsoft-app-dev-connect", "schoolsoft-reference", "dev-proxy"];
+if (!existsSync(dir)) {
+  console.error(`no .js or .html files in ${dir}; run the export first`);
+  process.exit(1);
+}
 const files = [];
 (function walk(d) {
   for (const e of readdirSync(d)) {
