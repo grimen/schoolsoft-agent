@@ -37,10 +37,10 @@ const token = json({
 const discovery = json({ resource: "http://localhost:8080/mcp" });
 const WELL_KNOWN = "/.well-known/oauth-protected-resource/mcp";
 // A schema-valid `Session`: the typed client validates every answer against it.
-const session = (children: Array<{ id: number; firstName: string }>) =>
+const session = (children: Array<{ id: number; firstName: string }>, signedIn = true) =>
   json({
     schoolsoft: {
-      signedIn: true,
+      signedIn,
       loginInProgress: false,
       webSession: false,
       portal: { state: "ok", retryAt: null },
@@ -76,6 +76,20 @@ test("an empty grant says so", async () => {
         : session([])) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText(/covers no children/)).toBeTruthy());
+});
+
+test("a signed-out session links the connector's own dashboard", async () => {
+  const fetch = (async (u: RequestInfo | URL) =>
+    String(u).endsWith(WELL_KNOWN)
+      ? discovery.clone()
+      : String(u).endsWith("/token")
+        ? token.clone()
+        : session([], false)) as typeof globalThis.fetch;
+  await render(<Index />, { wrapper: withConnection(fetch) });
+  await waitFor(() =>
+    expect(screen.getByText("The connector needs a new SchoolSoft sign-in.")).toBeTruthy(),
+  );
+  expect(screen.getByText("https://localhost:8080/dashboard")).toBeTruthy();
 });
 
 test("a spent refresh token asks to connect again and offers to forget", async () => {

@@ -141,6 +141,7 @@ test("a signed-out session is an error, not an authenticated empty grant", async
   expect(error).toBeInstanceOf(ConnectorError);
   expect((error as ConnectorError).problem).toBe("schoolsoft-session");
   expect((error as ConnectorError).kind).toBe("not_authenticated");
+  expect((error as ConnectorError).ownerDashboard).toBe("https://connector.example/dashboard");
 });
 
 test("the list comes from the session's children, even under a scope-limited grant", async () => {

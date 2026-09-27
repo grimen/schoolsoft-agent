@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ConnectorError, type Children, type ConnectorClient } from "schoolsoft-agent/client";
+import {
+  ConnectorError,
+  type Children,
+  type ConnectorClient,
+  type Problem,
+} from "schoolsoft-agent/client";
 
 export type ChildrenState =
   | { status: "loading" }
@@ -28,6 +33,20 @@ export function useChildren(client: ConnectorClient | undefined, generation: num
       (session) => {
         if (!current) return;
         if (!session.schoolsoft.signedIn) {
+          const message = "The connector needs a new SchoolSoft sign-in.";
+          // A `Problem` body, not just the top-level fields: `explain()` reads
+          // `ownerDashboard` from it (`error.ownerDashboard`, set from `body.ownerDashboard`
+          // in the `ConnectorError` constructor) to link the connector's dashboard, the
+          // same as every other `schoolsoft-session` problem the connector itself sends.
+          const body: Problem = {
+            type: "urn:schoolsoft-agent:problem:schoolsoft-session",
+            title: "SchoolSoft session required",
+            status: 409,
+            detail: message,
+            kind: "not_authenticated",
+            retryable: true,
+            ownerDashboard: session.ownerDashboard,
+          };
           setState({
             status: "error",
             error: new ConnectorError({
@@ -35,7 +54,8 @@ export function useChildren(client: ConnectorClient | undefined, generation: num
               problem: "schoolsoft-session",
               retryable: true,
               status: null,
-              message: "The connector needs a new SchoolSoft sign-in.",
+              message,
+              body,
             }),
           });
           return;
