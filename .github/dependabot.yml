@@ -12,23 +12,17 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+  # One npm entry: the root manifest is the workspace root, so it also covers
+  # packages/app's manifest and the shared lockfile. A dependency joins the first
+  # group that matches it, so the Expo set (which moves together, majors included,
+  # per Expo SDK) comes first and the catch-all minor/patch group excludes it (the
+  # two pattern lists must stay equal).
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     commit-message:
       prefix: chore # -> "chore(deps): bump ..." / "chore(deps-dev): ..."
-      include: scope
-    groups:
-      npm-minor-patch:
-        update-types: ["minor", "patch"]
-    open-pull-requests-limit: 5
-  - package-ecosystem: npm
-    directory: /packages/app
-    schedule:
-      interval: weekly
-    commit-message:
-      prefix: chore
       include: scope
     groups:
       app-expo:
@@ -43,5 +37,21 @@ updates:
             "react-native-*",
             "jest-expo",
             "@testing-library/*",
+            "test-renderer",
           ]
-    open-pull-requests-limit: 3
+      npm-minor-patch:
+        update-types: ["minor", "patch"]
+        exclude-patterns:
+          [
+            "expo",
+            "expo-*",
+            "@expo/*",
+            "react",
+            "react-*",
+            "react-native",
+            "react-native-*",
+            "jest-expo",
+            "@testing-library/*",
+            "test-renderer",
+          ]
+    open-pull-requests-limit: 5

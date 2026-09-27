@@ -10,6 +10,11 @@ name: CI
 #       -> E2E (shipped artifact: MCP over stdio, CLI, mcpb,
 #               every host manifest / skill in a sandbox)        ~2 min
 #         -> Publish -> Verify (main / release / dispatch)
+#     -> App (packages/app, app.yml: its own install, audit, lint,
+#             typecheck, tests, dev-bundle smoke, export check,
+#             E2E in Chromium; only when the app or what it uses
+#             changed) - beside Unit and E2E; gates neither
+#             Publish nor Badges
 #
 # The live SchoolSoft suite (`make e2e`) needs a human with BankID and never
 # runs here. A docs-only PR stops after Checks (classified by the Changes
