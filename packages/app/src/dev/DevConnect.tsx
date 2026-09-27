@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { useConnection } from "../connection/context";
 import { newDevConnection } from "../connection/store";
-import { t } from "../messages";
+import { devText } from "./words";
 
 /** Marker for the production export check: this string must not ship in a production bundle. */
 export const DEV_MARKER = "schoolsoft-app-dev-connect";
@@ -25,27 +25,27 @@ export function DevConnect() {
 
   return (
     <View testID={DEV_MARKER}>
-      <Text accessibilityRole="header">{t(language, "devTitle")}</Text>
-      <Text>{t(language, "devHowTo")}</Text>
+      <Text accessibilityRole="header">{devText(language, "devTitle")}</Text>
+      <Text>{devText(language, "devHowTo")}</Text>
       <Text selectable>{CONSOLE}</Text>
-      <Text accessibilityRole="alert">{t(language, "devWarning")}</Text>
+      <Text accessibilityRole="alert">{devText(language, "devWarning")}</Text>
       <TextInput
-        accessibilityLabel={t(language, "devClientId")}
+        accessibilityLabel={devText(language, "devClientId")}
         value={clientId}
         onChangeText={setClientId}
         autoCapitalize="none"
       />
       <TextInput
-        accessibilityLabel={t(language, "devRefresh")}
+        accessibilityLabel={devText(language, "devRefresh")}
         value={refresh}
         onChangeText={setRefresh}
         autoCapitalize="none"
         secureTextEntry
       />
-      {invalid === "clientId" ? <Text>{t(language, "devInvalidClientId")}</Text> : null}
-      {invalid === "refreshToken" ? <Text>{t(language, "devInvalidRefresh")}</Text> : null}
+      {invalid === "clientId" ? <Text>{devText(language, "devInvalidClientId")}</Text> : null}
+      {invalid === "refreshToken" ? <Text>{devText(language, "devInvalidRefresh")}</Text> : null}
       <Pressable accessibilityRole="button" onPress={submit}>
-        <Text>{t(language, "devConnect")}</Text>
+        <Text>{devText(language, "devConnect")}</Text>
       </Pressable>
     </View>
   );

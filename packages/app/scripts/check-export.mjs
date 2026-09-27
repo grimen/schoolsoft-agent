@@ -3,7 +3,13 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const dir = process.argv[2] ?? "dist-web";
-const FORBIDDEN = ["schoolsoft-app-dev-connect", "schoolsoft-reference", "dev-proxy"];
+// DevConnect's marker, its console snippet, the proxy, and its text (src/dev/words.ts).
+const FORBIDDEN = [
+  "schoolsoft-app-dev-connect",
+  "schoolsoft-reference",
+  "dev-proxy",
+  "Close the reference page tab",
+];
 if (!existsSync(dir)) {
   console.error(`no .js or .html files in ${dir}; run the export first`);
   process.exit(1);
