@@ -33,18 +33,23 @@ const token = json({
   token_type: "Bearer",
   expires_in: 300,
 });
+// Same-origin (production-like): the page origin is the connector's own resource origin.
+const discovery = json({ resource: "http://localhost:8080/mcp" });
+const WELL_KNOWN = "/.well-known/oauth-protected-resource/mcp";
 
 test("lists the children's first names", async () => {
   const fetch = (async (u: RequestInfo | URL) =>
-    String(u).endsWith("/token")
-      ? token.clone()
-      : json({
-          children: [
-            { id: 1, firstName: "Synthetic Alva" },
-            { id: 2, firstName: "Synthetic Bo" },
-          ],
-          childInFocus: null,
-        })) as typeof globalThis.fetch;
+    String(u).endsWith(WELL_KNOWN)
+      ? discovery.clone()
+      : String(u).endsWith("/token")
+        ? token.clone()
+        : json({
+            children: [
+              { id: 1, firstName: "Synthetic Alva" },
+              { id: 2, firstName: "Synthetic Bo" },
+            ],
+            childInFocus: null,
+          })) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText("Synthetic Alva")).toBeTruthy());
   expect(screen.getByText("Synthetic Bo")).toBeTruthy();
@@ -52,15 +57,20 @@ test("lists the children's first names", async () => {
 
 test("an empty grant says so", async () => {
   const fetch = (async (u: RequestInfo | URL) =>
-    String(u).endsWith("/token")
-      ? token.clone()
-      : json({ children: [], childInFocus: null })) as typeof globalThis.fetch;
+    String(u).endsWith(WELL_KNOWN)
+      ? discovery.clone()
+      : String(u).endsWith("/token")
+        ? token.clone()
+        : json({ children: [], childInFocus: null })) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText(/covers no children/)).toBeTruthy());
 });
 
 test("a spent refresh token asks to connect again and offers to forget", async () => {
-  const fetch = (async () => json({ error: "invalid_grant" }, 400)) as typeof globalThis.fetch;
+  const fetch = (async (u: RequestInfo | URL) =>
+    String(u).endsWith(WELL_KNOWN)
+      ? discovery.clone()
+      : json({ error: "invalid_grant" }, 400)) as typeof globalThis.fetch;
   await render(<Index />, { wrapper: withConnection(fetch) });
   await waitFor(() => expect(screen.getByText("The connection has ended.")).toBeTruthy());
   await fireEvent.press(screen.getByText("Forget this connection"));
