@@ -2,7 +2,7 @@
 title: App workspace, one Expo project that lists children from a running connector
 type: feature
 created: 2026-09-26
-status: draft
+status: done
 route: dispatch
 baseline_commit: origin/main after #70
 context:
@@ -191,6 +191,46 @@ Paths are proposals for the plan to confirm. Beyond `packages/app/**`, this stor
 It doesn't touch `src/` or any published surface. If the plan finds it must, that's a finding to bring back.
 
 </frozen-after-approval>
+
+## Clarifications (as built)
+
+Found during planning and implementation; none changes the frozen scope above.
+
+1. **Origin rewrite.** The REST surface refuses a request whose `Origin` is not the
+   connector's `publicUrl` (`src/http/rest.ts:90`). The dev proxy therefore sets `Origin`
+   to the connector's origin on connector-bound requests, and `CONNECTOR_URL` must equal
+   the connector's `SCHOOLSOFT_PUBLIC_URL`. Nothing else is rewritten except the upstream
+   address and `Host`.
+2. **The `/dev-connect` route in production.** Expo Router routes are files, so the route
+   file ships in every build. In production it only redirects to `/`, and the development
+   component is `require`d behind `__DEV__`, so the minifier removes it. The production
+   check asserts the development code (marker strings) is absent and that `/dev-connect`
+   redirects.
+3. **Children show a first name only.** `GET /api/v1/children` returns `{ id, firstName }`
+   per child; the spec's "school and class, as far as the connector provides them" means
+   first names today.
+4. **E2E build.** `make app-e2e` serves a development-mode static export
+   (`expo export --platform web --dev`) through the same proxy, instead of the live dev
+   server, for speed and determinism. `make app-web` uses the live dev server.
+5. **The typed client's `resource` needs the connector's own origin (R16).** The
+   connector's OAuth `resource` must equal its own public URL, which differs from the
+   page (proxy) origin the app is served from. `clientFor` discovers the connector's
+   resource via a same-origin `GET /.well-known/oauth-protected-resource/mcp`, builds the
+   typed client with that resource's origin as `baseUrl`, and wraps `fetch` so every
+   request is actually sent to the page origin — the identity when the two already match.
+6. **The children list reads `/api/v1/session`, not `/api/v1/children` (R17).** A grant
+   from the reference page requests only `get_schedule`/`get_lunch_menu`/`get_calendar`
+   and consent can't widen it, so it never has the `list_children` scope
+   `GET /api/v1/children` needs. `useChildren` reads the session's own `children` field
+   instead, which any grant may read; a SchoolSoft session that needs a new sign-in
+   surfaces as its own error state, carrying the connector's dashboard link.
+7. **The Origin rewrite proof, and what it actually covers (R18).** Every call this flow
+   makes is a same-origin `GET`, which carries no `Origin` header, so `make app-e2e`
+   cannot exercise the rewrite by disabling it. Instead it proves a load-bearing part of
+   the same proxy (the E2E fails when `/api/v1/*` isn't forwarded, and passes again once
+   restored); the `Origin` rewrite itself is covered by the proxy's unit tests
+   (`dev-proxy.test.mjs`) and matters for a same-origin non-GET REST call, such as a
+   future write.
 
 ## Tasks & Acceptance
 

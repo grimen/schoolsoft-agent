@@ -21,10 +21,12 @@ first red stage (`.github/workflows/ci.yml`):
 | Checks           | `make check-code`, `make check-ci`, `make audit`, `make diagrams-check`, `make docs-check`, `make plugin-validate`, `make check-package` | oxlint, typecheck, prettier, import boundaries; actionlint + shellcheck; dependency audit; generated diagrams/docs/skills current; host manifests; publint + pack/install smoke; Conventional Commits on PR commits and title                                             |
 | Unit             | `make coverage`                                                                                                                          | unit + boundary + functional + packaging tests with c8 thresholds (`.c8rc.json`)                                                                                                                                                                                          |
 | E2E              | `make e2e-artifact`, `make connector-smoke`                                                                                              | the shipped artifact: MCP over stdio, the CLI, the Claude Desktop bundle, and every host manifest / skill wrapper launched in a sandbox (`test/e2e-hosts`); the connector's Docker image with `--network none`, including the full OAuth + MCP flow against a fake portal |
+| App              | `make app-check`, `make app-e2e`                                                                                                         | the Expo app's own lint, typecheck, split coverage gate, production export check and dependency audit (`packages/app/audit-ci.jsonc`); a headless-Chromium E2E listing a grant's children through the dev proxy (`App / Test`, `.github/workflows/app.yml`)               |
 | Publish → Verify | —                                                                                                                                        | main pushes ship a prerelease under `next`; releases ship `latest`; Verify installs what was published                                                                                                                                                                    |
 
-`make check` runs the Checks + Unit set in one go. The live SchoolSoft suite
-(`make e2e`) needs a human with BankID and never runs in CI.
+`make check` runs the Checks + Unit set in one go, root package only; it never installs
+or touches `packages/app` — `make app-check` and `make app-e2e` cover the app separately.
+The live SchoolSoft suite (`make e2e`) needs a human with BankID and never runs in CI.
 
 Coverage is measured, not hardcoded: CI renders the badge from c8's summary
 and publishes it per branch to `gh-pages/badges/<branch>/`; the README embeds
