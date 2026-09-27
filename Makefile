@@ -141,6 +141,9 @@ app-web: build ## Serve the app on http://localhost:8080 against a running conne
 	@test -n "$(CONNECTOR_URL)" || (echo "CONNECTOR_URL is required, e.g. make app-web CONNECTOR_URL=http://localhost:3000" >&2; exit 2)
 	cd packages/app && node scripts/dev-web.mjs --connector "$(CONNECTOR_URL)"
 
+app-e2e: build ## The E11.4 done criterion in headless Chromium: connector (fake portal) + reference-page grant + app via the dev proxy
+	npx tsx --test packages/app/e2e/app-web.e2e.test.mts
+
 # ---------- Generated artifacts ----------
 
 docs: ## Regenerate command/tool reference docs from the operation registry
@@ -213,6 +216,6 @@ help: ## List available targets
 .PHONY: setup install hooks lint typecheck format format-check boundaries check-code shellcheck check-ci audit \
 	diagrams-check docs-check plugin-validate unit coverage coverage-badge test check build check-package \
 	e2e-artifact connector-smoke host-probe host-probe-stdio e2e login login-web status logout configure doctor browser browser-verify fingerprints capture verify-live capture-promote docs diagrams skills mcpb-stage mcpb \
-	app-check app-web \
+	app-check app-web app-e2e \
 	install-claude install-opencode install-hermes install-openclaw install-pi \
 	release release-rc version registry-smoke clean help
