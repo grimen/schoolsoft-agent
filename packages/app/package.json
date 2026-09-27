@@ -8,7 +8,7 @@
     "export:web": "expo export --platform web --output-dir dist-web",
     "test": "jest",
     "test:coverage": "jest --coverage",
-    "lint": "oxlint --max-warnings=0 app src scripts",
+    "lint": "oxlint --max-warnings=0 app src scripts e2e",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

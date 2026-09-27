@@ -9,12 +9,17 @@
     ],
     "typescript/no-explicit-any": "error",
     "no-console": "off",
-    "react/react-in-jsx-scope": "off"
+    "react/react-in-jsx-scope": "off",
+    "no-underscore-dangle": ["warn", { "allow": ["__DEV__"] }]
   },
   "overrides": [
     {
       "files": ["**/__tests__/**", "**/*.test.*"],
       "rules": { "typescript/no-explicit-any": "off" }
+    },
+    {
+      "files": ["e2e/**", "scripts/**"],
+      "rules": { "no-await-in-loop": "off" }
     }
   ]
 }

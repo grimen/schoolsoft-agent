@@ -83,10 +83,8 @@ test(
           FAKE_UPSTREAM_CODE,
         ),
       );
-      // oxlint-disable-next-line no-await-in-loop -- polling for the fake sign-in; each check waits for the previous one, not parallel.
       for (let attempt = 0; !(await runtime.status()).authenticated; attempt++) {
         assert.ok(attempt < 50, "the fake sign-in did not complete");
-        // oxlint-disable-next-line no-await-in-loop -- see above
         await new Promise((r) => setTimeout(r, 20));
       }
 
@@ -109,9 +107,10 @@ test(
       };
       await ref.close(); // as the connect screen tells the developer to
 
-      // 2. The app, through the proxy's origin only. This flow's REST calls are same-origin
-      // GETs, which carry no Origin header (the rewrite itself is covered by dev-proxy.test.mjs);
-      // it matters for a same-origin non-GET REST call, e.g. a future write.
+      // 2. The app, through the proxy's origin only. This flow's REST reads are same-origin
+      // GETs, which carry no Origin header; its POST /token refresh carries one, but the token
+      // endpoint doesn't check it. The rewrite itself is covered by dev-proxy.test.mjs; it
+      // matters for REST calls that carry Origin (non-GET ones, e.g. a future write).
       const page = await browser.newPage();
       const origins = new Set<string>();
       page.on("request", (r) => origins.add(new URL(r.url()).origin));
