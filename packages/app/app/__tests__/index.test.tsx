@@ -108,3 +108,17 @@ test("without a connection a development build goes to dev-connect", async () =>
   await render(<Index />, { wrapper: withConnection(fetch, false) });
   expect(screen.getByText("redirect:/dev-connect")).toBeTruthy();
 });
+
+test("without a connection a production build shows the sign-in notice", async () => {
+  const g = globalThis as unknown as { __DEV__: boolean };
+  const dev = g.__DEV__;
+  g.__DEV__ = false;
+  try {
+    const fetch = (async () => json({})) as typeof globalThis.fetch;
+    await render(<Index />, { wrapper: withConnection(fetch, false) });
+    expect(screen.getByText("Sign-in arrives in a later version of the app.")).toBeTruthy();
+    expect(screen.queryByText(/^redirect:/)).toBeNull();
+  } finally {
+    g.__DEV__ = dev;
+  }
+});
