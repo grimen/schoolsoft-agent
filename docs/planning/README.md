@@ -13,6 +13,7 @@ and [architecture](../development/architecture.md) for the current system.
 - [CLI output for humans](specs/2026-09-26-cli-text-output.md)
 - [Guided first run](specs/2026-09-26-guided-first-run.md)
 - [App workspace](specs/2026-09-26-app-workspace.md)
+- [Write framework](specs/2026-09-26-write-framework.md)
 
 ## Implementation plans
 
