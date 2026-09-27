@@ -1,4 +1,4 @@
-import { createClient, type ConnectorClient } from "schoolsoft-agent/client";
+import { ConnectorError, createClient, type ConnectorClient } from "schoolsoft-agent/client";
 import type { Language } from "../messages";
 import { tokenStoreFor, type DevConnection, type KeyValue } from "./store";
 
@@ -23,25 +23,46 @@ import { tokenStoreFor, type DevConnection, type KeyValue } from "./store";
 
 const WELL_KNOWN_PATH = "/.well-known/oauth-protected-resource/mcp";
 
-/** RFC 9728 discovery of the connector's own resource, same-origin through the page. */
+/**
+ * RFC 9728 discovery of the connector's own resource, same-origin through the page. No
+ * answer at all is a network error, as for any other call (the typed client's own wording);
+ * an answer that doesn't name an http(s) resource is invalid metadata naming the page origin.
+ */
 async function discoverResourceOrigin(
   pageOrigin: string,
   fetchImpl: typeof fetch,
 ): Promise<string> {
   const invalid = () => new Error(`The connector's OAuth metadata at ${pageOrigin} is invalid.`);
+  let response: Response;
+  try {
+    response = await fetchImpl(pageOrigin + WELL_KNOWN_PATH);
+  } catch (cause) {
+    throw new ConnectorError({
+      kind: "network",
+      retryable: true,
+      status: null,
+      problem: null,
+      message: "The connector could not be reached.",
+      cause,
+    });
+  }
+  if (!response.ok) throw invalid();
   let resource: unknown;
   try {
-    const response = await fetchImpl(pageOrigin + WELL_KNOWN_PATH);
-    resource = (await (response.json() as Promise<{ resource?: unknown }>))?.resource;
+    resource = ((await response.json()) as { resource?: unknown } | null)?.resource;
   } catch {
     throw invalid();
   }
   if (typeof resource !== "string") throw invalid();
+  let url: URL;
   try {
-    return new URL(resource).origin;
+    url = new URL(resource);
   } catch {
     throw invalid();
   }
+  // An opaque origin (urn:, data:) has no address to send the typed client to.
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw invalid();
+  return url.origin;
 }
 
 /**

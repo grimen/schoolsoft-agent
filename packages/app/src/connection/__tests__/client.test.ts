@@ -1,3 +1,5 @@
+import { ConnectorError } from "schoolsoft-agent/client";
+import { explain } from "../../messages";
 import { clientFor, redirectingFetch } from "../client";
 import { memoryStorage, newDevConnection, readConnection, saveConnection } from "../store";
 
@@ -148,6 +150,66 @@ test("metadata whose resource is not a valid absolute URL makes children() rejec
     })) as typeof globalThis.fetch;
   const client = clientFor(conn, storage, { origin: pageOrigin, language: "en", fetch });
   await expect(client.children()).rejects.toThrow(pageOrigin);
+});
+
+test.each(["urn:schoolsoft-agent:mcp", "data:text/plain,mcp", "ftp://connector.example/mcp"])(
+  "metadata whose resource %s is not http(s) makes children() reject naming the page origin",
+  async (resource) => {
+    const { storage, conn } = connected();
+    const pageOrigin = "http://127.0.0.1:8080";
+    const connector = fakeConnector(pageOrigin, resource);
+    const client = clientFor(conn, storage, {
+      origin: pageOrigin,
+      language: "en",
+      fetch: connector.fetch,
+    });
+    await expect(client.children()).rejects.toThrow(
+      `The connector's OAuth metadata at ${pageOrigin} is invalid.`,
+    );
+    expect(connector.refreshes()).toBe(0);
+  },
+);
+
+test("a metadata answer that isn't OK is invalid metadata naming the page origin", async () => {
+  const { storage, conn } = connected();
+  const pageOrigin = "http://127.0.0.1:8080";
+  const fetch = (async () =>
+    new Response(JSON.stringify({ resource: "http://localhost:3000/mcp" }), {
+      status: 404,
+      headers: { "content-type": "application/json" },
+    })) as typeof globalThis.fetch;
+  const client = clientFor(conn, storage, { origin: pageOrigin, language: "en", fetch });
+  await expect(client.children()).rejects.toThrow(
+    `The connector's OAuth metadata at ${pageOrigin} is invalid.`,
+  );
+});
+
+test("no answer to discovery is a retryable network error keeping its cause, and a retry discovers again", async () => {
+  const { storage, conn } = connected();
+  const origin = "http://localhost:8080";
+  const connector = fakeConnector(origin);
+  const down = new TypeError("fetch failed");
+  let reachable = false;
+  const fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (!reachable) throw down;
+    return connector.fetch(input, init);
+  }) as typeof globalThis.fetch;
+  const client = clientFor(conn, storage, { origin, language: "en", fetch });
+  const error: unknown = await client.children().catch((e: unknown) => e);
+  expect(error).toBeInstanceOf(ConnectorError);
+  expect(error).toMatchObject({
+    kind: "network",
+    retryable: true,
+    status: null,
+    problem: null,
+    message: "The connector could not be reached.",
+    cause: down,
+  });
+  expect(explain(error, "en").title).toBe("The connector can't be reached.");
+  reachable = true;
+  const answer = await client.children();
+  expect(answer.children[0]!.firstName).toBe("Synthetic Alva");
+  expect(connector.discoveries()).toBe(1);
 });
 
 test("redirectingFetch passes a request for another origin through unchanged", async () => {
