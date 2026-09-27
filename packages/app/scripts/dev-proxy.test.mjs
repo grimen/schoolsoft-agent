@@ -89,6 +89,43 @@ test("serves a static export with a single-page fallback", async () => {
   }
 });
 
+function rawRequest(base, path) {
+  return new Promise((resolvePromise, reject) => {
+    const req = http.request(
+      { hostname: base.hostname, port: base.port, path, method: "GET" },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () =>
+          resolvePromise({ status: res.statusCode, text: Buffer.concat(chunks).toString() }),
+        );
+      },
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+test("survives a malformed percent-encoded path in static mode", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "app-static-"));
+  writeFileSync(join(dir, "index.html"), "<html>app</html>");
+  const connectorServer = echo("connector");
+  const connector = await listen(connectorServer);
+  const proxy = createProxy({ connector, staticDir: dir });
+  const base = await listen(proxy);
+  try {
+    // fetch() would normalize or reject this itself, so build the raw request by hand.
+    const malformed = await rawRequest(base, "/%E0%A4%A");
+    assert.equal(malformed.text, "<html>app</html>");
+    // The process is still alive: an ordinary request right after still works.
+    assert.equal(await (await fetch(new URL("/", base))).text(), "<html>app</html>");
+  } finally {
+    proxy.close();
+    connectorServer.close();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("an unreachable upstream answers 502, not a hang", async () => {
   const proxy = createProxy({
     connector: new URL("http://127.0.0.1:9"),
@@ -147,6 +184,39 @@ test("checkConnector accepts the connector's own public URL", async () => {
   origin = url.origin;
   try {
     await checkConnector(url);
+  } finally {
+    server.close();
+  }
+});
+
+function connectorWithBody(body) {
+  return http.createServer((req, res) => {
+    if (req.url === "/healthz") return res.end("ok");
+    res.end(body);
+  });
+}
+
+test("checkConnector names the URL when the metadata isn't JSON", async () => {
+  const server = connectorWithBody("not json");
+  const url = await listen(server);
+  try {
+    await assert.rejects(
+      checkConnector(url),
+      new RegExp(`${url.origin.replace(/[.]/g, "\\.")} returned invalid OAuth metadata`),
+    );
+  } finally {
+    server.close();
+  }
+});
+
+test("checkConnector names the URL when the metadata lacks issuer", async () => {
+  const server = connectorWithIssuer(undefined);
+  const url = await listen(server);
+  try {
+    await assert.rejects(
+      checkConnector(url),
+      new RegExp(`${url.origin.replace(/[.]/g, "\\.")} returned invalid OAuth metadata`),
+    );
   } finally {
     server.close();
   }

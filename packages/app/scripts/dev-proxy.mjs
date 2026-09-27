@@ -48,9 +48,16 @@ function forward(req, res, target, rewriteOrigin) {
 
 function serveStatic(req, res, dir) {
   const root = resolve(dir);
-  const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  const candidate = resolve(join(root, normalize(pathname)));
-  const inside = candidate === root || candidate.startsWith(root + sep);
+  const rawPathname = new URL(req.url, "http://x").pathname;
+  let pathname;
+  try {
+    pathname = decodeURIComponent(rawPathname);
+  } catch (error) {
+    if (!(error instanceof URIError)) throw error;
+    pathname = null; // malformed percent-encoding: fall back like any other unknown path.
+  }
+  const candidate = pathname === null ? null : resolve(join(root, normalize(pathname)));
+  const inside = candidate !== null && (candidate === root || candidate.startsWith(root + sep));
   const file =
     inside && existsSync(candidate) && statSync(candidate).isFile()
       ? candidate
@@ -95,10 +102,17 @@ export async function checkConnector(connector, fetchImpl = fetch) {
   }
   if (status !== 200)
     throw new Error(`the connector at ${connector.origin} answered ${status} on /healthz`);
-  const metadata = await (
-    await fetchImpl(new URL("/.well-known/oauth-authorization-server", connector))
-  ).json();
-  const publicOrigin = new URL(metadata.issuer).origin;
+  let publicOrigin;
+  try {
+    const metadata = await (
+      await fetchImpl(new URL("/.well-known/oauth-authorization-server", connector))
+    ).json();
+    publicOrigin = new URL(metadata.issuer).origin;
+  } catch (cause) {
+    throw new Error(`the connector at ${connector.origin} returned invalid OAuth metadata`, {
+      cause,
+    });
+  }
   if (publicOrigin !== connector.origin) {
     throw new Error(`${connector.origin} doesn't match the connector's public URL ${publicOrigin}`);
   }
