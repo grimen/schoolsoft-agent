@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.0](https://github.com/grimen/schoolsoft-agent/compare/v0.3.0...v0.4.0) (2026-09-27)
+
+
+### Features
+
+* **cli:** guide a parent from nothing to this week's schedule ([#70](https://github.com/grimen/schoolsoft-agent/issues/70)) ([f603307](https://github.com/grimen/schoolsoft-agent/commit/f603307afef56c13f338f6dd5c69ddb3a72a8035))
+* **http:** answer a child's week, lunch and next event in one overview request ([#60](https://github.com/grimen/schoolsoft-agent/issues/60)) ([a34483f](https://github.com/grimen/schoolsoft-agent/commit/a34483fa81e0b0a93b70d4a4b3158a64e5c3c8d7))
+* **http:** generate an OpenAPI document and a typed client for the REST API ([#61](https://github.com/grimen/schoolsoft-agent/issues/61)) ([23f68f7](https://github.com/grimen/schoolsoft-agent/commit/23f68f7c782105817f413eeff5c46114f5a0c057))
+* **http:** reference page that shows one child's week over the REST surface ([#57](https://github.com/grimen/schoolsoft-agent/issues/57)) ([565d483](https://github.com/grimen/schoolsoft-agent/commit/565d48347b417fbaf70a386e2e91052e059850a6))
+
+
+### Bug Fixes
+
+* **core:** seal local history and login note, private file modes, no addresses in oauth.enc ([#69](https://github.com/grimen/schoolsoft-agent/issues/69)) ([7f7fb4e](https://github.com/grimen/schoolsoft-agent/commit/7f7fb4e0a9f41b662c2e8a4aa6d22cd2eb444064)), closes [#64](https://github.com/grimen/schoolsoft-agent/issues/64)
+* **http:** let browsers send their Origin on the owner dashboard's form posts ([#58](https://github.com/grimen/schoolsoft-agent/issues/58)) ([60c276e](https://github.com/grimen/schoolsoft-agent/commit/60c276e19975b929bad4940a3291b8e2b120bfdf))
+* **release:** keep plugin manifests and the release manifest in step with package.json ([#55](https://github.com/grimen/schoolsoft-agent/issues/55)) ([c69ad05](https://github.com/grimen/schoolsoft-agent/commit/c69ad053fb4863c9af9265364f880d421eebfcb6))
+
 ## [0.3.0](https://github.com/grimen/schoolsoft-agent/compare/v0.2.0...v0.3.0) (2026-09-26)
 
 
