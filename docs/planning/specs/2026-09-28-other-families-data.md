@@ -16,7 +16,7 @@ context:
 
 `get_contacts` returns the class contact list: other pupils and, where the school publishes them, other guardians, with e-mail and phone. The answer goes to the assistant's company (Anthropic, OpenAI: processing that can take place outside the EU/EEA), and the read cache kept it in memory for 6 hours. `get_message` returns the full message with its recipients as SchoolSoft sends them, and `get_activity_log` names each post's recipients. None of these families chose to send anything to an AI provider. This spec decides what the project sends and keeps about them. It is the first item of #64 and must be settled before the family app (E11, #39) shows messages or contacts.
 
-> **Not legal advice.** This is an engineering interpretation of the rules below, written by the project to guide its defaults. It has not been reviewed by a lawyer or by IMY. Until the open item in [Open questions](#open-questions) is closed, the project must not tell parents that it is "GDPR-compliant" or "approved"; it may say what it does and why.
+> **Not legal advice.** This is an engineering interpretation of the rules below, written by the project to guide its defaults. A research-based [legal review](../reviews/2026-09-28-other-families-data-legal-review.md) has checked it against EU and Swedish law, but it has not been reviewed by a lawyer or by IMY. Until a qualified Swedish data-protection lawyer or DPO confirms the review's conclusions, the project must not tell parents that it is "GDPR-compliant" or "approved"; it may say what it does and why.
 
 <frozen-after-approval>
 
@@ -31,7 +31,7 @@ The project is used in Sweden, so Swedish law applies: the EU General Data Prote
 | Data protection by default | GDPR Art. 25(2) | By default only the data necessary for each purpose, in amount, extent, storage period and accessibility. The reveal is an explicit choice, off by default. |
 | Transfers outside the EU/EEA | GDPR Chapter V (Art. 44 onwards); IMY: making data available to a recipient outside the EU/EEA is a transfer | What reaches the assistant may be processed outside the EU/EEA, under the AI provider's terms. The other families are not involved. Sending less is the only lever this project holds. |
 | Household exemption | GDPR Art. 2(2)(c), Recital 18; IMY on when GDPR does not apply | A parent's own use may be "purely personal or household activity". The exemption is read narrowly (CJEU C-101/01 *Lindqvist*, C-212/13 *Ryneš*), Recital 18 keeps the GDPR applicable to those who provide the means, and a parent who shares an answer onwards may leave it. **The design does not rely on the exemption**: every default below holds as if the GDPR applied to the parent's use. |
-| Protected personal data | Skatteverket: sekretessmarkering, skyddad folkbokföring, fingerade personuppgifter | Never leak or combine data about people with protected personal data. The project cannot see who is protected, so it must never enrich, join, persist or re-publish contact data beyond what the school itself shows the parent. |
+| Protected personal data | Skatteverket: sekretessmarkering, skyddad folkbokföring, fingerade personuppgifter | Never leak or combine data about people with protected personal data. The owner states that SchoolSoft already leaves them out of the class contact list. The project cannot see who is protected, so as defence in depth it must never enrich, join, persist or re-publish contact data beyond what the school itself shows the parent. |
 
 Sources (checked 2026-09-28):
 
@@ -41,6 +41,7 @@ Sources (checked 2026-09-28):
 - IMY, what a transfer to a third country is: <https://www.imy.se/vanliga-fragor-och-svar/vad-menas-med-overforing-till-tredjeland/>, and transfers in general: <https://www.imy.se/verksamhet/dataskydd/det-har-galler-enligt-gdpr/overforing-till-tredje-land/>.
 - CJEU C-101/01 *Lindqvist* (2003) and C-212/13 *Ryneš* (2014) on the narrow household exemption: <https://curia.europa.eu/juris/liste.jsf?num=C-101/01>, <https://curia.europa.eu/juris/liste.jsf?num=C-212/13>.
 - Skatteverket, protected personal data: <https://www.skatteverket.se/privat/folkbokforing/skyddadepersonuppgifter.4.18e1b10334ebe8bc80001711.html>.
+- The full reasoning, with more sources: [legal review](../reviews/2026-09-28-other-families-data-legal-review.md).
 
 ## 1. Contacts are redacted by default
 
@@ -48,7 +49,7 @@ Sources (checked 2026-09-28):
 
 "Other families" is every group the redaction does not recognise as staff. Staff is recognised by the group's heading alone, compared whole and case-insensitively: `Personal`, `Skolpersonal`, `Lärare`, `Mentor`, `Mentorer`, `Staff`, `Teacher`, `Teachers`. A heading the redaction does not know, including a new wording SchoolSoft introduces, is treated as families: the failure mode is too little, never too much.
 
-**Judgment call for the owner: staff keep their work e-mail and phone.** Teachers and school staff listed under the staff heading are the school's official contacts. The school publishes these work details to guardians so that guardians can reach it; a municipal school's staff contact details are in general public records under the principle of public access (offentlighetsprincipen, Tryckfrihetsförordningen ch. 2), and hiding them would stop the most common use ("mejla mentorn") for little gain. Private details of staff never appear on this page. The other reading, redacting staff too, is one line in the redaction and a documented default change.
+**Owner decision (2026-09-28): staff keep their work e-mail and phone, for now.** Teachers and school staff listed under the staff heading are the school's official contacts. The school publishes these work details to guardians so that guardians can reach it; a municipal school's staff contact details are in general public records under the principle of public access (offentlighetsprincipen, Tryckfrihetsförordningen ch. 2), and hiding them would stop the most common use ("mejla mentorn") for little gain. Private details of staff never appear on this page. The other reading, redacting staff too, is one line in the redaction and a documented default change. The heading list stays as designed; the live session checks it against the headings SchoolSoft really shows (question D1 in the [live-session runbook](../../development/live-session.md), from the group counts in the live E2E report).
 
 ## 2. An explicit opt-in reveals other families' contact details
 
@@ -64,7 +65,7 @@ The connector does not offer `get_contacts` today (it has no browser, and its RE
 - `get_message`: every entry of `recipients` becomes a display name (a string: its `name`, `displayName`, `fullName`, or `firstName lastName`; an entry without any becomes `null`). Anywhere in the message, sender included, keys that hold contact details are removed: e-mail, phone, mobile, address, personal identity number (matched by name, e.g. `email`, `eMail`, `phoneNumber`, `mobile`, `address`, `ssn`, `personalNumber`, `personnummer`). SchoolSoft's exact field list for this answer is not recorded, which is why the rule is by key name and not by a fixed shape.
 - `get_activity_log`: recipients are already one names string from SchoolSoft, and `comments` is a count, not the comments. The redaction keeps only the known fields of an entry, so nothing else can pass.
 
-**Judgment call for the owner: bodies stay.** The message text, the post text and their subjects are what the parent asked to read; they may mention other people, and an e-mail address typed into a message body is sent as written. Redacting free text would be unreliable and would break the tool's purpose. The data-handling page says so.
+**Owner decision (2026-09-28): bodies stay.** The message text, the post text and their subjects are what the parent asked to read; they may mention other people, and an e-mail address typed into a message body is sent as written. Redacting free text would be unreliable and would break the tool's purpose. The data-handling page says so.
 
 ## 4. The read cache never holds other families' data
 
@@ -86,11 +87,19 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 - Cache TTLs are tuning values, not a contract.
 - `get_contacts` and `get_activity_log` keep their `fresh` input, because removing an input is breaking. It is accepted and changes nothing: both are always read from SchoolSoft.
 
+## Owner decisions (2026-09-28)
+
+1. **Staff contacts:** teachers and school staff keep their work e-mail and phone, for now (section 1). Whether this holds for independent schools (friskolor) is a follow-up, not a blocker. The legal review found that the principle of public access applies to friskolor from 1 January 2027 (offentlighets- och sekretesslagen 2 kap. 3 a §, SFS 2026:714), which largely settles it.
+2. **Message and post bodies stay unredacted** (section 3). The data-handling page keeps the caveat that anything typed into a body, such as an e-mail address, is sent as written.
+3. **Legal review: performed.** See [the review](../reviews/2026-09-28-other-families-data-legal-review.md). Outcome: the default design is consistent with the GDPR and Swedish law as the reviewer reads it, and does not depend on the household exemption, whose application to AI assistants is uncertain. One guardian's opt-in is not a lawful basis and not the other families' consent; it is a reasonable safeguard for guardians' contact details, but the reveal should not include pupils' own contact details (recommendation R1 for the owner). The review is not legal advice; a qualified Swedish data-protection lawyer or DPO must confirm it before any compliance claim.
+4. **Protected personal data:** the owner states that SchoolSoft already leaves people with protected personal data (skyddade personuppgifter) out of the class contact list. The project still never stores, combines or enriches the data, as defence in depth: message texts and recipients are written by the school and are not covered by that omission.
+5. **Staff heading list:** stays as designed (section 1). The live session checks it against the real headings: question D1 in the [live-session runbook](../../development/live-session.md), from the group counts in the live E2E report.
+
 ## Open questions
 
-1. **Legal review (blocking any compliance claim).** A review by someone with Swedish data-protection expertise, or against IMY guidance, before parents are told the project's handling is compliant. Points to check: whether the household exemption can be relied on at all for a parent's assistant use; whether the staff judgment call holds for independent schools (friskolor), where the principle of public access does not apply in the same way; whether opt-in by one guardian is a sufficient safeguard for the reveal.
-2. **Protected identities.** It is not known whether SchoolSoft leaves pupils and guardians with protected personal data out of the contact list. The project cannot detect them. The school is responsible for its lists; the project's safeguard is that it never persists, combines or enriches the data.
-3. **Staff contacts** (section 1) and **message bodies** (section 3) are owner decisions recorded above.
+1. **The review's recommendations.** R1 (keep pupils' own contact details out of the reveal) and R2 (narrow the local reveal from a standing switch) are code changes for the owner to decide; R3 to R6 are documentation. See [the review](../reviews/2026-09-28-other-families-data-legal-review.md#conclusions-and-recommendations).
+2. **Confirmation by a lawyer or DPO** of the review, before any compliance claim. The review ends with the questions to put to them.
+3. **Friskolor staff lists** (follow-up): after 1 January 2027, check that nothing but work details appears under a staff heading at an independent school.
 4. **The connector's contacts.** When E11 brings `get_contacts` (or messages) to the connector, `get_contacts_details` becomes visible on the consent page; the consent wording should be reviewed then with a real parent.
 
 ## Tasks & Acceptance
@@ -102,6 +111,7 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 - [x] Connector: `get_contacts_details` offered only with `get_contacts`, unticked with the warning, dropped without its operation, not gained by refresh, passed per request to the portal.
 - [x] Boundary test: every surface's portal redacts; adapters cannot bypass.
 - [x] Data-handling, architecture, stability and generated reference docs match; #64's first box ticked.
+- [x] Owner decisions recorded; research-based legal review written and linked.
 
 ## Verification
 

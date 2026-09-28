@@ -121,7 +121,7 @@ These things are never written to disk. They disappear when the program stops or
 
 ## What your AI assistant receives
 
-When the assistant uses one of the tools, the answer goes to the assistant app. For Claude, ChatGPT and most other assistants, that means the company's servers. They process it under their own terms and your account's data settings, and they may keep your conversations. This project cannot delete anything there. Manage that in your AI account.
+When the assistant uses one of the tools, the answer goes to the assistant app. For Claude, ChatGPT and most other assistants, that means the company's servers. They process it under their own terms and your account's data settings, and they may keep your conversations. With a personal account, they may also use your conversations to train their models unless you turn that off in your account's privacy or data settings. We recommend turning it off: what you ask about includes other people. This project cannot delete anything there. Manage that in your AI account.
 
 The assistant also sees what you write in the chat, such as your child's name or the reason for an absence.
 
@@ -157,9 +157,13 @@ Contact lists, messages and teachers' posts name other children and their parent
 | One message        | The text, the subject, the sender, and the recipients' names.                                                           | E-mail addresses, phone numbers, addresses or identity numbers of anyone in it, except what someone wrote in the text itself. |
 | Teachers' posts    | The text, the author, the recipients' names as SchoolSoft shows them, the number of comments.                           | Anything else SchoolSoft may add.                                                                                             |
 
-None of it is kept after the answer: contact lists, messages and posts are never in the read cache. The program never saves them, and never combines them with anything else. That matters for children and parents with protected personal data (skyddade personuppgifter): the program cannot see who they are, so it never passes on more than the school itself shows you, and never keeps it.
+None of it is kept after the answer: contact lists, messages and posts are never in the read cache. The program never saves them, and never combines them with anything else.
 
-**Why.** Swedish data protection law is the EU's General Data Protection Regulation (GDPR), with the Swedish Data Protection Act (dataskyddslagen, 2018:218), supervised by IMY. It asks for no more personal data than needed (data minimisation, Art. 5(1)(c)), kept no longer than needed (Art. 5(1)(e)), and the least as the default (Art. 25). Your own use for your family may be private ("household") use, which the GDPR does not cover, but the program is built as if it did. This is how the project reads those rules, not legal advice, and it has not been reviewed by a lawyer or by IMY. The full reasoning and sources are in the [design note](../planning/specs/2026-09-28-other-families-data.md).
+Teachers and school staff keep their work e-mail and phone for now, because they are the school's official contacts. The project may revisit this.
+
+**People with protected personal data** (skyddade personuppgifter). The project owner's understanding is that SchoolSoft already leaves them out of class contact lists. The program cannot see who they are, so it adds its own protection anyway: it never passes on more than the school itself shows you, and never keeps or combines it. That also covers what the school writes in messages, where the contact-list rule does not apply.
+
+**Why.** Swedish data protection law is the EU's General Data Protection Regulation (GDPR), with the Swedish Data Protection Act (dataskyddslagen, 2018:218), supervised by IMY. It asks for no more personal data than needed (data minimisation, Art. 5(1)(c)), kept no longer than needed (Art. 5(1)(e)), and the least as the default (Art. 25). Your own use for your family may be private ("household") use, which the GDPR does not cover, but whether that holds when you use an AI assistant is not settled, so the program is built as if the GDPR applied. The reasoning is in the [design note](../planning/specs/2026-09-28-other-families-data.md), and a research-based [legal review](../planning/reviews/2026-09-28-other-families-data-legal-review.md) checks it against EU and Swedish law. That review found the default handling consistent with those rules as its author reads them. It is not legal advice, and it has not been reviewed by a lawyer or by IMY.
 
 **Turning other families' contact details on.** Only do this if you need to contact other families through your assistant. It sends other people's e-mail addresses and phone numbers to your AI provider, without their involvement, possibly outside the EU.
 
