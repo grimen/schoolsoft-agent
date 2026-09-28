@@ -256,6 +256,13 @@ backups kept by a hosting provider. Manage those separately in the relevant acco
 What **Disconnect everything** keeps, and how to remove the rest, is in
 [delete everything](../getting-started/data-handling.md#how-to-delete-everything).
 
+**Disconnect everything** is optional, owner-only, and removes every app's grant
+and OAuth client registration, so each AI app must then be reconnected and
+approved again. Whether Claude and ChatGPT re-register themselves is unverified —
+check with the [host probe](../development/host-probe.md). If an app keeps
+failing to reconnect (e.g. it reuses its old client ID and gets `invalid_client`),
+remove the connector from that app's settings and add it again.
+
 ## Your own app or dashboard (REST API)
 
 The connector also answers plain JSON requests under `/api/v1`, for a family
