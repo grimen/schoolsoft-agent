@@ -10,9 +10,10 @@ what the class has been doing, newest first.
 Args:
   - child_id (number, optional): from list_children.
   - limit (number, optional): max posts, default 20.
-  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
+  - fresh (boolean, optional): accepted; this list is always read from SchoolSoft, never kept in memory.
 
 Returns: { child, entries: [{ id, date, title, author, text, recipients, comments }] }.
+recipients is the names SchoolSoft shows; comments is a count.
 
 Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från läraren".`,
   input: { child_id: ChildSchema, limit: LimitSchema, fresh: FreshSchema },

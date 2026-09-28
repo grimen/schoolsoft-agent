@@ -167,7 +167,9 @@ directly. What is promised is the upgrade path:
   part of the `.` library export below and is not affected by its pre-1.0 caveat.
 - **MCP over HTTP** (`/mcp`): the MCP tool rules above, for the tools the
   connector offers.
-- **OAuth**: scope names (one per operation name), per-child consent and the
+- **OAuth**: scope names (one per operation name, plus detail scopes named
+  `<operation>_details`, such as `get_contacts_details`, offered only with their
+  operation and never ticked in advance), per-child consent and the
   resource identifier `https://<connector>/mcp` (for REST clients too) are
   stable. A release never widens an existing grant: a newly offered operation
   needs a new approval. Removing an operation from the connector is breaking.

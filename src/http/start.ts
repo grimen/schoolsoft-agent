@@ -21,6 +21,7 @@ import { ConnectorOAuthProvider, OAUTH_STATE_FORMAT, type OAuthState } from "./o
 import { ConnectorRuntime, CONNECTOR_OPERATIONS } from "./runtime.js";
 import { createConnectorApp } from "./server.js";
 import { PAGE_PATH } from "./reference/app.js";
+import { offeredScopes } from "./scopes.js";
 type ConnectorKeepaliveDeps = Pick<
   KeepaliveDeps,
   "timer" | "random" | "hourOf" | "fetchImpl" | "log"
@@ -85,7 +86,7 @@ export function composeConnector(
   );
   const oauth = new ConnectorOAuthProvider({
     resourceUrl: config.publicUrl + "/mcp",
-    scopes: [...CONNECTOR_OPERATIONS],
+    scopes: offeredScopes(CONNECTOR_OPERATIONS),
     // The connector's own reference page is an OAuth client like any other UI.
     ownCallbacks: [config.publicUrl + PAGE_PATH],
     repository: new EncryptedRepository<OAuthState>(

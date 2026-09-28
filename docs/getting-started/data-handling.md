@@ -1,6 +1,6 @@
 # How your family's data is handled
 
-This page explains, in plain language, what schoolsoft-agent saves, where it saves it, how long it keeps it, and who receives your children's school information. Read it before you connect an account.
+This page explains, in plain language, what schoolsoft-agent saves, where it saves it, how long it keeps it, and who receives your children's school information. Read it before you connect an account. If you are another family in a class where a parent uses it, see [if your family is in the same class](#if-your-family-is-in-the-same-class).
 
 It describes the code as of version 0.3.0 (September 2026). It covers all three ways to use the project:
 
@@ -12,6 +12,7 @@ It describes the code as of version 0.3.0 (September 2026). It covers all three 
 ## In short
 
 - **Your AI assistant receives the school information you ask for.** Your assistant's company (for example Anthropic for Claude or OpenAI for ChatGPT) handles it under its own terms, and it may keep your conversations.
+- **Other families' e-mail addresses and phone numbers are not sent** unless you turn that on, and then only other guardians', never a pupil's. See [other families' data](#other-families-data).
 - **Your SchoolSoft login is saved encrypted** on the computer or server that runs the project. Nobody else runs a copy for you.
 - **Schedules, menus and other answers are not saved to disk.** Some are kept in memory for a short time and are gone when the program stops.
 - **The project author receives nothing.** There is no telemetry, no crash reporting, no analytics and no central server. The program itself contacts only SchoolSoft.
@@ -87,14 +88,14 @@ These things are never written to disk. They disappear when the program stops or
 
 - **Recent answers (the read cache).** To avoid asking SchoolSoft the same thing twice in one conversation, some answers are kept for a short time:
 
-  | Information                                           | Kept for   |
-  | ----------------------------------------------------- | ---------- |
-  | Lunch menu, subjects and teachers, class contact list | 6 hours    |
-  | Shared files and links                                | 1 hour     |
-  | Schedule and calendar                                 | 30 minutes |
-  | News, assignments, activity log                       | 10 minutes |
+  | Information                       | Kept for   |
+  | --------------------------------- | ---------- |
+  | Lunch menu, subjects and teachers | 6 hours    |
+  | Shared files and links            | 1 hour     |
+  | Schedule and calendar             | 30 minutes |
+  | News, assignments                 | 10 minutes |
 
-  Messages, bookings, grades, student documents, absence and attendance are **never** kept. Each copy belongs to one school, one guardian and one child. All copies are thrown away when you log in, log out, switch child or lose the SchoolSoft session. At most 200 answers are kept. Ask for "the latest" to skip it, or set `SCHOOLSOFT_CACHE=off` to turn it off. The command line runs one command and exits, so in practice it only helps the MCP server and the connector.
+  The class contact list, the activity log, messages, bookings, grades, student documents, absence and attendance are **never** kept. Each copy belongs to one school, one guardian and one child. All copies are thrown away when you log in, log out, switch child or lose the SchoolSoft session. At most 200 answers are kept. Ask for "the latest" to skip it, or set `SCHOOLSOFT_CACHE=off` to turn it off. The command line runs one command and exits, so in practice it only helps the MCP server and the connector.
 
 - **SchoolSoft's app cookies.** SchoolSoft needs cookies tied to one child for most reads. The program gets them with the saved token when it first needs them and when you switch child. It does not save them.
 - **The request budget.** Counters of how many requests went to SchoolSoft recently, and whether SchoolSoft asked the program to slow down. See [what reaches SchoolSoft](#what-reaches-schoolsoft).
@@ -120,31 +121,58 @@ These things are never written to disk. They disappear when the program stops or
 
 ## What your AI assistant receives
 
-When the assistant uses one of the tools, the answer goes to the assistant app. For Claude, ChatGPT and most other assistants, that means the company's servers. They process it under their own terms and your account's data settings, and they may keep your conversations. This project cannot delete anything there. Manage that in your AI account.
+When the assistant uses one of the tools, the answer goes to the assistant app. For Claude, ChatGPT and most other assistants, that means the company's servers. They process it under their own terms and your account's data settings, and they may keep your conversations. With a personal account, they may also use your conversations to train their models unless you turn that off in your account's privacy or data settings. We recommend turning it off: what you ask about includes other people. This project cannot delete anything there. Manage that in your AI account.
 
 The assistant also sees what you write in the chat, such as your child's name or the reason for an absence.
+
+**Personal or business account.** With a personal account (such as Claude Free, Pro or Max, or ChatGPT Free, Plus or Pro), the AI company decides for itself how it handles what it receives: it is its own controller (personuppgiftsansvarig) under its privacy policy. With a business, team or API account, the company is instead your processor (personuppgiftsbiträde), handling the data on your behalf. You then need its data processing terms (a data processing agreement, DPA), which business plans usually include, and you should check where it processes the data.
 
 ### On your computer
 
 Each tool returns one kind of information. The assistant only fetches what it needs for your question.
 
-| Kind of information    | Tools                                                                                      | What the answer contains                                                                                                                             |
-| ---------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Who you are            | `login`, `list_children`, `auth_status`                                                    | Your name, your children's first names and student numbers, their school and class. `auth_status` also shows the sign-in history (times and counts). |
-| Schedule and calendar  | `get_schedule`, `get_calendar`                                                             | Lessons with subject, time, room, group, teacher and notes. School events.                                                                           |
-| Lunch                  | `get_lunch_menu`                                                                           | The school's menu.                                                                                                                                   |
-| School work            | `get_assignments`, `get_assignment_detail`, `get_subject_rooms`, `get_assessment_criteria` | Homework, tests and projects. Subjects, groups and teachers. Assessment criteria, which need `login --web`.                                          |
-| News and posts         | `get_news`, `get_activity_log`                                                             | School news. Teachers' posts, with their recipients and comments.                                                                                    |
-| Messages               | `get_messages`, `get_message`                                                              | Your SchoolSoft inbox: subject, start of the text, sender. `get_message` returns the full text and the recipients.                                   |
-| Other families         | `get_contacts`                                                                             | The class contact list: classmates and, where the school publishes them, other guardians, with e-mail and phone.                                     |
-| Meetings and files     | `get_bookings`, `get_files`                                                                | Bookable meetings such as development talks. Names and links of files the school shares.                                                             |
-| Grades and documents   | `get_grades`, `get_grade_prognosis`, `get_student_documents`                               | Published grades, grade check dates, the list of student documents. These need `login --web`.                                                        |
-| Absence and attendance | `get_unreported_absence`, `get_attendance_report`, `report_absence`                        | Absence the school recorded, attendance summaries. `report_absence` returns the report it would send, or sent. The first two need `login --web`.     |
-| Finding a school       | `find_school`                                                                              | Names from SchoolSoft's public school list.                                                                                                          |
+| Kind of information    | Tools                                                                                      | What the answer contains                                                                                                                                                                                                                                                           |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Who you are            | `login`, `list_children`, `auth_status`                                                    | Your name, your children's first names and student numbers, their school and class. `auth_status` also shows the sign-in history (times and counts).                                                                                                                               |
+| Schedule and calendar  | `get_schedule`, `get_calendar`                                                             | Lessons with subject, time, room, group, teacher and notes. School events.                                                                                                                                                                                                         |
+| Lunch                  | `get_lunch_menu`                                                                           | The school's menu.                                                                                                                                                                                                                                                                 |
+| School work            | `get_assignments`, `get_assignment_detail`, `get_subject_rooms`, `get_assessment_criteria` | Homework, tests and projects. Subjects, groups and teachers. Assessment criteria, which need `login --web`.                                                                                                                                                                        |
+| News and posts         | `get_news`, `get_activity_log`                                                             | School news. Teachers' posts, with the names of their recipients and the number of comments.                                                                                                                                                                                       |
+| Messages               | `get_messages`, `get_message`                                                              | Your SchoolSoft inbox: subject, start of the text, sender. `get_message` returns the full text and the recipients' names, without anyone's e-mail or phone.                                                                                                                        |
+| Other families         | `get_contacts`                                                                             | The class contact list: classmates and, where the school publishes them, other guardians, by name and role. Teachers and school staff with their work e-mail and phone. Other guardians' e-mail and phone only if you [turn that on](#other-families-data); classmates' own never. |
+| Meetings and files     | `get_bookings`, `get_files`                                                                | Bookable meetings such as development talks. Names and links of files the school shares.                                                                                                                                                                                           |
+| Grades and documents   | `get_grades`, `get_grade_prognosis`, `get_student_documents`                               | Published grades, grade check dates, the list of student documents. These need `login --web`.                                                                                                                                                                                      |
+| Absence and attendance | `get_unreported_absence`, `get_attendance_report`, `report_absence`                        | Absence the school recorded, attendance summaries. `report_absence` returns the report it would send, or sent. The first two need `login --web`.                                                                                                                                   |
+| Finding a school       | `find_school`                                                                              | Names from SchoolSoft's public school list.                                                                                                                                                                                                                                        |
 
-Some of this is about other people: teachers, classmates, and other parents in contact lists, message recipients and comments. Ask only for what you need.
+Some of this is about other people: teachers, classmates, and other parents in contact lists, message recipients and the text of messages and posts. Ask only for what you need.
 
 With the command line, the same answers are printed as text. They reach an AI provider only if an assistant runs the command.
+
+### Other families' data
+
+Contact lists, messages and teachers' posts name other children and their parents. Those families did not choose to send anything to an AI provider, and your provider may process it outside the EU. So by default the program sends as little about them as it can:
+
+| What               | Sent by default                                                                                                         | Never sent                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Class contact list | Each person's name and role. Teachers and school staff also with their work e-mail and phone, as the school lists them. | Other guardians' e-mail and phone (unless you turn them on), pupils' own e-mail and phone (even then), anyone's address.      |
+| One message        | The text, the subject, the sender, and the recipients' names.                                                           | E-mail addresses, phone numbers, addresses or identity numbers of anyone in it, except what someone wrote in the text itself. |
+| Teachers' posts    | The text, the author, the recipients' names as SchoolSoft shows them, the number of comments.                           | Anything else SchoolSoft may add.                                                                                             |
+
+None of it is kept after the answer: contact lists, messages and posts are never in the read cache. The program never saves them, and never combines them with anything else.
+
+Teachers and school staff keep their work e-mail and phone for now, because they are the school's official contacts. The project may revisit this.
+
+**People with protected personal data** (skyddade personuppgifter). The project owner's understanding is that SchoolSoft already leaves them out of class contact lists. The program cannot see who they are, so it adds its own protection anyway: it never passes on more than the school itself shows you, and never keeps or combines it. That also covers what the school writes in messages, where the contact-list rule does not apply.
+
+**Why.** Swedish data protection law is the EU's General Data Protection Regulation (GDPR), with the Swedish Data Protection Act (dataskyddslagen, 2018:218), supervised by IMY. It asks for no more personal data than needed (data minimisation, Art. 5(1)(c)), kept no longer than needed (Art. 5(1)(e)), and the least as the default (Art. 25). Your own use for your family may be private ("household") use, which the GDPR does not cover, but whether that holds when you use an AI assistant is not settled, so the program is built as if the GDPR applied. The reasoning is in the [design note](../planning/specs/2026-09-28-other-families-data.md), and a research-based [legal review](../planning/reviews/2026-09-28-other-families-data-legal-review.md) checks it against EU and Swedish law. That review found the default handling consistent with those rules as its author reads them. It is not legal advice, and it has not been reviewed by a lawyer or by IMY.
+
+**Turning other guardians' contact details on.** Only do this if you need to contact other parents through your assistant, and turn it off again when you are done. It sends other people's e-mail addresses and phone numbers to your AI provider, without their involvement, possibly outside the EU. While it is on, every contact-list answer carries them, including answers to questions that do not need them.
+
+It reveals **guardians' (vårdnadshavare) details only**. A pupil's own e-mail and phone are never sent, even with it on. The program decides from each person's role in the list, or else from the group's heading: a person counts as a guardian only if that says so (for example "Vårdnadshavare", "Förälder" or "Guardian") and says nothing about a pupil ("Elev", "Barn", "Student"). Anyone it cannot place, or who could be either, keeps their details hidden.
+
+- On your computer: set `SCHOOLSOFT_CONTACT_DETAILS=1` in the environment, or `"contactDetails": true` in `config.json`, and restart the assistant app. Remove it and restart the app to turn it off again.
+- On the connector: the approval page has a separate box, "Other guardians' e-mail addresses and phone numbers in the class contact list". It is never ticked for you, an app never gets it by renewing its access, and it works only together with the contact list tool. To turn it off, disconnect that app on the owner page and connect it again without the box. The connector does not offer the contact list today, so the box does not appear yet.
 
 ### Through the connector
 
@@ -215,6 +243,8 @@ A general framework for actions that change data (such as sending messages) is b
 With the connector, you rent the server and control it. There is no one else running it for you. In practice:
 
 - **Your hosting provider can reach your data** while the server uses it. Choose a provider you trust, and protect your hosting account with a strong password and two-step login.
+- **Choose a hosting region in the EU/EEA** where your provider offers one. Your hosting provider processes the data for you, and a server outside the EU/EEA moves your children's and other families' data there.
+- **Run it only for your own family.** The connector serves one guardian. Running it for another family makes you responsible for their data in a way that private use is not.
 - **Keep the storage key and admin password safe**, for example in a password manager. Without the storage key, the saved data cannot be read. Anyone with both the key and the disk can read it.
 - **Backups are your choice.** Your hosting provider may make disk backups. They contain the encrypted files. Check how long it keeps them.
 - **After restoring a backup, disconnect everything.** A backup brings back every app approval that existed when it was made, including ones you removed later. Before you use a restored server, open the owner page, choose **Disconnect everything**, then log in to SchoolSoft and connect each AI app again. Starting with an empty disk is simpler. See the [connector recovery steps](../deployment/connector.md#everyday-use-and-recovery).
@@ -236,6 +266,26 @@ With the connector, you rent the server and control it. There is no one else run
 3. To remove everything, delete the service and its disk or volume in your hosting account, remove the saved settings (storage key and admin password), and check the provider's backups.
 
 **At your AI provider:** delete conversations in your AI account if you do not want them kept. This project cannot do it for you.
+
+## If your family is in the same class
+
+This section is for other families in a class where a parent uses schoolsoft-agent. It is a program that a parent runs themselves, on their own computer or server, to ask an AI assistant about their own child's school information in SchoolSoft. Nobody runs it for them, and the project author receives nothing from it.
+
+**What it can show about you.** Only what SchoolSoft already shows that parent, as a guardian at the school:
+
+- From the class contact list (kontaktlista): your child's name, and your name and role if the school lists guardians. By default, nothing more.
+- If that parent turns on contact details: your e-mail address and phone number as a guardian (vårdnadshavare), as the school lists them. Never your child's own e-mail or phone.
+- From messages and posts that parent received: the names of the other recipients, and what the school or another parent wrote in the text itself.
+
+**What it never does.** It never sends anyone's home address, never sends the e-mail addresses or phone numbers SchoolSoft attaches to a message (only what someone typed into its text), never saves the contact list, and never combines it with anything else. It does not change your data at SchoolSoft.
+
+**Where it goes.** What the parent's assistant fetches goes to that parent's AI provider (for example Anthropic or OpenAI), which may process it outside the EU/EEA under its own terms.
+
+**Who to contact.**
+
+- For your data in SchoolSoft (what the class list shows, who sees it, correcting or removing it): your school. The school's governing body (huvudman: the municipality, or the organisation that runs an independent school) is responsible for it (personuppgiftsansvarig). SchoolSoft AB handles it on the school's behalf.
+- For what one parent does with their assistant: that parent.
+- For how this program works: [open an issue](https://github.com/grimen/schoolsoft-agent/issues), without personal data. The project holds no data about you, so it cannot show, correct or delete any.
 
 ## What would change this page
 

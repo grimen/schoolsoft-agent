@@ -265,7 +265,10 @@ Left open by #20, listed in its description.
   (offline). What the data-handling statement found. First a product decision: other
   families' names, e-mails and phone numbers (contacts, message recipients, comments)
   reach the AI provider; drop them, redact them by default, or put them behind their own
-  consent scope, decided before E11.6 shows messages or contacts. Then one pull request of
+  consent scope, decided before E11.6 shows messages or contacts. Decided: redacted by
+  default, with an explicit opt-in (a setting locally, the `get_contacts_details` scope on
+  the connector); see [other families' data](docs/planning/specs/2026-09-28-other-families-data.md).
+  Then one pull request of
   small fixes: the plaintext local session history and pending-login file, file modes,
   and pending-consent addresses kept past their request.
 

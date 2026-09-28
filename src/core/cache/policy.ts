@@ -2,7 +2,9 @@
  * How long a read may be answered from memory, per capability. Conservative
  * on purpose: a capability that is absent is never cached. Web-session
  * (GDPR-gated) capabilities are refused by the cache decorator whatever this
- * table says; see docs/planning/specs/2026-09-21-session-longevity.md.
+ * table says (docs/planning/specs/2026-09-21-session-longevity.md), and so are
+ * the capabilities that can return other families' data: contacts, messages
+ * and the activity log (docs/planning/specs/2026-09-28-other-families-data.md).
  */
 import type { Capability } from "../portal/types.js";
 
@@ -15,7 +17,6 @@ export const DEFAULT_CACHE_TTL_MS: CacheTtls = {
   // Published weekly, or changes a few times a term.
   getLunchWeek: 6 * HOUR,
   getSubjectRooms: 6 * HOUR,
-  getContacts: 6 * HOUR,
   getFiles: HOUR,
   // Substitutions and cancelled lessons happen during the day.
   getScheduleWeek: 30 * MINUTE,
@@ -24,5 +25,4 @@ export const DEFAULT_CACHE_TTL_MS: CacheTtls = {
   getNews: 10 * MINUTE,
   getAssignmentsWeek: 10 * MINUTE,
   getAssignmentDetail: 10 * MINUTE,
-  getActivityLog: 10 * MINUTE,
 };

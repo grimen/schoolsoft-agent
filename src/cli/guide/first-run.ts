@@ -223,6 +223,7 @@ export async function runFirstRun(
   deps.stderr("");
   line("hostsHeading");
   item("hostsPrivacy");
+  item("hostsOtherFamilies");
   item("hostClaude", { school: ctx.config.school });
   item("hostChatgpt");
   item("hostOthers");

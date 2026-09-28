@@ -116,6 +116,8 @@ export interface ContactPerson {
 export interface ContactGroup {
   title: string;
   people: ContactPerson[];
+  /** Set when other families' e-mail or phone were left out (third-party.ts). */
+  detailsHidden?: boolean;
 }
 export interface SubjectRoom {
   subject: string;

@@ -7,6 +7,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { browserStatus } from "../../src/core/index.js";
+import { isGuardian, isStaffGroup } from "../../src/core/portal/third-party.js";
 import { skip as liveSkip, record, e2eContext } from "./helpers.js";
 
 const status = await browserStatus({ kind: "chromium" });
@@ -21,6 +22,10 @@ test(
     const contacts = await ctx.portal.getContacts();
     assert.ok(Array.isArray(contacts));
     const people = contacts.reduce((n, g) => n + g.people.length, 0);
+    // D2: how many the reveal would treat as guardians (counts only, no names or roles).
+    const guardians = contacts
+      .filter((g) => !isStaffGroup(g.title))
+      .reduce((n, g) => n + g.people.filter((p) => isGuardian(p.role, g.title)).length, 0);
     const subjects = await ctx.portal.getSubjectRooms();
     assert.ok(subjects.length >= 1, "at least one subject room");
     assert.ok(subjects.every((s) => typeof s.subject === "string" && Array.isArray(s.teachers)));
@@ -31,7 +36,7 @@ test(
     record(
       "B1",
       "Browser provider (contacts/subjects/bookings/files)",
-      `contact groups ${contacts.length} (${people} people); subjects ${subjects.length} (${subjects.filter((s) => s.teachers.length).length} with teachers); bookings ${bookings.length}; files ${files.length}`,
+      `contact groups ${contacts.length} (${people} people, ${contacts.filter((g) => g.detailsHidden).length} groups with other families' details hidden, ${guardians} recognised as guardians); subjects ${subjects.length} (${subjects.filter((s) => s.teachers.length).length} with teachers); bookings ${bookings.length}; files ${files.length}`,
     );
   },
 );
