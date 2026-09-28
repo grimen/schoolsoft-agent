@@ -13,7 +13,9 @@ import type {
   Message,
   NewsItem,
   SharedFile,
+  StudentDocument,
   SubjectRoom,
+  TablePage,
 } from "../../src/core/index.js";
 
 const lesson = (
@@ -324,6 +326,65 @@ export const FILES: { child: ChildRef; files: SharedFile[] } = {
       url: "https://example.test/kommun",
       kind: "link",
       category: "Kommunen",
+    },
+  ],
+};
+
+export const REPORT: { child: ChildRef; page: TablePage } = {
+  child,
+  page: {
+    title: "Närvarorapport",
+    message: null,
+    sections: [
+      {
+        heading: "Närvarorapport, Vecka 27 till 52",
+        headers: ["Orsak", "Lektioner", "Timmar"],
+        rows: [
+          { cells: ["Sjuk", "2", "1,5"], link: null },
+          { cells: ["Ledig", "1"], link: null },
+        ],
+      },
+      { heading: null, headers: [], rows: [{ cells: ["Summa", "3", "2,5"], link: null }] },
+      { heading: "Tom", headers: [], rows: [] },
+    ],
+  },
+};
+
+export const ABSENCE: { child: ChildRef; page: TablePage } = {
+  child,
+  page: {
+    title: "Oanmäld frånvaro",
+    message: "Det finns ingen oanmäld frånvaro att ta del av",
+    sections: [],
+  },
+};
+
+export const DOCUMENTS: { child: ChildRef; documents: StudentDocument[] } = {
+  child,
+  documents: [
+    {
+      id: "document:12",
+      title: "Omdöme",
+      createdBy: "Lärare Exempel",
+      date: "2025-06-01",
+      archived: true,
+      link: "right_student_review.jsp?action=view&archive=1&requestid=12",
+    },
+    {
+      id: "document:13",
+      title: "Utvecklingsplan",
+      createdBy: null,
+      date: "2026-09-01",
+      archived: false,
+      link: "right_student_review.jsp?action=view&requestid=13",
+    },
+    {
+      id: "document:11",
+      title: "IUP höstterminen",
+      createdBy: "Lärare Exempel",
+      date: "2026-01-10",
+      archived: true,
+      link: "right_student_review.jsp?action=view&archive=1&requestid=11",
     },
   ],
 };

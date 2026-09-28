@@ -15,6 +15,8 @@ import { newsText } from "./renderers/get-news.js";
 import { subjectRoomsText } from "./renderers/get-subject-rooms.js";
 import { bookingsText } from "./renderers/get-bookings.js";
 import { filesText } from "./renderers/get-files.js";
+import { documentsText } from "./renderers/get-student-documents.js";
+import { tablePageText } from "./renderers/table-page.js";
 
 export const TEXT_RENDERERS: Readonly<Record<string, TextRenderer>> = {
   list_children: listChildrenText,
@@ -27,6 +29,11 @@ export const TEXT_RENDERERS: Readonly<Record<string, TextRenderer>> = {
   get_subject_rooms: subjectRoomsText,
   get_bookings: bookingsText,
   get_files: filesText,
+  get_grades: tablePageText,
+  get_student_documents: documentsText,
+  get_unreported_absence: tablePageText,
+  get_attendance_report: tablePageText,
+  get_assessment_criteria: tablePageText,
 };
 
 export function textRenderer(operation: string): TextRenderer | undefined {

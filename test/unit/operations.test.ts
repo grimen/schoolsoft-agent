@@ -114,7 +114,7 @@ test("browser-backed and web-gated operations return the child plus the portal p
     ["get_bookings", "bookings"],
     ["get_files", "files"],
     ["get_grades", "page"],
-    ["get_student_documents", "page"],
+    ["get_student_documents", "documents"],
     ["get_unreported_absence", "page"],
     ["get_attendance_report", "page"],
     ["get_grade_prognosis", "reconciliationDates"],

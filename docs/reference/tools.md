@@ -651,13 +651,30 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's grades.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
 
 Example call:
 
@@ -679,13 +696,28 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, documents: [{ id, title, createdBy, date, archived, link }] }.
 
 Use when: the user asks about the child's documents.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `documents` | object[] |  |
+| `documents[].id` | string | Stable id of this document |
+| `documents[].title` | string |  |
+| `documents[].createdBy` | string or null | Who created it; null when not given |
+| `documents[].date` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `documents[].archived` | boolean |  |
+| `documents[].link` | string | The document's page in the portal; it needs the web login |
 
 Example call:
 
@@ -707,13 +739,30 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's absence.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
 
 Example call:
 
@@ -735,13 +784,30 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's attendance.
 
 | Argument | Type | Required | Description |
 |---|---|---|---|
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
 
 Example call:
 
@@ -767,7 +833,7 @@ Args:
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".
 
@@ -776,6 +842,23 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
 | `subject` | string | yes | Subject name, e.g. Matematik |
 | `school_type` | number | no | SchoolSoft school type code, default 7 |
 | `child_id` | number | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
 
 Example call:
 

@@ -204,7 +204,7 @@ test("setup --query on a terminal: no prompt, best match, JSON result on stdout"
     configDir: g.configDir,
     stateDir: g.stateDir,
     children: 2,
-    check: { ok: 8, drift: 0, skipped: 2, error: 0 },
+    check: { ok: 8, drift: 0, skipped: 7, error: 0 },
   });
   // --pretty applies; --format text leaves stdout empty (the guide is the text)
   const pretty = await g.run("--pretty", "setup", "--query", "testskolan");
@@ -325,8 +325,9 @@ test("a check that drifts: two lines, check_failed on stdout, exit 7, no schedul
   assert.doesNotMatch(r.err, /Step 5 of 5/);
   const data = JSON.parse(r.out);
   assert.equal(data.status, "check_failed");
-  // bookings and files need the browser, which is not installed here: skipped, not failed
-  assert.deepEqual(data.check, { ok: 7, drift: 1, skipped: 2, error: 0 });
+  // skipped, not failed: bookings and files (no browser here), the gated pages (no web login)
+  // and the criteria (they need a subject)
+  assert.deepEqual(data.check, { ok: 7, drift: 1, skipped: 7, error: 0 });
 
   // an error that is not drift exits by its kind (network: 4)
   const down = harness({

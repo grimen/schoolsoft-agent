@@ -98,6 +98,7 @@ test("contacts, bookings and files visit their page with the app session and run
 test("gated pages refuse without a web session and never navigate; with one they sync the child, use web cookies and run the table extractor", async () => {
   const page = { title: "Elevdokument", sections: [] };
   const { session, visited, options } = fakeSession({ extractTablePage: page });
+  const mapped = { title: "Elevdokument", message: null, sections: [] };
   const noWeb = new BrowserPortal({ session, hasWebSession: () => false });
   await assert.rejects(noWeb.getGrades(), WebLoginRequiredError);
   await assert.rejects(noWeb.getAttendanceReport(), /web login session/);
@@ -110,8 +111,8 @@ test("gated pages refuse without a web session and never navigate; with one they
       order.push("sync:" + visited.length);
     },
   });
-  assert.deepEqual(await withWeb.getStudentDocuments(), page);
-  await withWeb.getGrades();
+  assert.deepEqual(await withWeb.getStudentDocuments(), [], "no tables, no documents");
+  assert.deepEqual(await withWeb.getGrades(), mapped);
   await withWeb.getUnreportedAbsence();
   await withWeb.getAttendanceReport();
   assert.deepEqual(visited, [

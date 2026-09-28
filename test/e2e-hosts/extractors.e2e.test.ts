@@ -23,6 +23,11 @@ import { inspectPage } from "../../src/core/portal/inspect.js";
 import { PAGES } from "../../src/providers/schoolsoft/portal/pages.js";
 import { toBookings } from "../../src/providers/schoolsoft/portal/domain/bookings.js";
 import { toSharedFiles } from "../../src/providers/schoolsoft/portal/domain/files.js";
+import {
+  toStudentDocuments,
+  toTablePage,
+} from "../../src/providers/schoolsoft/portal/domain/tables.js";
+import { TablePageSchema } from "../../src/core/domain/schemas.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
 const status = await browserStatus({ kind: "chromium" });
@@ -219,6 +224,14 @@ test(
         url: "right_student_review.jsp?action=view&archive=1&requestid=11",
       });
       assert.equal(docs.sections[0].rows.length, 2);
+      // The provider maps the whole page to documents: ids, dates and the archive flag.
+      assert.deepEqual(
+        toStudentDocuments(docs).map((d) => [d.id, d.title, d.date, d.archived]),
+        [
+          ["document:11", "IUP höstterminen", "2026-01-10", true],
+          ["document:12", "Omdöme", "2025-06-01", true],
+        ],
+      );
       const att = await load("right_student_absence_student.jsp.html");
       assert.equal(att.sections.length, 1, "the filter form's table is ignored");
       assert.deepEqual(att.sections[0].headers, ["Orsak", "Lektioner", "Timmar"]);
@@ -240,6 +253,8 @@ test(
       const grades = await load("right_student_gradesubject.jsp.html");
       assert.equal(grades.title, "Betyg");
       assert.deepEqual(grades.sections, [], "session-warning table under #top-box is not content");
+      for (const page of [att, msg, crit, grades])
+        assert.ok(TablePageSchema.safeParse(toTablePage(page, "getGrades")).success);
     } finally {
       await s.close();
     }

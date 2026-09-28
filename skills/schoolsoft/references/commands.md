@@ -10,7 +10,7 @@ Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not 
 
 Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`, `--format <json|text>`.
 
-`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for `list-children`, `get-schedule`, `get-calendar`, `get-lunch-menu`, `get-messages`, `get-assignments`, `get-news`, `get-subject-rooms`, `get-bookings`, `get-files`; any other command prints pretty JSON and a one-line note on stderr.
+`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for `list-children`, `get-schedule`, `get-calendar`, `get-lunch-menu`, `get-messages`, `get-assignments`, `get-news`, `get-subject-rooms`, `get-bookings`, `get-files`, `get-grades`, `get-student-documents`, `get-unreported-absence`, `get-attendance-report`, `get-assessment-criteria`; any other command prints pretty JSON and a one-line note on stderr.
 
 | Command | Purpose | Annotations |
 |---|---|---|
@@ -598,13 +598,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's grades.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-grades
@@ -621,13 +640,30 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, documents: [{ id, title, createdBy, date, archived, link }] }.
 
 Use when: the user asks about the child's documents.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `documents` | object[] |  |
+| `documents[].id` | string | Stable id of this document |
+| `documents[].title` | string |  |
+| `documents[].createdBy` | string or null | Who created it; null when not given |
+| `documents[].date` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `documents[].archived` | boolean |  |
+| `documents[].link` | string | The document's page in the portal; it needs the web login |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-student-documents
@@ -644,13 +680,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's absence.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-unreported-absence
@@ -667,13 +722,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's attendance.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-attendance-report
@@ -694,7 +768,7 @@ Args:
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".
 
@@ -703,6 +777,25 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
 | `--subject <value>` | yes | Subject name, e.g. Matematik |
 | `--school-type <number>` | no | SchoolSoft school type code, default 7 |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-assessment-criteria --subject "Rösjöskolan"

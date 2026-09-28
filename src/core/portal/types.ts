@@ -16,7 +16,9 @@ import type {
   Message,
   NewsItem,
   SharedFile,
+  StudentDocument,
   SubjectRoom,
+  TablePage,
 } from "../domain/schemas.js";
 
 export type PortalProvider = "api" | "browser";
@@ -63,7 +65,7 @@ export interface Portal {
   /** Betyg: grade tables (empty until the school publishes grades). */
   getGrades(): Promise<TablePage>;
   /** Elevdokument: student documents (title, created by, date, link). */
-  getStudentDocuments(): Promise<TablePage>;
+  getStudentDocuments(): Promise<StudentDocument[]>;
   /** Oanmäld frånvaro: unreported absence, or the "nothing to show" message. */
   getUnreportedAbsence(): Promise<TablePage>;
   /** Rapport: attendance report for the default week range. */
@@ -130,18 +132,6 @@ export interface ContactGroup {
   people: ContactPerson[];
 }
 
-/** A server-rendered page made of tables: what the gated pages are. */
-export interface TablePage {
-  title: string;
-  /** Informational text shown instead of, or above, the tables (e.g. "nothing to show"). */
-  message?: string;
-  sections: TableSection[];
-}
-export interface TableSection {
-  heading?: string;
-  headers: string[];
-  rows: { cells: string[]; url?: string }[];
-}
 export interface ActivityEntry {
   id: number;
   /** ISO datetime. */

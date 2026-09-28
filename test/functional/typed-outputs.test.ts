@@ -68,6 +68,11 @@ const TYPED = [
   "get_subject_rooms",
   "get_bookings",
   "get_files",
+  "get_grades",
+  "get_student_documents",
+  "get_unreported_absence",
+  "get_attendance_report",
+  "get_assessment_criteria",
 ];
 
 /** What the bookings and files pages' extractors return (their texts), by extractor name. */
@@ -85,14 +90,71 @@ const pageFiles = () => [
   { name: "Fritids hemsida", url: "https://example.test/fritids" },
 ];
 
+/**
+ * What the table extractor lifts from each gated page, by page file: the same
+ * synthetic content as the pages in test/fixtures/jsp/.
+ */
+const gradesPage = () => ({ title: "Betyg", sections: [] });
+const documentsPage = () => ({
+  title: "Elevdokument",
+  sections: [
+    {
+      heading: "Arkiverade elevdokument",
+      headers: ["Rubrik", "Skapad av", "Datum", ""],
+      rows: [
+        {
+          cells: ["IUP höstterminen", "Lärare Exempel", "2026-01-10", ""],
+          url: "right_student_review.jsp?action=view&archive=1&requestid=11",
+        },
+        {
+          cells: ["Omdöme", "Lärare Exempel", "2025-06-01", ""],
+          url: "right_student_review.jsp?action=view&archive=1&requestid=12",
+        },
+      ],
+    },
+  ],
+});
+const absencePage = () => ({
+  title: "Oanmäld frånvaro",
+  message: "Det finns ingen oanmäld frånvaro att ta del av",
+  sections: [],
+});
+const reportPage = () => ({
+  title: "Närvarorapport",
+  sections: [
+    {
+      heading: "Närvarorapport, Vecka 27 till 52",
+      headers: ["Orsak", "Lektioner", "Timmar"],
+      rows: [{ cells: ["Sjuk", "2", "1,5"] }],
+    },
+  ],
+});
+const criteriaPage = () => ({
+  title: "",
+  message: "Bedömningen publiceras löpande",
+  sections: [
+    {
+      headers: ["Förmåga", "E", "C", "A"],
+      rows: [{ cells: ["Läsa", "Enkla texter", "Utvecklade texter", "Välutvecklade texter"] }],
+    },
+  ],
+});
+const subjectMenu = () => [
+  { subject: "Matematik", url: "right_student_subject.jsp?requestid=1302", subjectId: 1302 },
+];
+
 /** A browser session that serves the extractors' results and counts them; it never loads a page. */
 function fakeBrowser(pages: Map<string, () => unknown>, visits: string[]): BrowserSession {
+  let at = "";
   const page: PortalPage = {
-    goto: async () => {},
-    url: () => "https://sms.schoolsoft.se/taby/jsp/student/",
+    goto: async (path) => {
+      at = path.replace(/^.*\//, "").replace(/\?.*$/, "");
+    },
+    url: () => "https://sms.schoolsoft.se/taby/jsp/student/" + at,
+    // The table extractor serves every gated page, so its result is chosen by the page loaded.
     evaluate: async <T, A>(fn: (arg: A) => T) => {
       visits.push(fn.name);
-      return pages.get(fn.name)!() as T;
+      return (pages.get(`${fn.name}:${at}`) ?? pages.get(fn.name)!)() as T;
     },
     waitForJson: async () => ({}) as never,
   };
@@ -118,6 +180,12 @@ function wired() {
   const pages = new Map<string, () => unknown>([
     ["extractBookings", pageBookings],
     ["extractFiles", pageFiles],
+    ["extractSubjectLinks", subjectMenu],
+    ["extractTablePage:right_student_gradesubject.jsp", gradesPage],
+    ["extractTablePage:right_student_review.jsp", documentsPage],
+    ["extractTablePage:right_parent_absence_message.jsp", absencePage],
+    ["extractTablePage:right_student_absence_student.jsp", reportPage],
+    ["extractTablePage:right_student_ability.jsp", criteriaPage],
   ]);
   const visits: string[] = [];
   const browser = new BrowserPortal({ session: fakeBrowser(pages, visits) });
@@ -162,6 +230,11 @@ const ARGS: Record<string, Record<string, unknown>> = {
   get_subject_rooms: {},
   get_bookings: {},
   get_files: {},
+  get_grades: {},
+  get_student_documents: {},
+  get_unreported_absence: {},
+  get_attendance_report: {},
+  get_assessment_criteria: { subject: "matematik" },
 };
 
 const run = (ctx: OperationContext, name: string) =>
@@ -402,6 +475,77 @@ test("group A: assignments, news, subject rooms, bookings and files map to the d
   });
 });
 
+test("group B: the gated pages map to tables, the documents list to documents", async () => {
+  const { ctx } = wired();
+  const child = { id: 100, firstName: "Ett" };
+  assert.deepEqual(await run(ctx, "get_grades"), {
+    child,
+    page: { title: "Betyg", message: null, sections: [] },
+  });
+  assert.deepEqual(await run(ctx, "get_student_documents"), {
+    child,
+    documents: [
+      {
+        id: "document:11",
+        title: "IUP höstterminen",
+        createdBy: "Lärare Exempel",
+        date: "2026-01-10",
+        archived: true,
+        link: "right_student_review.jsp?action=view&archive=1&requestid=11",
+      },
+      {
+        id: "document:12",
+        title: "Omdöme",
+        createdBy: "Lärare Exempel",
+        date: "2025-06-01",
+        archived: true,
+        link: "right_student_review.jsp?action=view&archive=1&requestid=12",
+      },
+    ],
+  });
+  assert.deepEqual(await run(ctx, "get_unreported_absence"), {
+    child,
+    page: {
+      title: "Oanmäld frånvaro",
+      message: "Det finns ingen oanmäld frånvaro att ta del av",
+      sections: [],
+    },
+  });
+  assert.deepEqual(await run(ctx, "get_attendance_report"), {
+    child,
+    page: {
+      title: "Närvarorapport",
+      message: null,
+      sections: [
+        {
+          heading: "Närvarorapport, Vecka 27 till 52",
+          headers: ["Orsak", "Lektioner", "Timmar"],
+          rows: [{ cells: ["Sjuk", "2", "1,5"], link: null }],
+        },
+      ],
+    },
+  });
+  assert.deepEqual(await run(ctx, "get_assessment_criteria"), {
+    child,
+    page: {
+      title: "Matematik",
+      message: "Bedömningen publiceras löpande",
+      sections: [
+        {
+          heading: null,
+          headers: ["Förmåga", "E", "C", "A"],
+          rows: [
+            {
+              cells: ["Läsa", "Enkla texter", "Utvecklade texter", "Välutvecklade texter"],
+              link: null,
+            },
+          ],
+        },
+      ],
+    },
+  });
+});
+
 /** Which upstream answer (a path pattern) or page (an extractor name) each operation's drift breaks, and how. */
 const DRIFTS: Record<string, [RegExp | string, (kind: DriftKind) => unknown]> = {
   list_children: [/\/eva\/api\/v1\/parent$/, driftedParent],
@@ -429,6 +573,29 @@ const DRIFTS: Record<string, [RegExp | string, (kind: DriftKind) => unknown]> = 
   ],
   get_bookings: ["extractBookings", (kind) => driftedList(pageBookings(), "when", kind)],
   get_files: ["extractFiles", (kind) => [drift(pageFiles()[0], "url", kind)]],
+  get_grades: [
+    "extractTablePage:right_student_gradesubject.jsp",
+    (kind) => drift(gradesPage(), "sections", kind),
+  ],
+  get_student_documents: [
+    "extractTablePage:right_student_review.jsp",
+    (kind) => ({
+      ...documentsPage(),
+      sections: [drift(documentsPage().sections[0], "headers", kind)],
+    }),
+  ],
+  get_unreported_absence: [
+    "extractTablePage:right_parent_absence_message.jsp",
+    (kind) => drift(absencePage(), "sections", kind),
+  ],
+  get_attendance_report: [
+    "extractTablePage:right_student_absence_student.jsp",
+    (kind) => drift(reportPage(), "sections", kind),
+  ],
+  get_assessment_criteria: [
+    "extractTablePage:right_student_ability.jsp",
+    (kind) => drift(criteriaPage(), "sections", kind),
+  ],
 };
 
 /** Break one answer or page; returns a function that repairs it. */

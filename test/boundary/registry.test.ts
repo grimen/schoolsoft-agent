@@ -136,6 +136,11 @@ test("every operation that declares an output schema is validated by runOperatio
       "get_subject_rooms",
       "get_bookings",
       "get_files",
+      "get_grades",
+      "get_student_documents",
+      "get_unreported_absence",
+      "get_attendance_report",
+      "get_assessment_criteria",
     ],
   );
   const ctx = {} as OperationContext;

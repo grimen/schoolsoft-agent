@@ -93,6 +93,16 @@ export const LABELS = {
   uncategorized: { en: "Other", sv: "Övrigt" },
   fileKind: { en: "file", sv: "fil" },
   linkKind: { en: "link", sv: "länk" },
+  pageHeading: { en: (p) => `${p.title} · ${p.child}`, sv: (p) => `${p.title} · ${p.child}` },
+  nothingToShow: { en: "Nothing to show.", sv: "Inget att visa." },
+  documentsHeading: {
+    en: (p) => `Student documents · ${p.child}`,
+    sv: (p) => `Elevdokument · ${p.child}`,
+  },
+  noDocuments: { en: "No student documents.", sv: "Inga elevdokument." },
+  currentDocuments: { en: "Current", sv: "Aktuella" },
+  archivedDocuments: { en: "Archived", sv: "Arkiverade" },
+  createdBy: { en: "Created by", sv: "Skapad av" },
   fallback: {
     en: (p) => `Text view is not available for ${p.command} yet; showing JSON.`,
     sv: (p) => `Textvy finns inte för ${p.command} än; visar JSON.`,

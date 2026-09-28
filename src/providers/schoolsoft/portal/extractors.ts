@@ -18,7 +18,14 @@
  *    status words are parsed in Node (domain/bookings.ts), where they are tested.
  *  - Filer & länkar: #library_con_content table tr > td > a[href] (+ div).
  */
-import type { ContactGroup, TablePage } from "../../../core/portal/types.js";
+import type { ContactGroup } from "../../../core/portal/types.js";
+
+/** A page of tables as the generic extractor lifts it; domain/tables.ts maps it. */
+export interface PageTable {
+  title: string;
+  message?: string;
+  sections: { heading?: string; headers: string[]; rows: { cells: string[]; url?: string }[] }[];
+}
 
 /** A booking as the page words it; domain/bookings.ts parses it. */
 export interface PageBooking {
@@ -143,12 +150,12 @@ void text;
  * Header row = `tr.longlistheader` / `th` / `td.header`; the section heading is
  * the nearest preceding `.h2`, `.h3_bold` or `td.header` text.
  */
-export function extractTablePage(): TablePage {
+export function extractTablePage(): PageTable {
   const t = (el: Element | null | undefined) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
   const content = document.querySelector("#content") ?? document.body;
   const title = t(content.querySelector(".h1"));
   const message = t(content.querySelector(".alert .message-text")) || undefined;
-  const sections: TablePage["sections"] = [];
+  const sections: PageTable["sections"] = [];
   // A heading may sit in its own one-row table (td.header) right before the list table.
   let pendingHeading: string | undefined;
   const tables = Array.from(content.querySelectorAll("table")).filter(

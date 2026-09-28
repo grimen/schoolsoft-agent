@@ -1,7 +1,8 @@
 /**
- * The E4.5 group A mappers branch by branch: assignments, news, subject rooms
- * (API JSON) and bookings, files (the browser pages' texts). Every lenient
- * decision (null, empty, a number where text is expected) and every drift.
+ * The E4.5 mappers branch by branch: assignments, news, subject rooms (API
+ * JSON), bookings, files (the browser pages' texts) and the gated pages'
+ * tables and documents list. Every lenient decision (null, empty, a number
+ * where text is expected) and every drift.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -11,8 +12,14 @@ import {
   BookingSchema,
   NewsItemSchema,
   SharedFileSchema,
+  StudentDocumentSchema,
   SubjectRoomSchema,
+  TablePageSchema,
 } from "../../src/core/domain/schemas.js";
+import {
+  toStudentDocuments,
+  toTablePage,
+} from "../../src/providers/schoolsoft/portal/domain/tables.js";
 import { toAssignments } from "../../src/providers/schoolsoft/portal/domain/assignments.js";
 import { toNews } from "../../src/providers/schoolsoft/portal/domain/news.js";
 import {
@@ -290,5 +297,111 @@ test("files: relative links become absolute on the portal, absolute ones stay, o
     SharedFileSchema.safeParse({ ...relative, url: "javascript:void(0)" }).success,
     false,
     "the schema itself refuses any other scheme",
+  );
+});
+
+/** A documents page as the table extractor lifts it. */
+const documentsTable = (rows: { cells: string[]; url?: string }[], headers = DOC_HEADERS) => ({
+  title: "Elevdokument",
+  sections: [
+    { headers: [], rows: [] },
+    { heading: "Arkiverade elevdokument", headers, rows },
+  ],
+});
+const DOC_HEADERS = ["Rubrik", "Skapad av", "Datum", ""];
+const docLink = (id: number, archive = true) =>
+  `right_student_review.jsp?action=view${archive ? "&archive=1" : ""}&requestid=${id}`;
+
+test("table pages: absent heading, message and link are null; nothing else changes", () => {
+  assert.deepEqual(
+    toTablePage(
+      {
+        title: "Närvarorapport",
+        sections: [
+          { headers: ["Orsak"], rows: [{ cells: ["Sjuk"] }, { cells: ["Ledig"], url: "x.jsp" }] },
+        ],
+      },
+      "getAttendanceReport",
+    ),
+    {
+      title: "Närvarorapport",
+      message: null,
+      sections: [
+        {
+          heading: null,
+          headers: ["Orsak"],
+          rows: [
+            { cells: ["Sjuk"], link: null },
+            { cells: ["Ledig"], link: "x.jsp" },
+          ],
+        },
+      ],
+    },
+  );
+  const page = toTablePage({ title: "Betyg", message: "Inget", sections: [] }, "getGrades");
+  assert.ok(TablePageSchema.safeParse(page).success);
+  drifts(() => toTablePage({ title: "Betyg" }, "getGrades"), "getGrades", /^sections /);
+  drifts(
+    () => toTablePage({ title: "x", sections: [{ headers: "Orsak", rows: [] }] }, "getGrades"),
+    "getGrades",
+    /^sections\.0\.headers /,
+  );
+});
+
+test("student documents: columns found by heading, ids from the link, archived from the link", () => {
+  const out = toStudentDocuments(
+    documentsTable([
+      { cells: ["IUP", "Lärare Exempel", "2026-01-10", ""], url: docLink(11) },
+      { cells: ["Omdöme", " ", "2025-06-01", ""], url: docLink(12, false) },
+    ]),
+  );
+  assert.deepEqual(out, [
+    {
+      id: "document:11",
+      title: "IUP",
+      createdBy: "Lärare Exempel",
+      date: "2026-01-10",
+      archived: true,
+      link: docLink(11),
+    },
+    {
+      id: "document:12",
+      title: "Omdöme",
+      createdBy: null,
+      date: "2025-06-01",
+      archived: false,
+      link: docLink(12, false),
+    },
+  ]);
+  for (const d of out) assert.ok(StudentDocumentSchema.safeParse(d).success);
+  // columns in another order, headings in another case
+  const moved = toStudentDocuments(
+    documentsTable(
+      [{ cells: ["2026-01-10", "IUP", "Lärare"], url: docLink(3) }],
+      ["DATUM", "rubrik", " Skapad av "],
+    ),
+  );
+  assert.deepEqual([moved[0].title, moved[0].date], ["IUP", "2026-01-10"]);
+  assert.deepEqual(toStudentDocuments({ title: "Elevdokument", sections: [] }), []);
+  drifts(
+    () => toStudentDocuments(documentsTable([{ cells: ["IUP"], url: docLink(1) }], ["Titel"])),
+    "getStudentDocuments",
+    /^sections\.1\.headers not the documents columns$/,
+  );
+  drifts(
+    () =>
+      toStudentDocuments(documentsTable([{ cells: ["IUP", "L", "10 jan", ""], url: docLink(1) }])),
+    "getStudentDocuments",
+    /^0\.date not a date/,
+  );
+  drifts(
+    () => toStudentDocuments(documentsTable([{ cells: ["IUP", "L", "2026-01-10", ""] }])),
+    "getStudentDocuments",
+    /^0\.link /,
+  );
+  drifts(
+    () => toStudentDocuments(documentsTable([{ cells: ["", "L", "2026-01-10"], url: docLink(1) }])),
+    "getStudentDocuments",
+    /^0\.title /,
   );
 });

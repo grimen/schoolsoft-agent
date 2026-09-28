@@ -24,7 +24,9 @@ import type {
   Message,
   NewsItem,
   SharedFile,
+  StudentDocument,
   SubjectRoom,
+  TablePage,
 } from "../../src/core/domain/schemas.js";
 import { isoWeekDate } from "../../src/core/domain/time.js";
 import { schoolsoftProvider, ROUTING } from "../../src/providers/schoolsoft/index.js";
@@ -207,36 +209,43 @@ export const fakePortal = {
     },
   ],
   // GDPR-gated (web session) capabilities
-  getGrades: async () => ({ title: "Betyg", sections: [] }),
-  getStudentDocuments: async () => ({
-    title: "Elevdokument",
-    sections: [
-      {
-        heading: "Arkiverade elevdokument",
-        headers: ["Rubrik", "Skapad av", "Datum", ""],
-        rows: [
-          {
-            cells: ["IUP", "Lärare Test", "2026-01-10", ""],
-            url: "right_student_review.jsp?action=view&archive=1&requestid=1",
-          },
-        ],
-      },
-    ],
-  }),
-  getUnreportedAbsence: async () => ({
+  getGrades: async (): Promise<TablePage> => ({ title: "Betyg", message: null, sections: [] }),
+  getStudentDocuments: async (): Promise<StudentDocument[]> => [
+    {
+      id: "document:1",
+      title: "IUP",
+      createdBy: "Lärare Test",
+      date: "2026-01-10",
+      archived: true,
+      link: "right_student_review.jsp?action=view&archive=1&requestid=1",
+    },
+  ],
+  getUnreportedAbsence: async (): Promise<TablePage> => ({
     title: "Oanmäld frånvaro",
     message: "Det finns ingen oanmäld frånvaro att ta del av",
     sections: [],
   }),
-  getAttendanceReport: async () => ({
+  getAttendanceReport: async (): Promise<TablePage> => ({
     title: "Närvarorapport",
+    message: null,
     sections: [
-      { headers: ["Orsak", "Lektioner", "Timmar"], rows: [{ cells: ["Sjuk", "2", "1"] }] },
+      {
+        heading: null,
+        headers: ["Orsak", "Lektioner", "Timmar"],
+        rows: [{ cells: ["Sjuk", "2", "1"], link: null }],
+      },
     ],
   }),
-  getAssessmentCriteria: async (subject: string) => ({
+  getAssessmentCriteria: async (subject: string): Promise<TablePage> => ({
     title: `Kriterier ${subject}`,
-    sections: [{ headers: ["Förmåga", "E", "C", "A"], rows: [{ cells: ["Läsa", "…", "…", "…"] }] }],
+    message: null,
+    sections: [
+      {
+        heading: null,
+        headers: ["Förmåga", "E", "C", "A"],
+        rows: [{ cells: ["Läsa", "…", "…", "…"], link: null }],
+      },
+    ],
   }),
   getGradePrognosis: async () => ({ reconciliationDates: [] }),
   reportAbsence: async () => ({ status: 200, response: { synthetic: true } }),

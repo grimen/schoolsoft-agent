@@ -148,7 +148,7 @@ const FIXTURE_VALUES = [
   "2026-",
 ];
 
-/** The typed reads, in registry order; the browser-served two are skipped without a browser. */
+/** The typed reads, in registry order, that run here: no browser and no web login. */
 const API_TYPED = [
   "list_children",
   "get_schedule",
@@ -160,6 +160,17 @@ const API_TYPED = [
   "get_subject_rooms",
 ];
 
+/** Skipped here, in registry order: the browser-served reads, the gated pages, and the criteria (they need a subject). */
+const SKIPPED = [
+  ["get_bookings", "browser_not_installed"],
+  ["get_files", "browser_not_installed"],
+  ["get_grades", "web_session_required"],
+  ["get_student_documents", "web_session_required"],
+  ["get_unreported_absence", "web_session_required"],
+  ["get_attendance_report", "web_session_required"],
+  ["get_assessment_criteria", "excluded"],
+];
+
 test("doctor --verify: every typed read parses, exit 0, JSON report", async () => {
   const { ctx } = wired();
   const r = await cli(ctx, "doctor", "--verify");
@@ -169,16 +180,16 @@ test("doctor --verify: every typed read parses, exit 0, JSON report", async () =
   assert.equal(data.ok, true);
   assert.equal(data.session, "ok");
   assert.deepEqual(data.children, { total: 2, verified: [1] });
-  assert.deepEqual(data.summary, { ok: 8, drift: 0, skipped: 2, error: 0 });
+  assert.deepEqual(data.summary, { ok: 8, drift: 0, skipped: 7, error: 0 });
   assert.deepEqual(
     data.results.map((x) => x.operation),
-    [...API_TYPED, "get_bookings", "get_files"],
+    [...API_TYPED, ...SKIPPED.map(([operation]) => operation)],
   );
   assert.deepEqual(
     data.results
       .filter((x) => x.status === "skipped")
-      .map((x) => x.status === "skipped" && x.reason),
-    ["browser_not_installed", "browser_not_installed"],
+      .map((x) => [x.operation, x.status === "skipped" && x.reason]),
+    SKIPPED,
   );
   for (const value of FIXTURE_VALUES) assert.ok(!r.out.includes(value), value);
 });
@@ -193,7 +204,7 @@ test("doctor --verify: a renamed field is drift with path and code, no value in 
   assert.equal(r.err, "");
   const data = report(r.out);
   assert.equal(data.ok, false);
-  assert.deepEqual(data.summary, { ok: 7, drift: 1, skipped: 2, error: 0 });
+  assert.deepEqual(data.summary, { ok: 7, drift: 1, skipped: 7, error: 0 });
   const drift = data.results.find((x) => x.status === "drift")!;
   assert.equal(drift.operation, "get_schedule");
   assert.equal(drift.child, 1);
@@ -260,7 +271,7 @@ test("doctor --verify --all-children: every child by position, focus restored, n
   assert.equal(data.summary.ok, 15);
   assert.deepEqual(
     data.results.filter((x) => x.child === 2).map((x) => x.operation),
-    API_TYPED.slice(1).concat("get_bookings", "get_files"),
+    API_TYPED.slice(1).concat(SKIPPED.map(([operation]) => operation)),
   );
   // one lessons read per child; the first child is back in focus afterwards
   assert.equal(sim.requests.filter((x) => /lessons\/week/.test(x)).length, 2);

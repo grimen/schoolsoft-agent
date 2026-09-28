@@ -10,7 +10,6 @@ import type {
   ContactGroup,
   GuardianParent,
   Portal,
-  TablePage,
 } from "../../src/core/index.js";
 import type {
   Assignment,
@@ -21,7 +20,9 @@ import type {
   Message,
   NewsItem,
   SharedFile,
+  StudentDocument,
   SubjectRoom,
+  TablePage,
 } from "../../src/core/domain/schemas.js";
 
 /** A domain lesson whose title is the read's marker. */
@@ -60,7 +61,7 @@ export class CountingPortal implements Portal {
     return `child ${child} ${name} #${n}`;
   }
   private async page(name: string, args: unknown[]): Promise<TablePage> {
-    return { title: await this.read(name, args), sections: [] };
+    return { title: await this.read(name, args), message: null, sections: [] };
   }
 
   async getParent(): Promise<GuardianParent> {
@@ -180,8 +181,18 @@ export class CountingPortal implements Portal {
   getGrades(): Promise<TablePage> {
     return this.page("getGrades", []);
   }
-  getStudentDocuments(): Promise<TablePage> {
-    return this.page("getStudentDocuments", []);
+  async getStudentDocuments(): Promise<StudentDocument[]> {
+    const title = await this.read("getStudentDocuments", []);
+    return [
+      {
+        id: "document:1",
+        title,
+        createdBy: null,
+        date: "2026-01-10",
+        archived: false,
+        link: "right_student_review.jsp?requestid=1",
+      },
+    ];
   }
   getUnreportedAbsence(): Promise<TablePage> {
     return this.page("getUnreportedAbsence", []);

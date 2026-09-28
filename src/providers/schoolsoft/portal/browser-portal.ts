@@ -8,10 +8,16 @@ import type { BrowserSession, PortalPage } from "../../../core/browser/session.j
 import type { BrowserPortalPart } from "../../../core/portal/composite.js";
 import {
   WebLoginRequiredError,
+  type Capability,
   type ContactGroup,
-  type TablePage,
 } from "../../../core/portal/types.js";
-import type { Booking, SharedFile } from "../../../core/domain/schemas.js";
+import type {
+  Booking,
+  SharedFile,
+  StudentDocument,
+  TablePage,
+} from "../../../core/domain/schemas.js";
+import { toStudentDocuments, toTablePage } from "./domain/tables.js";
 import { toBookings } from "./domain/bookings.js";
 import { toSharedFiles } from "./domain/files.js";
 import {
@@ -20,6 +26,7 @@ import {
   extractFiles,
   extractSubjectLinks,
   extractTablePage,
+  type PageTable,
 } from "./extractors.js";
 import type { PageSpec } from "../../../core/portal/page-spec.js";
 import { PAGES } from "./pages.js";
@@ -94,7 +101,8 @@ export class BrowserPortal implements BrowserPortalPart {
     return this.o.session.withPage(run, { web: spec.web });
   }
 
-  private table(capability: string, spec: PageSpec, query = ""): Promise<TablePage> {
+  /** A gated page of tables, as the extractor lifted it (mapped by the caller). */
+  private table(capability: Capability, spec: PageSpec, query = ""): Promise<PageTable> {
     return this.visit(capability, spec, async (page) => {
       await page.goto(spec.path + query);
       return page.evaluate(extractTablePage);
@@ -126,17 +134,23 @@ export class BrowserPortal implements BrowserPortalPart {
     return toSharedFiles(links, base);
   }
 
-  getGrades(): Promise<TablePage> {
-    return this.table("getGrades", PAGES.grades);
+  async getGrades(): Promise<TablePage> {
+    return toTablePage(await this.table("getGrades", PAGES.grades), "getGrades");
   }
-  getStudentDocuments(): Promise<TablePage> {
-    return this.table("getStudentDocuments", PAGES.documents);
+  async getStudentDocuments(): Promise<StudentDocument[]> {
+    return toStudentDocuments(await this.table("getStudentDocuments", PAGES.documents));
   }
-  getUnreportedAbsence(): Promise<TablePage> {
-    return this.table("getUnreportedAbsence", PAGES.unreportedAbsence);
+  async getUnreportedAbsence(): Promise<TablePage> {
+    return toTablePage(
+      await this.table("getUnreportedAbsence", PAGES.unreportedAbsence),
+      "getUnreportedAbsence",
+    );
   }
-  getAttendanceReport(): Promise<TablePage> {
-    return this.table("getAttendanceReport", PAGES.attendanceReport);
+  async getAttendanceReport(): Promise<TablePage> {
+    return toTablePage(
+      await this.table("getAttendanceReport", PAGES.attendanceReport),
+      "getAttendanceReport",
+    );
   }
 
   /**
@@ -167,6 +181,6 @@ export class BrowserPortal implements BrowserPortalPart {
       spec,
       `?subject=${hit.subjectId}&schooltype=${schoolType}`,
     );
-    return { ...table, title: table.title || hit.subject };
+    return toTablePage({ ...table, title: table.title || hit.subject }, "getAssessmentCriteria");
   }
 }

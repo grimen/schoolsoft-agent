@@ -9,8 +9,11 @@ import { TEXT_RENDERERS, textRenderer } from "../../src/cli/text/registry.js";
 import { toText, type RenderContext } from "../../src/cli/text/render.js";
 import { displayWidth } from "../../src/cli/text/terminal.js";
 import {
+  ABSENCE,
   ASSIGNMENTS,
   BOOKINGS,
+  DOCUMENTS,
+  REPORT,
   CALENDAR,
   CHILDREN,
   FILES,
@@ -438,6 +441,69 @@ test("get-files: under their category in the portal's order, uncategorised as Ot
   assert.equal(narrow[3], "  Veckobrev v37    file  https://sms.sc…");
 });
 
+test("gated table pages: the page's title, its notice, each table under its heading, short rows filled", () => {
+  const report = lines(
+    "Närvarorapport · Ett",
+    "",
+    "Närvarorapport, Vecka 27 till 52",
+    "Orsak  Lektioner  Timmar",
+    "Sjuk   2          1,5",
+    "Ledig  1          –",
+    "",
+    "Summa  3  2,5",
+  );
+  assert.equal(view("get_attendance_report", REPORT), report);
+  assert.equal(
+    view("get_attendance_report", REPORT, { lang: "sv" }),
+    report,
+    "the page's own words",
+  );
+  for (const op of ["get_unreported_absence", "get_grades", "get_assessment_criteria"])
+    assert.equal(
+      view(op, ABSENCE),
+      lines("Oanmäld frånvaro · Ett", "", "Det finns ingen oanmäld frånvaro att ta del av"),
+      op,
+    );
+  const narrow = view("get_attendance_report", REPORT, { width: 20 }).split("\n");
+  for (const line of narrow) assert.ok(displayWidth(line) <= 20, line);
+  assert.equal(narrow[3], "Orsak  Lektion…  Ti…", "the widest column gives way first");
+});
+
+test("get-student-documents: current, then archived, newest first (en, sv)", () => {
+  assert.equal(
+    view("get_student_documents", DOCUMENTS),
+    lines(
+      "Student documents · Ett",
+      "",
+      "Current",
+      "  Date        Title             Created by",
+      "  2026-09-01  Utvecklingsplan   –",
+      "",
+      "Archived",
+      "  Date        Title             Created by",
+      "  2026-01-10  IUP höstterminen  Lärare Exempel",
+      "  2025-06-01  Omdöme            Lärare Exempel",
+    ),
+  );
+  assert.equal(
+    view("get_student_documents", DOCUMENTS, { lang: "sv" }),
+    lines(
+      "Elevdokument · Ett",
+      "",
+      "Aktuella",
+      "  Datum       Rubrik            Skapad av",
+      "  2026-09-01  Utvecklingsplan   –",
+      "",
+      "Arkiverade",
+      "  Datum       Rubrik            Skapad av",
+      "  2026-01-10  IUP höstterminen  Lärare Exempel",
+      "  2025-06-01  Omdöme            Lärare Exempel",
+    ),
+  );
+  const archivedOnly = { ...DOCUMENTS, documents: DOCUMENTS.documents.filter((d) => d.archived) };
+  assert.equal(view("get_student_documents", archivedOnly).split("\n")[2], "Archived");
+});
+
 test("empty states are sentences, in both languages", () => {
   const child = { id: 100, firstName: "Ett" };
   const cases: [string, unknown, string, string][] = [
@@ -476,6 +542,18 @@ test("empty states are sentences, in both languages", () => {
     ["get_subject_rooms", { child, rooms: [] }, "No subject rooms.", "Inga ämnesrum."],
     ["get_bookings", { child, bookings: [] }, "No bookings.", "Inga bokningar."],
     ["get_files", { child, files: [] }, "No files or links.", "Inga filer eller länkar."],
+    [
+      "get_grades",
+      { child, page: { title: "Betyg", message: null, sections: [] } },
+      "Nothing to show.",
+      "Inget att visa.",
+    ],
+    [
+      "get_student_documents",
+      { child, documents: [] },
+      "No student documents.",
+      "Inga elevdokument.",
+    ],
   ];
   for (const [op, data, en, sv] of cases) {
     const shown = view(op, data).split("\n");

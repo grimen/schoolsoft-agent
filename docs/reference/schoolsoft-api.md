@@ -170,11 +170,15 @@ Every visit is a GET; the session guard aborts any other verb.
 SchoolSoft answers these with `302 → right_student_app_blocked.jsp` ("requires a
 login to be shown, log in again") for any app-derived session, and with 200
 for a session created by the normal web login. All five are read with the
-generic table extractor and return the same shape:
+generic table extractor, which returns the same shape:
 
 ```
-TablePage = { title, message?, sections: [{ heading?, headers: string[], rows: [{ cells: string[], url? }] }] }
+{ title, message?, sections: [{ heading?, headers: string[], rows: [{ cells: string[], url? }] }] }
 ```
+
+The provider maps it to the domain `TablePage` (absent values become `null`,
+`url` becomes `link`), and the documents list, whose columns are fixed, to
+`StudentDocument`s (`domain/tables.ts`).
 
 The extractor takes `#content .h1` as the title, `.alert .message-text` as the
 message, and every table outside `#top-box`, forms and `.h2_box` as a

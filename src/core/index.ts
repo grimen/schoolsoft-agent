@@ -70,7 +70,10 @@ export type {
   Message,
   NewsItem,
   SharedFile,
+  StudentDocument,
   SubjectRoom,
+  TablePage,
+  TableSection,
 } from "./domain/schemas.js";
 export {
   CalendarEventSchema,
@@ -234,8 +237,6 @@ export type {
   ContactGroup,
   ContactPerson,
   ActivityEntry,
-  TablePage,
-  TableSection,
   AbsenceNotice,
   AbsenceReceipt,
 } from "./portal/types.js";

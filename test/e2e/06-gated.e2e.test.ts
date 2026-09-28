@@ -29,7 +29,7 @@ test(
     const grades = await ctx.portal.getGrades();
     assert.equal(grades.title, "Betyg");
     const docs = await ctx.portal.getStudentDocuments();
-    assert.equal(docs.title, "Elevdokument");
+    assert.ok(Array.isArray(docs));
     const absence = await ctx.portal.getUnreportedAbsence();
     assert.ok(absence.message || absence.sections.length);
     const report = await ctx.portal.getAttendanceReport();
@@ -37,7 +37,7 @@ test(
     record(
       "G1",
       "Gated pages via web session",
-      `grades sections ${grades.sections.length}; documents rows ${docs.sections.reduce((n, s) => n + s.rows.length, 0)}; absence ${absence.message ? "message" : absence.sections.length + " sections"}; report sections ${report.sections.length}`,
+      `grades sections ${grades.sections.length}; documents ${docs.length}; absence ${absence.message ? "message" : absence.sections.length + " sections"}; report sections ${report.sections.length}`,
     );
   },
 );

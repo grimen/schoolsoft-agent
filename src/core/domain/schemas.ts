@@ -158,3 +158,34 @@ export const SharedFileSchema = z.object({
   category: text("Heading the portal lists it under"),
 });
 export type SharedFile = z.infer<typeof SharedFileSchema>;
+
+export const TableSectionSchema = z.object({
+  heading: text("Heading above the table"),
+  headers: z.array(z.string()).describe("Column headings, as the page words them"),
+  rows: z.array(
+    z.object({
+      cells: z.array(z.string()).describe("Cell texts, one per column"),
+      link: text("The row's link"),
+    }),
+  ),
+});
+export type TableSection = z.infer<typeof TableSectionSchema>;
+
+export const TablePageSchema = z
+  .object({
+    title: z.string(),
+    message: text("Notice shown instead of, or above, the tables"),
+    sections: z.array(TableSectionSchema),
+  })
+  .describe("A page of tables as the portal shows it; cell meanings are the page's own");
+export type TablePage = z.infer<typeof TablePageSchema>;
+
+export const StudentDocumentSchema = z.object({
+  id: z.string().describe("Stable id of this document"),
+  title: z.string(),
+  createdBy: text("Who created it"),
+  date: LocalDateSchema,
+  archived: z.boolean(),
+  link: z.string().describe("The document's page in the portal; it needs the web login"),
+});
+export type StudentDocument = z.infer<typeof StudentDocumentSchema>;

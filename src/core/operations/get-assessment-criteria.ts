@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { defineOperation, READ_ONLY } from "./types.js";
 import { ChildSchema, withChild } from "./_shared.js";
+import { ChildRefSchema, TablePageSchema } from "../domain/schemas.js";
 
 export const getAssessmentCriteria = defineOperation({
   name: "get_assessment_criteria",
@@ -18,7 +19,7 @@ Args:
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".`,
   input: {
@@ -27,10 +28,11 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
     child_id: ChildSchema,
   },
   portal: ["getAssessmentCriteria"],
+  output: z.object({ child: ChildRefSchema, page: TablePageSchema }),
   annotations: READ_ONLY,
   async run(ctx, { subject, school_type, child_id }) {
-    const { childSummary } = await withChild(ctx, child_id);
+    const { childRef } = await withChild(ctx, child_id);
     const page = await ctx.portal.getAssessmentCriteria(subject, school_type);
-    return { child: childSummary, page };
+    return { child: childRef, page };
   },
 });
