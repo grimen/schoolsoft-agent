@@ -41,7 +41,12 @@ async function pushedBack() {
       },
       (a) => a,
     );
-  const portal: Portal = { ...fakePortal, getScheduleWeek: read, getNews: read };
+  const portal: Portal = {
+    ...fakePortal,
+    getScheduleWeek: read,
+    getNews: read,
+    getActivityLog: read,
+  };
   return { portal, sent: () => sent };
 }
 
@@ -105,7 +110,7 @@ const text = (res: unknown) => (res as { content: { text: string }[] }).content[
 test("MCP: an error result naming the wait and telling the agent not to retry on its own, in English and Swedish", async () => {
   const back = await pushedBack();
   const en = await mcp(back.portal, "en");
-  const news = await en.callTool({ name: "schoolsoft_get_news", arguments: {} });
+  const news = await en.callTool({ name: "schoolsoft_get_activity_log", arguments: {} });
   assert.equal(news.isError, true);
   assert.match(text(news), /^Error: SchoolSoft has pushed back several times in a row/);
   assert.match(
@@ -122,7 +127,7 @@ test("MCP: an error result naming the wait and telling the agent not to retry on
   assert.match(text(typed), /pushed back several times/);
   await en.close();
   const sv = await mcp(back.portal, "sv");
-  const svNews = await sv.callTool({ name: "schoolsoft_get_news", arguments: {} });
+  const svNews = await sv.callTool({ name: "schoolsoft_get_activity_log", arguments: {} });
   assert.match(text(svNews), /^Error: SchoolSoft har sagt ifrån flera gånger i rad/);
   assert.match(text(svNews), /Försök inte igen på eget initiativ/);
   await sv.close();

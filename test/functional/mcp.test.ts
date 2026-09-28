@@ -47,7 +47,7 @@ test("read tool before login returns an actionable not-authenticated error", asy
   assert.equal(res.isError, true);
   assert.match(text(res), /schoolsoft_login/);
   assert.equal(res.structuredContent, undefined, "typed tools: the two lines only");
-  const untyped = await client.callTool({ name: "schoolsoft_get_news", arguments: {} });
+  const untyped = await client.callTool({ name: "schoolsoft_get_activity_log", arguments: {} });
   assert.equal(
     (untyped.structuredContent as { error: { kind: string } }).error.kind,
     "not_authenticated",

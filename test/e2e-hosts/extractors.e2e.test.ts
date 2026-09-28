@@ -21,6 +21,8 @@ import {
 } from "../../src/providers/schoolsoft/portal/extractors.js";
 import { inspectPage } from "../../src/core/portal/inspect.js";
 import { PAGES } from "../../src/providers/schoolsoft/portal/pages.js";
+import { toBookings } from "../../src/providers/schoolsoft/portal/domain/bookings.js";
+import { toSharedFiles } from "../../src/providers/schoolsoft/portal/domain/files.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
 const status = await browserStatus({ kind: "chromium" });
@@ -134,23 +136,36 @@ test(
   },
 );
 
-test("bookings extractor: title, date, description, status words", { skip }, async () => {
-  const s = session();
-  try {
-    const b = await s.withPage(async (p) => {
-      await p.goto("/right_student_timebooking.jsp.html");
-      return p.evaluate(extractBookings);
-    });
-    assert.equal(b.length, 2);
-    assert.equal(b[0].title, "Utvecklingssamtal höstterminen");
-    assert.equal(b[0].slots[0].start, "2026-10-01 15:00 - 15:30");
-    assert.equal(b[0].slots[0].status, "booked");
-    assert.match(b[0].description ?? "", /^Välkommen/);
-    assert.equal(b[1].slots[0].status, "available");
-  } finally {
-    await s.close();
-  }
-});
+test(
+  "bookings extractor: title, time text, description, label/value details",
+  { skip },
+  async () => {
+    const s = session();
+    try {
+      const b = await s.withPage(async (p) => {
+        await p.goto("/right_student_timebooking.jsp.html");
+        return p.evaluate(extractBookings);
+      });
+      assert.equal(b.length, 2);
+      assert.equal(b[0].title, "Utvecklingssamtal höstterminen");
+      assert.equal(b[0].when, "2026-10-01 15:00 - 15:30");
+      assert.deepEqual(b[0].details, [{ label: "Status", value: "Bokad" }]);
+      assert.match(b[0].description ?? "", /^Välkommen/);
+      assert.equal(b[1].when, "2026-11-12 18:00");
+      assert.equal(b[1].description, undefined);
+      // The provider parses these texts into Bookings; the whole page must map.
+      assert.deepEqual(
+        toBookings(b).map((x) => [x.start, x.end, x.status]),
+        [
+          ["2026-10-01T15:00:00+02:00", "2026-10-01T15:30:00+02:00", "booked"],
+          ["2026-11-12T18:00:00+01:00", null, "available"],
+        ],
+      );
+    } finally {
+      await s.close();
+    }
+  },
+);
 
 test("files extractor: categories from headings, file vs link", { skip }, async () => {
   const s = session();
@@ -160,7 +175,7 @@ test("files extractor: categories from headings, file vs link", { skip }, async 
       return p.evaluate(extractFiles);
     });
     assert.deepEqual(
-      f.map((x) => [x.name, x.type, x.category]),
+      toSharedFiles(f).map((x) => [x.name, x.kind, x.category]),
       [
         ["Veckobrev v37", "file", "Skolan"],
         ["Fritids hemsida", "link", "Skolan"],

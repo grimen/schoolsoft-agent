@@ -16,7 +16,16 @@ import {
   type ProviderSession,
   createCompositePortal,
 } from "../../src/core/index.js";
-import type { CalendarEvent, Lesson, Message } from "../../src/core/domain/schemas.js";
+import type {
+  Assignment,
+  Booking,
+  CalendarEvent,
+  Lesson,
+  Message,
+  NewsItem,
+  SharedFile,
+  SubjectRoom,
+} from "../../src/core/domain/schemas.js";
 import { isoWeekDate } from "../../src/core/domain/time.js";
 import { schoolsoftProvider, ROUTING } from "../../src/providers/schoolsoft/index.js";
 
@@ -114,9 +123,32 @@ export const fakePortal = {
       dishes: [{ kind: "Lunch", description: "Spagetti" }],
     },
   ],
-  getAssignmentsWeek: async () => [{ id: 7, title: "Läxa" }],
+  getAssignmentsWeek: async (): Promise<Assignment[]> => [
+    {
+      id: 7,
+      title: "Läxa",
+      subtitle: null,
+      subjectRoomId: "subject-room:1",
+      date: "2026-09-04",
+      read: false,
+      submissionStatus: null,
+      resultStatus: null,
+    },
+  ],
   getAssignmentDetail: async (id: number) => ({ view: { id }, sections: [] }),
-  getNews: async () => [{ id: 1, title: "Studiedag fredag" }],
+  getNews: async (): Promise<NewsItem[]> => [
+    {
+      id: "news:1",
+      title: "Studiedag fredag",
+      body: null,
+      category: null,
+      author: null,
+      read: false,
+      hasAttachments: false,
+      publishedAt: "2026-09-01T07:45:00+02:00",
+      visibleUntil: null,
+    },
+  ],
   getInbox: async (): Promise<Message[]> => [
     {
       id: 5,
@@ -146,14 +178,33 @@ export const fakePortal = {
   getContacts: async () => [
     { title: "Elever", people: [{ name: "Test Elev", role: "Elev", email: "e@example.test" }] },
   ],
-  getSubjectRooms: async () => [
-    { subject: "Matematik", subjectId: 1, groups: ["4B"], teachers: ["Lärare Test"] },
+  getSubjectRooms: async (): Promise<SubjectRoom[]> => [
+    {
+      id: "subject-room:1",
+      name: "Matematik",
+      groups: ["4B"],
+      teachers: [{ name: "Lärare Test", role: null }],
+    },
   ],
-  getBookings: async () => [
-    { title: "Utvecklingssamtal", slots: [{ start: "2026-10-01 15:00", status: "available" }] },
+  getBookings: async (): Promise<Booking[]> => [
+    {
+      id: "booking:1",
+      title: "Utvecklingssamtal",
+      description: null,
+      start: "2026-10-01T15:00:00+02:00",
+      end: null,
+      status: "available",
+      details: [],
+    },
   ],
-  getFiles: async () => [
-    { name: "Veckobrev", url: "https://example.test/veckobrev.pdf", type: "file" },
+  getFiles: async (): Promise<SharedFile[]> => [
+    {
+      id: "file:1",
+      name: "Veckobrev",
+      url: "https://example.test/veckobrev.pdf",
+      kind: "file",
+      category: null,
+    },
   ],
   // GDPR-gated (web session) capabilities
   getGrades: async () => ({ title: "Betyg", sections: [] }),

@@ -1,0 +1,31 @@
+[
+  {
+    "activityId": 11,
+    "subject": "Matematik",
+    "groupNames": ["4B"],
+    "color": "#336699",
+    "isPreSchool": false,
+    "access": true,
+    "isSubjectRoom": true,
+    "hiddenForStudents": false
+  },
+  {
+    "activityId": 12,
+    "subject": "Engelska",
+    "groupNames": null,
+    "color": "#993366",
+    "isPreSchool": false,
+    "access": true,
+    "hiddenForStudents": false
+  },
+  {
+    "activityId": 13,
+    "subject": "Fritids",
+    "groupNames": ["Fritids"],
+    "color": "#669933",
+    "isPreSchool": false,
+    "access": true,
+    "isSubjectRoom": false,
+    "hiddenForStudents": false
+  }
+]

@@ -3,8 +3,14 @@
  * from the token → cookie exchange, bound to one child (childInFocus).
  * Schedule, assignments and the subject rooms behind the React Ämne view.
  */
-import type { SubjectRoom } from "../../../../core/portal/types.js";
-import type { CalendarEvent, Lesson } from "../../../../core/domain/schemas.js";
+import type {
+  Assignment,
+  CalendarEvent,
+  Lesson,
+  SubjectRoom,
+} from "../../../../core/domain/schemas.js";
+import { toAssignments } from "../domain/assignments.js";
+import { toRoomList, toSubjectRoom } from "../domain/subject-rooms.js";
 import { sortCalendar, toCalendarEvents } from "../domain/agenda.js";
 import { toLessons } from "../domain/lessons.js";
 import type { SchoolsoftHttp } from "./transport.js";
@@ -50,9 +56,11 @@ export class WebviewApi {
     return toLessons(await this.cookie<unknown>(`/rest-api/parent/calendar/lessons/week/${week}`));
   }
 
-  getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {
-    return this.cookie<unknown[]>(
-      `/rest-api/parent/ps/assignments/start-page?week=${week}&year=${year}`,
+  async getAssignmentsWeek(week: number, year: number): Promise<Assignment[]> {
+    return toAssignments(
+      await this.cookie<unknown>(
+        `/rest-api/parent/ps/assignments/start-page?week=${week}&year=${year}`,
+      ),
     );
   }
 
@@ -64,25 +72,16 @@ export class WebviewApi {
     return { view, sections };
   }
 
-  /** Ämne: the room list, then each room's teachers. */
+  /** Ämne: the room list, then each room's teachers; any answer that drifts fails the whole list. */
   async getSubjectRooms(): Promise<SubjectRoom[]> {
-    const rooms = await this.cookie<
-      { activityId: number; subject: string; groupNames?: string[]; isSubjectRoom?: boolean }[]
-    >("/rest-api/parent/ps/subjectroom/all");
+    const rooms = toRoomList(await this.cookie<unknown>("/rest-api/parent/ps/subjectroom/all"));
     return Promise.all(
-      rooms
-        .filter((r) => r.isSubjectRoom !== false)
-        .map(async (r) => {
-          const teachers = await this.cookie<{ firstName: string; lastName: string }[]>(
-            `/rest-api/parent/ps/subjectroom/${r.activityId}/teachers`,
-          );
-          return {
-            subject: r.subject,
-            subjectId: r.activityId,
-            groups: r.groupNames ?? [],
-            teachers: teachers.map((t) => `${t.firstName} ${t.lastName}`.trim()),
-          };
-        }),
+      rooms.map(async (room) =>
+        toSubjectRoom(
+          room,
+          await this.cookie<unknown>(`/rest-api/parent/ps/subjectroom/${room.activityId}/teachers`),
+        ),
+      ),
     );
   }
 }

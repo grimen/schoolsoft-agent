@@ -11,19 +11,27 @@
  *  - Web-session REST (web-login cookies): child header/switch, Avstämning.
  *  - Absence (app cookies): the one write, absence-notice; body unverified.
  *
- * Answers of the typed capabilities (profile, lunch, inbox, schedule,
- * calendar) are mapped to the domain model in `domain/`; drift throws.
+ * Answers of the typed capabilities (profile, lunch, news, inbox, schedule,
+ * calendar, assignments, subject rooms) are mapped to the domain model in
+ * `domain/`; drift throws.
  *
  * Verified live against Täby 2026-09-06; see docs/reference/schoolsoft-api.md.
  */
 import type { ApiPortalPart } from "../../../core/portal/composite.js";
-import type { CalendarEvent, Lesson, LunchDay, Message } from "../../../core/domain/schemas.js";
+import type {
+  Assignment,
+  CalendarEvent,
+  Lesson,
+  LunchDay,
+  Message,
+  NewsItem,
+  SubjectRoom,
+} from "../../../core/domain/schemas.js";
 import type {
   AbsenceNotice,
   AbsenceReceipt,
   ActivityEntry,
   GuardianParent,
-  SubjectRoom,
 } from "../../../core/portal/types.js";
 import { AbsenceApi } from "./api/absence-api.js";
 import { SchoolsoftHttp, type ApiFetch } from "./api/transport.js";
@@ -80,7 +88,7 @@ export class ApiPortal implements ApiPortalPart {
   getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]> {
     return this.eva.getLunchWeek(orgId, week, year);
   }
-  getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
+  getNews(userId: number, orgId: number, studentId: number): Promise<NewsItem[]> {
     return this.eva.getNews(userId, orgId, studentId);
   }
   getInbox(userId: number, orgId: number): Promise<Message[]> {
@@ -103,7 +111,7 @@ export class ApiPortal implements ApiPortalPart {
   getScheduleWeek(week: number): Promise<Lesson[]> {
     return this.webview.getScheduleWeek(week);
   }
-  getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {
+  getAssignmentsWeek(week: number, year: number): Promise<Assignment[]> {
     return this.webview.getAssignmentsWeek(week, year);
   }
   getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }> {

@@ -8,11 +8,12 @@ import type { BrowserSession, PortalPage } from "../../../core/browser/session.j
 import type { BrowserPortalPart } from "../../../core/portal/composite.js";
 import {
   WebLoginRequiredError,
-  type Booking,
   type ContactGroup,
-  type PortalFile,
   type TablePage,
 } from "../../../core/portal/types.js";
+import type { Booking, SharedFile } from "../../../core/domain/schemas.js";
+import { toBookings } from "./domain/bookings.js";
+import { toSharedFiles } from "./domain/files.js";
 import {
   extractBookings,
   extractContacts,
@@ -74,18 +75,21 @@ export class BrowserPortal implements BrowserPortalPart {
     });
   }
 
-  getBookings(): Promise<Booking[]> {
-    return this.visit("getBookings", PAGES.bookings, async (page) => {
+  /** The page's texts, parsed outside the page; text that does not parse is drift. */
+  async getBookings(): Promise<Booking[]> {
+    const texts = await this.visit("getBookings", PAGES.bookings, async (page) => {
       await page.goto(PAGES.bookings.path);
       return page.evaluate(extractBookings);
     });
+    return toBookings(texts);
   }
 
-  getFiles(): Promise<PortalFile[]> {
-    return this.visit("getFiles", PAGES.files, async (page) => {
+  async getFiles(): Promise<SharedFile[]> {
+    const links = await this.visit("getFiles", PAGES.files, async (page) => {
       await page.goto(PAGES.files.path);
       return page.evaluate(extractFiles);
     });
+    return toSharedFiles(links);
   }
 
   getGrades(): Promise<TablePage> {

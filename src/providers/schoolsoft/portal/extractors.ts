@@ -14,10 +14,27 @@
  *    the criteria page takes; subject rooms themselves come from the API).
  *  - Bokningar: #timebook_con_content .accordion-group with
  *    .accordion-heading-left > div (title), .accordion-heading-date-wide,
- *    [id^=description] (text), .inner_right_info label+div pairs.
+ *    [id^=description] (text), .inner_right_info label+div pairs. Times and
+ *    status words are parsed in Node (domain/bookings.ts), where they are tested.
  *  - Filer & länkar: #library_con_content table tr > td > a[href] (+ div).
  */
-import type { Booking, ContactGroup, PortalFile, TablePage } from "../../../core/portal/types.js";
+import type { ContactGroup, TablePage } from "../../../core/portal/types.js";
+
+/** A booking as the page words it; domain/bookings.ts parses it. */
+export interface PageBooking {
+  title: string;
+  /** The heading's time text, e.g. "2026-10-01 15:00 - 15:30". */
+  when: string;
+  description?: string;
+  details: { label: string; value: string }[];
+}
+
+/** A link on the files page with the category heading above it; domain/files.ts maps it. */
+export interface PageFile {
+  name: string;
+  url: string;
+  category?: string;
+}
 
 const text = (el: Element | null | undefined): string =>
   (el?.textContent ?? "").replace(/\s+/g, " ").trim();
@@ -74,40 +91,26 @@ export function extractSubjectLinks(): {
   return out;
 }
 
-export function extractBookings(): Booking[] {
+export function extractBookings(): PageBooking[] {
   const t = (el: Element | null | undefined) => (el?.textContent ?? "").replace(/\s+/g, " ").trim();
-  const out: Booking[] = [];
+  const out: PageBooking[] = [];
   for (const g of Array.from(document.querySelectorAll("#timebook_con_content .accordion-group"))) {
     const title = t(g.querySelector(".accordion-heading-left > div"));
     if (!title) continue;
-    const date = t(g.querySelector(".accordion-heading-date-wide"));
+    const when = t(g.querySelector(".accordion-heading-date-wide"));
     const description = t(g.querySelector("[id^='description']")) || undefined;
-    const info: Record<string, string> = {};
+    const details: PageBooking["details"] = [];
     for (const row of Array.from(g.querySelectorAll(".inner_right_info"))) {
       const label = t(row.querySelector("label"));
-      const value = t(row.querySelector("div"));
-      if (label) info[label] = value;
+      if (label) details.push({ label, value: t(row.querySelector("div")) });
     }
-    const statusText = Object.values(info).join(" ").toLowerCase();
-    const status: Booking["slots"][number]["status"] = /bokad|booked/.test(statusText)
-      ? "booked"
-      : /stängd|closed|passerad/.test(statusText)
-        ? "closed"
-        : /ledig|open|tillgänglig/.test(statusText)
-          ? "available"
-          : "unknown";
-    out.push({
-      title,
-      ...(description ? { description } : {}),
-      slots: [{ start: date, status }],
-      ...(Object.keys(info).length ? { info } : {}),
-    } as Booking);
+    out.push({ title, when, ...(description ? { description } : {}), details });
   }
   return out;
 }
 
-export function extractFiles(): PortalFile[] {
-  const out: PortalFile[] = [];
+export function extractFiles(): PageFile[] {
+  const out: PageFile[] = [];
   let category: string | undefined;
   const root = document.querySelector("#library_con_content") ?? document.body;
   for (const node of Array.from(root.children)) {
@@ -119,12 +122,7 @@ export function extractFiles(): PortalFile[] {
       const url = (a as HTMLAnchorElement).getAttribute("href") ?? "";
       const name = (a.textContent ?? "").replace(/\s+/g, " ").trim();
       if (!url || !name) continue;
-      const type: PortalFile["type"] = /file_download\.jsp|\.(pdf|docx?|xlsx?|pptx?)(\?|$)/i.test(
-        url,
-      )
-        ? "file"
-        : "link";
-      out.push({ name, url, type, ...(category ? { category } : {}) });
+      out.push({ name, url, ...(category ? { category } : {}) });
     }
   }
   return out;

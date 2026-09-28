@@ -19,6 +19,7 @@ import type {
   WithPageOptions,
 } from "../../src/core/browser/session.js";
 import { WebLoginRequiredError } from "../../src/core/portal/types.js";
+import { textHash } from "../../src/providers/schoolsoft/portal/domain/parse.js";
 
 function fakeSession(evaluateResults: Record<string, unknown>) {
   const visited: string[] = [];
@@ -59,13 +60,32 @@ test("every page spec has a path under the tenant and at least one anchor", () =
 test("contacts, bookings and files visit their page with the app session and run the extractor read-only", async () => {
   const { session, visited, options } = fakeSession({
     extractContacts: [{ title: "Elever", people: [] }],
-    extractBookings: [{ title: "Utvecklingssamtal", slots: [] }],
-    extractFiles: [{ name: "Veckobrev", url: "x", type: "file" }],
+    extractBookings: [{ title: "Utvecklingssamtal", when: "2026-10-01", details: [] }],
+    extractFiles: [{ name: "Veckobrev", url: "x.pdf" }],
   });
   const portal = new BrowserPortal({ session });
   assert.deepEqual(await portal.getContacts(), [{ title: "Elever", people: [] }]);
-  assert.deepEqual(await portal.getBookings(), [{ title: "Utvecklingssamtal", slots: [] }]);
-  assert.deepEqual(await portal.getFiles(), [{ name: "Veckobrev", url: "x", type: "file" }]);
+  // the page's texts are mapped to the domain outside the page
+  assert.deepEqual(await portal.getBookings(), [
+    {
+      id: "booking:2026-10-01#" + textHash("Utvecklingssamtal"),
+      title: "Utvecklingssamtal",
+      description: null,
+      start: "2026-10-01",
+      end: null,
+      status: "unknown",
+      details: [],
+    },
+  ]);
+  assert.deepEqual(await portal.getFiles(), [
+    {
+      id: "file:" + textHash("x.pdf"),
+      name: "Veckobrev",
+      url: "x.pdf",
+      kind: "file",
+      category: null,
+    },
+  ]);
   assert.deepEqual(visited, [PAGES.contacts.path, PAGES.bookings.path, PAGES.files.path]);
   for (const o of options) {
     assert.equal(o.allowWrites, undefined, "never allows writes");

@@ -182,16 +182,16 @@ test("escapes only on a colour-capable TTY; COLUMNS and the TTY width limit line
 test("untyped commands fall back to pretty JSON with one localized note on stderr", async () => {
   const { run, configDir } = harness();
   await run("login");
-  const news = await run("--format", "text", "get-news");
-  assert.equal(news.code, EXIT.OK);
-  assert.equal(news.err, "Text view is not available for get-news yet; showing JSON.");
-  assert.deepEqual(JSON.parse(news.out), JSON.parse((await run("get-news")).out));
-  assert.equal(news.out, JSON.stringify(JSON.parse(news.out), null, 2));
+  const log = await run("--format", "text", "get-activity-log");
+  assert.equal(log.code, EXIT.OK);
+  assert.equal(log.err, "Text view is not available for get-activity-log yet; showing JSON.");
+  assert.deepEqual(JSON.parse(log.out), JSON.parse((await run("get-activity-log")).out));
+  assert.equal(log.out, JSON.stringify(JSON.parse(log.out), null, 2));
   const sv = harness({ env: { SCHOOLSOFT_LANG: "sv" } });
   await sv.run("login");
   assert.equal(
-    (await sv.run("get-news", "--format", "text")).err,
-    "Textvy finns inte för get-news än; visar JSON.",
+    (await sv.run("get-activity-log", "--format", "text")).err,
+    "Textvy finns inte för get-activity-log än; visar JSON.",
   );
   const conf = await run(
     "--config-dir",

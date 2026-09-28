@@ -23,7 +23,7 @@ test(
     const people = contacts.reduce((n, g) => n + g.people.length, 0);
     const subjects = await ctx.portal.getSubjectRooms();
     assert.ok(subjects.length >= 1, "at least one subject room");
-    assert.ok(subjects.every((s) => typeof s.subject === "string" && Array.isArray(s.teachers)));
+    assert.ok(subjects.every((s) => typeof s.name === "string" && Array.isArray(s.teachers)));
     const bookings = await ctx.portal.getBookings();
     assert.ok(Array.isArray(bookings));
     const files = await ctx.portal.getFiles();

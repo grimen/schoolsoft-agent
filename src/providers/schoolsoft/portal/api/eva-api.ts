@@ -4,12 +4,13 @@
  * calendar events. Verified live against Täby 2026-09-06.
  */
 import type { GuardianParent } from "../../../../core/portal/types.js";
-import type { LunchDay, Message } from "../../../../core/domain/schemas.js";
+import type { LunchDay, Message, NewsItem } from "../../../../core/domain/schemas.js";
 import type { SchoolsoftHttp } from "./transport.js";
 import { AgentError } from "../../../../core/errors/index.js";
 import { toGuardianParent } from "../domain/parent.js";
 import { toLunchDays } from "../domain/lunch.js";
 import { toMessages } from "../domain/inbox.js";
+import { toNews } from "../domain/news.js";
 
 export class EvaApi {
   constructor(
@@ -41,9 +42,11 @@ export class EvaApi {
     );
   }
 
-  getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
-    return this.bearer<unknown[]>(
-      `/eva/api/v2/parent/${userId}/schools/${orgId}/news?studentId=${studentId}&langId=1`,
+  async getNews(userId: number, orgId: number, studentId: number): Promise<NewsItem[]> {
+    return toNews(
+      await this.bearer<unknown>(
+        `/eva/api/v2/parent/${userId}/schools/${orgId}/news?studentId=${studentId}&langId=1`,
+      ),
     );
   }
 
