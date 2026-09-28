@@ -13,6 +13,10 @@ if tar -tzf "$SMOKE"/schoolsoft-agent-*.tgz | grep -q 'http/probe/'; then
   echo "the host probe must not be in the package" >&2
   exit 1
 fi
+if tar -tzf "$SMOKE"/schoolsoft-agent-*.tgz | grep -q '^package/packages/'; then
+  echo "the app workspace must not be in the package" >&2
+  exit 1
+fi
 npm install -g --prefix "$SMOKE/prefix" --no-audit --no-fund --silent "$SMOKE"/schoolsoft-agent-*.tgz
 BIN="$SMOKE/prefix/bin"
 test -x "$BIN/schoolsoft-agent" && test -x "$BIN/schoolsoft-agent-mcp"

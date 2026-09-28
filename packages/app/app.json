@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "SchoolSoft",
+    "slug": "schoolsoft-agent-app",
+    "scheme": "schoolsoft-agent",
+    "version": "0.0.0",
+    "platforms": ["web", "ios", "android"],
+    "web": { "bundler": "metro", "output": "single" },
+    "plugins": ["expo-router", "expo-localization"],
+    "experiments": { "typedRoutes": false }
+  }
+}

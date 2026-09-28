@@ -4,4 +4,6 @@
   "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
   "high": true,
   "allowlist": [],
+  // Root package only; the app audits its own tree in the App job (packages/app/audit-ci.jsonc).
+  "extra-args": ["--workspaces=false"],
 }

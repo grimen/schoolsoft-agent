@@ -1,0 +1,14 @@
+{
+  // The app's dependencies only. Every allowlisted advisory needs a reason and a review
+  // date (spec: Workspace and fences); nothing is ignored silently.
+  //
+  // Run from the repository root (audit-ci resolves the lockfile from the working
+  // directory, not from this file's location): `--config packages/app/audit-ci.jsonc`.
+  // `--workspace=packages/app` scopes `npm audit` to advisories reachable from this
+  // workspace (verified: every advisory in Expo's tree today is moderate, none high;
+  // the root workspace itself audits clean under its own `--workspaces=false` config).
+  "$schema": "https://github.com/IBM/audit-ci/raw/main/docs/schema.json",
+  "high": true,
+  "allowlist": [],
+  "extra-args": ["--workspace=packages/app"],
+}

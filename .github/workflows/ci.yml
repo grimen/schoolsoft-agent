@@ -10,6 +10,11 @@ name: CI
 #       -> E2E (shipped artifact: MCP over stdio, CLI, mcpb,
 #               every host manifest / skill in a sandbox)        ~2 min
 #         -> Publish -> Verify (main / release / dispatch)
+#     -> App (packages/app, app.yml: its own install, audit, lint,
+#             typecheck, tests, dev-bundle smoke, export check,
+#             E2E in Chromium; only when the app or what it uses
+#             changed) - beside Unit and E2E; gates neither
+#             Publish nor Badges
 #
 # The live SchoolSoft suite (`make e2e`) needs a human with BankID and never
 # runs here. A docs-only PR stops after Checks (classified by the Changes
@@ -69,6 +74,11 @@ jobs:
     needs: [checks]
     if: needs.checks.outputs.docs-only != 'true'
     uses: ./.github/workflows/test.yml
+  app:
+    name: App
+    needs: [checks]
+    if: needs.checks.outputs.app-changed == 'true'
+    uses: ./.github/workflows/app.yml
   e2e:
     name: E2E
     needs: [unit]
@@ -100,8 +110,8 @@ jobs:
           node-version: "24"
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (root package only; the app has its own job)
+        run: npm ci --ignore-scripts --workspaces=false && bash scripts/ci/assert-root-install.sh
 
       - name: Download coverage badge
         if: needs.unit.result == 'success'
@@ -163,8 +173,8 @@ jobs:
           node-version: 24
           cache: npm
 
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (root package only; the app has its own job)
+        run: npm ci --ignore-scripts --workspaces=false && bash scripts/ci/assert-root-install.sh
 
       - name: Resolve version and dist-tag
         id: ver

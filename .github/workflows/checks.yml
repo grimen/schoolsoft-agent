@@ -9,6 +9,9 @@ on:
       docs-only:
         description: "'true' when every changed file is documentation (PRs only)"
         value: ${{ jobs.changes.outputs.docs-only }}
+      app-changed:
+        description: "'true' when the app, the typed client or the dependencies changed"
+        value: ${{ jobs.changes.outputs.app-changed }}
 
 permissions:
   contents: read
@@ -20,6 +23,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       docs-only: ${{ steps.classify.outputs.docs-only }}
+      app-changed: ${{ steps.app.outputs.app-changed }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -30,6 +34,12 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: bash scripts/ci/changed-class.sh
+      - name: Did the app change?
+        id: app
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: bash scripts/ci/changed-app.sh
 
   code:
     name: Code
@@ -41,8 +51,8 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (root package only; the app has its own job)
+        run: npm ci --ignore-scripts --workspaces=false && bash scripts/ci/assert-root-install.sh
       - name: Dependency audit (audit-ci.jsonc allowlist)
         run: make audit
       - name: Lint GitHub Actions workflows (actionlint)
@@ -64,8 +74,8 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (root package only; the app has its own job)
+        run: npm ci --ignore-scripts --workspaces=false && bash scripts/ci/assert-root-install.sh
       - name: Generated docs and skills are current
         run: make docs skills && git diff --exit-code -- docs/reference skills plugins/claude/schoolsoft-skill/skills
       - name: Host manifests validate
@@ -88,8 +98,8 @@ jobs:
         with:
           node-version: "24"
           cache: npm
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
+      - name: Install dependencies (root package only; the app has its own job)
+        run: npm ci --ignore-scripts --workspaces=false && bash scripts/ci/assert-root-install.sh
       - name: Lint PR commits
         run: npx commitlint --from "${{ github.event.pull_request.base.sha }}" --to "${{ github.event.pull_request.head.sha }}" --verbose
       - name: Lint PR title

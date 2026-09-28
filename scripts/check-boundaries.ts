@@ -16,9 +16,11 @@
  *   - files and directories are created only through src/core/private-files.ts (0700/0600):
  *     nothing else imports a file-creating node:fs function, or node:fs as a whole
  *     (docs/planning/specs/2026-09-26-privacy-small-fixes.md)
+ *   - packages/app/{app,src}/** (the Expo app) imports nothing from the root package but
+ *     `schoolsoft-agent/client`, and no root src/ path (docs/planning/specs/2026-09-26-app-workspace.md)
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, dirname, resolve } from "node:path";
+import { readdirSync, readFileSync, statSync, existsSync } from "node:fs";
+import { join, relative, dirname, resolve, posix } from "node:path";
 
 export interface Violation {
   file: string;
@@ -26,11 +28,11 @@ export interface Violation {
   message: string;
 }
 
-function walk(dir: string, out: string[] = []): string[] {
+function walk(dir: string, out: string[] = [], extensions: string[] = [".ts"]): string[] {
   for (const entry of readdirSync(dir)) {
     const p = join(dir, entry);
-    if (statSync(p).isDirectory()) walk(p, out);
-    else if (p.endsWith(".ts")) out.push(p);
+    if (statSync(p).isDirectory()) walk(p, out, extensions);
+    else if (extensions.some((ext) => p.endsWith(ext))) out.push(p);
   }
   return out;
 }
@@ -165,6 +167,38 @@ function checkClient(rel: string, text: string, src: string, file: string): Viol
   return out;
 }
 
+const APP_SPECIFIER =
+  /(?:\bfrom\s*|\brequire\s*\(\s*)["']([^"']+)["']|\bimport\s*\(\s*["']([^"']+)["']|(?:^|\n)\s*import\s*["']([^"']+)["']/g;
+
+/**
+ * The app's one allowed import from the root package is the typed client. A relative
+ * specifier is judged by where it actually resolves (path.posix against a virtual
+ * `/packages/app` root), not by counting `..` segments: only leaving `/packages/app`
+ * reaches the root package's own `src/` (or anything else outside the workspace).
+ */
+export function checkAppImports(rel: string, text: string): Violation[] {
+  const out: Violation[] = [];
+  const dir = posix.dirname(rel);
+  for (const m of text.matchAll(APP_SPECIFIER)) {
+    const spec = m[1] ?? m[2] ?? m[3];
+    if (!spec) continue;
+    const rootPackage =
+      spec === "schoolsoft-agent" ||
+      (spec.startsWith("schoolsoft-agent/") && spec !== "schoolsoft-agent/client");
+    const leavesWorkspace =
+      spec.startsWith(".") &&
+      !posix.resolve("/packages/app", dir, spec).startsWith("/packages/app/");
+    if (rootPackage || leavesWorkspace) {
+      out.push({
+        file: `packages/app/${rel}`,
+        line: text.slice(0, m.index).split("\n").length,
+        message: `the app imports only schoolsoft-agent/client, not ${spec}`,
+      });
+    }
+  }
+  return out;
+}
+
 export function checkBoundaries(root: string): Violation[] {
   const src = join(root, "src");
   const violations: Violation[] = [];
@@ -274,6 +308,15 @@ export function checkBoundaries(root: string): Violation[] {
         }
       }
     });
+  }
+  const appRoot = join(root, "packages/app");
+  for (const dir of ["app", "src"]) {
+    const appDir = join(appRoot, dir);
+    if (!existsSync(appDir)) continue;
+    for (const file of walk(appDir, [], [".ts", ".tsx"])) {
+      const rel = relative(appRoot, file).split("\\").join("/");
+      violations.push(...checkAppImports(rel, readFileSync(file, "utf8")));
+    }
   }
   return violations;
 }

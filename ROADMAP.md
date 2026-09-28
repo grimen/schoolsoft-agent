@@ -21,7 +21,7 @@ login; **live** needs one guardian BankID session; **owner** needs the repositor
 | [E8](#e8-session-longevity-live-half) ([#8](https://github.com/grimen/schoolsoft-agent/issues/8))         | Fewer BankID logins, from measured lifetimes                      | offline half merged (#22)                        |
 | [E9](#e9-connector-hardening-follow-ups) ([#31](https://github.com/grimen/schoolsoft-agent/issues/31))    | Close the documented security leftovers                           | not started                                      |
 | [E10](#e10-supportability) ([#32](https://github.com/grimen/schoolsoft-agent/issues/32))                  | Bug reports a non-technical parent can produce                    | E10.2 done                                       |
-| [E11](#e11-user-experience) ([#33](https://github.com/grimen/schoolsoft-agent/issues/33))                 | What a parent looks at: CLI, TUI, one Expo app for web and phones | E11.1 done                                       |
+| [E11](#e11-user-experience) ([#33](https://github.com/grimen/schoolsoft-agent/issues/33))                 | What a parent looks at: CLI, TUI, one Expo app for web and phones | E11.1, E11.2, E11.4 done                         |
 | [Later](#later)                                                                                           | Worth doing, not yet worth scheduling                             |                                                  |
 
 Naming stays as it is: this is a SchoolSoft project today, and the `schoolsoft_` tool
@@ -286,7 +286,7 @@ project in this repository, so the API and the app change together.
   `NO_COLOR` and a non-TTY stdout. Done when every read command has a text renderer with
   a snapshot test and JSON output is byte-identical to today. Views exist for the five
   typed operations; the other reads get one as E4.5 types them.
-- **E11.2 Guided first run** ([#35](https://github.com/grimen/schoolsoft-agent/issues/35)) (offline). `schoolsoft-agent` without a config walks through
+- **E11.2 Guided first run** ([#35](https://github.com/grimen/schoolsoft-agent/issues/35)) (offline; done in #70). `schoolsoft-agent` without a config walks through
   school lookup (`configure` already prompts on a TTY through the injected `prompt`),
   login and a first schedule, in plain language. Done when a fresh machine reaches a
   schedule with no documentation open.
@@ -295,7 +295,7 @@ project in this repository, so the API and the app change together.
   status, the login state and a "BankID needed" banner from `auth_status`, a refresh key
   that passes `fresh`. Done when it runs against the fake provider in tests and the
   artifact E2E drives it over a recorded session.
-- **E11.4 App workspace** ([#37](https://github.com/grimen/schoolsoft-agent/issues/37)) (offline, after E4.2 and E5.1 to E5.3). `packages/app` as one
+- **E11.4 App workspace** ([#37](https://github.com/grimen/schoolsoft-agent/issues/37)) (offline; done in #72). `packages/app` as one
   Expo project with react-native-web, using the typed client `schoolsoft-agent/client` (E5.4).
   The repository is one package today, built with plain `tsc`; it becomes npm workspaces
   with the published `schoolsoft-agent` package unchanged in name and bins, the root keeps

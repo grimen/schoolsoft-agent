@@ -136,6 +136,13 @@ real SchoolSoft callback compatibility, BankID on the same phone, or acceptance 
 actual Claude/ChatGPT accounts. Those checks remain explicit before calling the
 parent deployment supported.
 
+**App workspace.** `packages/app` is a private npm workspace (root `workspaces`), an Expo
+project that reads this REST surface through the typed client and imports nothing else
+from the root package (`schoolsoft-agent/client` only, enforced by `make boundaries`). It
+is fenced out of root installs (`npm ci --workspaces=false`), the connector image and the
+published tarball, and it has its own CI job, make targets and audit config. See
+[the app](app.md).
+
 ## Provider seam: one vendor today, room for the next
 
 The capability vocabulary (Portal), the operations and everything generated from them, the session lifecycle, the browser session guard and the two "BankID in the user's own browser" mechanics (localhost callback server, headed-browser cookie capture) are vendor-neutral and live in core. Everything SchoolSoft-specific lives under `src/providers/schoolsoft/` behind the `SchoolProvider` interface (`src/core/provider/types.ts`): which capabilities it serves and how (`routing`), its auth strategies, its API and browser portals, the pages it reads and their fingerprints, and how to recognise its own login pages (`webLogin`). A provider owns its session object (credentials holder) and the persisted `data` blob; core never names a field of it.
