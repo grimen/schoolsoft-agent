@@ -86,6 +86,7 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 - `get_contacts`, `get_message` and `get_activity_log` are untyped operations (no `outputSchema`, E4.5). Under the stability policy their output is "not a contract", so removing e-mail and phone is not a breaking change and is not marked `!`. Were they typed, the policy's privacy exception ("a security or privacy problem ... may be removed without notice. It is still marked breaking") would apply and the change would be marked breaking.
 - `contactDetails` / `SCHOOLSOFT_CONTACT_DETAILS` is a new setting: compatible. Its default (off) is observable and is now part of the contract; making it on by default would be a default that sends more on the user's behalf and is never done.
 - `get_contacts_details` is a new scope, offered only when the connector offers `get_contacts`. The stability page names detail scopes next to the operation scopes.
+- Revealing guardians' details only (legal review R1) tightens what the opt-in returns from the untyped `get_contacts`: not a contract break, not marked `!`. The consent box's title and warning changed wording, not the scope's name.
 - Cache TTLs are tuning values, not a contract.
 - `get_contacts` and `get_activity_log` keep their `fresh` input, because removing an input is breaking. It is accepted and changes nothing: both are always read from SchoolSoft.
 
@@ -96,10 +97,11 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 3. **Legal review: performed.** See [the review](../reviews/2026-09-28-other-families-data-legal-review.md). Outcome: the default design is consistent with the GDPR and Swedish law as the reviewer reads it, and does not depend on the household exemption, whose application to AI assistants is uncertain. One guardian's opt-in is not a lawful basis and not the other families' consent; it is a reasonable safeguard for guardians' contact details, but the reveal should not include pupils' own contact details (recommendation R1 for the owner). The review is not legal advice; a qualified Swedish data-protection lawyer or DPO must confirm it before any compliance claim.
 4. **Protected personal data:** the owner states that SchoolSoft already leaves people with protected personal data (skyddade personuppgifter) out of the class contact list. The project still never stores, combines or enriches the data, as defence in depth: message texts and recipients are written by the school and are not covered by that omission.
 5. **Staff heading list:** stays as designed (section 1). The live session checks it against the real headings: question D1 in the [live-session runbook](../../development/live-session.md), from the group counts in the live E2E report.
+6. **The review's recommendations:** R1 is required (pupils' own details never pass, section 2); R2 is optional and was done as documentation (turn the reveal off after use), not as a per-request reveal; R3 to R6 are documentation, and R5's wording was left to the implementer. Status: [the review's table](../reviews/2026-09-28-other-families-data-legal-review.md#status-of-the-recommendations-2026-09-28).
 
 ## Open questions
 
-1. **The review's recommendations.** R1 (keep pupils' own contact details out of the reveal) and R2 (narrow the local reveal from a standing switch) are code changes for the owner to decide; R3 to R6 are documentation. See [the review](../reviews/2026-09-28-other-families-data-legal-review.md#conclusions-and-recommendations).
+1. **The real contact labels** (question D2 in the [live-session runbook](../../development/live-session.md)): whether SchoolSoft's roles or headings name guardians and pupils in words the reveal knows. Until then a guardian may stay hidden with the reveal on; a pupil cannot be revealed. (R1 to R6 are settled: owner decision 6.)
 2. **Confirmation by a lawyer or DPO** of the review, before any compliance claim. The review ends with the questions to put to them.
 3. **Friskolor staff lists** (follow-up): after 1 January 2027, check that nothing but work details appears under a staff heading at an independent school.
 4. **The connector's contacts.** When E11 brings `get_contacts` (or messages) to the connector, `get_contacts_details` becomes visible on the consent page; the consent wording should be reviewed then with a real parent.
@@ -114,6 +116,9 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 - [x] Boundary test: every surface's portal redacts; adapters cannot bypass.
 - [x] Data-handling, architecture, stability and generated reference docs match; #64's first box ticked.
 - [x] Owner decisions recorded; research-based legal review written and linked.
+- [x] R1: with the reveal on, only guardians' details pass; pupils, mixed and unknown roles withheld; staff unchanged ([b90d308](https://github.com/grimen/schoolsoft-agent/pull/74/commits/b90d308)).
+- [x] R2 (partly): turn-off-after-use in the docs, `setup` and the consent box; no per-request reveal ([b90d308](https://github.com/grimen/schoolsoft-agent/pull/74/commits/b90d308)).
+- [x] R3 to R6: data-handling (provider roles, operator region and family, a section for other families), connector guide, live-session basis ([e71e8c1](https://github.com/grimen/schoolsoft-agent/pull/74/commits/e71e8c1)).
 
 ## Verification
 

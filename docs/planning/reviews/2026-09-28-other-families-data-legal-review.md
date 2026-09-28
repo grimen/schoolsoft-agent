@@ -457,6 +457,20 @@ Recommendations for the owner (code changes are listed, not made):
   runbook already describes, and that other families' names from the contact list are never
   recorded, only counts.
 
+### Status of the recommendations (2026-09-28)
+
+The owner asked for R1, left R2 optional and left R5's wording to the implementer. All six
+are now in PR #74:
+
+| Item | Status | Where |
+| ---- | ------ | ----- |
+| R1 | Done | [Commit b90d308](https://github.com/grimen/schoolsoft-agent/pull/74/commits/b90d308). The reveal keeps a contact's e-mail and phone only when their role, or else their group heading, marks them as a guardian and not as a pupil; anything else is withheld. Staff unchanged. [Spec, section 2](../specs/2026-09-28-other-families-data.md#2-an-explicit-opt-in-reveals-other-guardians-contact-details); [data-handling](../../getting-started/data-handling.md#other-families-data). The real labels are checked live (question D2 in the [runbook](../../development/live-session.md#question-register)). |
+| R2 | Partly done | [Commit b90d308](https://github.com/grimen/schoolsoft-agent/pull/74/commits/b90d308). The switch stays; the data-handling page, `setup` and the consent box now say to turn the reveal off again after use. A per-request reveal was not added: the assistant, not the parent, chooses a tool's inputs, so a per-call flag would not narrow the parent's decision, and the redaction boundary sees no request inputs. |
+| R3 | Done | [Commit e71e8c1](https://github.com/grimen/schoolsoft-agent/pull/74/commits/e71e8c1); [data-handling, "What your AI assistant receives"](../../getting-started/data-handling.md#what-your-ai-assistant-receives). |
+| R4 | Done | [Commit e71e8c1](https://github.com/grimen/schoolsoft-agent/pull/74/commits/e71e8c1); [connector guide](../../deployment/connector.md) and [data-handling, operator section](../../getting-started/data-handling.md#if-you-run-the-connector-you-are-the-operator). |
+| R5 | Done | [Commit e71e8c1](https://github.com/grimen/schoolsoft-agent/pull/74/commits/e71e8c1); [data-handling, "If your family is in the same class"](../../getting-started/data-handling.md#if-your-family-is-in-the-same-class). |
+| R6 | Done | [Commit e71e8c1](https://github.com/grimen/schoolsoft-agent/pull/74/commits/e71e8c1); [live-session runbook, ground rules](../../development/live-session.md#ground-rules). |
+
 Documentation changes made with this review: the spec's open questions and owner decisions, the
 data-handling page's summary of this review and the protected-data statement, advice to turn off
 model training, and question D1 in the live-session runbook.
