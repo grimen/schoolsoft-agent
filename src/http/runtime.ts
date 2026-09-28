@@ -33,13 +33,20 @@ export const CONNECTOR_OPERATIONS = [
 export interface ConnectorRuntimeOptions {
   config: Config;
   store: SessionStore;
-  identityStore: { read(): string | undefined; write(id: string): void };
+  identityStore: {
+    read(): string | undefined;
+    write(id: string): void;
+    /** Drop the pinned guardian (owner-requested full reset only). */
+    clear?(): void;
+  };
   redirectUri: string;
   deps?: SessionDeps;
   now?: () => number;
   loginTimeoutMs?: number;
   /** Timer, randomness and HTTP for the opt-in keepalive (tests). */
   keepaliveDeps?: Pick<KeepaliveDeps, "timer" | "random" | "hourOf" | "fetchImpl" | "log">;
+  /** Drop the observed sign-in history (owner-requested full reset only). */
+  resetHistory?: () => void;
 }
 export type LoginFailure = "expired" | "cancelled" | "different_guardian" | "upstream";
 /**
@@ -463,6 +470,21 @@ export class ConnectorRuntime {
     this.cancelLogin();
     return this.serialized(async () => {
       this.manager.logout();
+    });
+  }
+
+  /**
+   * "Disconnect everything": a full data reset, not just a sign-out. Drops the saved
+   * session, the observed sign-in history, and the pinned guardian identity, so the
+   * connector is blank again and a different SchoolSoft user may sign in afterward.
+   * OAuth grants and client registrations are the caller's responsibility (oauth.ts).
+   */
+  resetAll(): Promise<void> {
+    this.cancelLogin();
+    return this.serialized(async () => {
+      this.manager.logout();
+      this.options.identityStore.clear?.();
+      this.options.resetHistory?.();
     });
   }
 

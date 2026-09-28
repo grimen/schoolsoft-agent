@@ -434,6 +434,18 @@ test("revocation is client-specific, durable across restart and clears pending a
   await assert.rejects(restored.verifyAccessToken(second.tokens.access_token));
   assert.deepEqual(restored.listGrants(), []);
 });
+test("resetAll (Disconnect everything) also drops registered clients, unlike revokeAll", async () => {
+  const s = await connected();
+  const p = s.provider;
+  assert.notEqual(await p.clientsStore.getClient(s.c.client_id), undefined);
+  p.resetAll();
+  assert.deepEqual(p.listGrants(), []);
+  assert.equal(
+    await p.clientsStore.getClient(s.c.client_id),
+    undefined,
+    "the client registration itself is gone, not only its grant",
+  );
+});
 test("expiry and capacity prune bounded state without allowing expired grants", async () => {
   const s = await connected();
   const grant = s.provider.listGrants()[0];

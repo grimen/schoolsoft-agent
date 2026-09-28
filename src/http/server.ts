@@ -19,13 +19,16 @@ import { restApi } from "./rest.js";
 import { API_BASE } from "./routes.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
 import { PAGE_PATH } from "./reference/app.js";
+/** The canonical data-handling page; kept in sync with src/cli/guide/words.ts's DOCS_BASE. */
+const DATA_HANDLING_URL =
+  "https://github.com/grimen/schoolsoft-agent/blob/main/docs/getting-started/data-handling.md";
 import { referencePage } from "./reference/page.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
   runtime: Pick<
     ConnectorRuntime,
-    "beginLogin" | "callback" | "status" | "execute" | "executeForChild" | "logout"
+    "beginLogin" | "callback" | "status" | "execute" | "executeForChild" | "resetAll"
   >;
   sessions?: OwnerSessions;
   /** Operator-facing notices; never receives request data. Default: stderr. */
@@ -199,7 +202,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Your SchoolSoft connector",
-        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${portalNotice(status.portal)}${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p><a href="${PAGE_PATH}">Reference page</a>: one child's week, read through this connector's REST API with its own approval.</p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
+        `<p>1. Sign in to SchoolSoft. 2. Add your connector to your AI app. 3. Approve the children and tools it may use.</p><p>${esc(loginMessage)}</p><p>SchoolSoft: ${status.authenticated ? "connected" : status.loginInProgress ? "waiting for BankID" : "not connected"}</p>${portalNotice(status.portal)}${form("/owner/schoolsoft/login", csrf, "", "Sign in with BankID")}<p>You complete BankID yourself in SchoolSoft. Return here afterwards.</p><p>Your connector address: <code>${esc(config.publicUrl)}/mcp</code></p><p><a href="${PAGE_PATH}">Reference page</a>: one child's week, read through this connector's REST API with its own approval.</p><p>Your hosting provider can access data processed on this server. Your AI provider receives the results you permit. The project author has no account or access. See <a href="${DATA_HANDLING_URL}" rel="noreferrer">how your family's data is handled</a>.</p><p>Address check: this visit appears to come from <code>${esc(String(req.ip))}</code>. If that is not your own public internet address, the proxy setting (SCHOOLSOFT_PROXY_HOPS) does not match your hosting setup; see the guide.</p><h2>Connected apps</h2>${oauth
           .listGrants()
           .map(
             (g) =>
@@ -207,7 +210,7 @@ export function createConnectorApp({
           )
           .join(
             "",
-          )}${signInHistory(status.sessionHistory)}${form("/owner/signout", csrf, "", "Sign out of this dashboard")}<h2>Stop access</h2>${form("/owner/schoolsoft/logout", csrf, "<p>This disconnects every AI app and removes the saved SchoolSoft session.</p>", "Disconnect everything")}`,
+          )}${signInHistory(status.sessionHistory)}${form("/owner/signout", csrf, "", "Sign out of this dashboard")}<h2>Stop access</h2>${form("/owner/schoolsoft/logout", csrf, "<p>This disconnects every AI app, forgets every registered app, and removes the saved SchoolSoft session, sign-in history and guardian pin. A different SchoolSoft user may sign in afterward.</p>", "Disconnect everything")}`,
       ),
     );
   });
@@ -269,7 +272,7 @@ export function createConnectorApp({
     res.send(
       page(
         "Choose what this app may read",
-        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. ${pending.redirectUri === config.publicUrl + PAGE_PATH ? "The selected data will be shown in this browser on your connector's reference page; it is not sent to an AI provider." : "The selected data will be sent to your AI provider when you use these tools."}</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
+        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. ${pending.redirectUri === config.publicUrl + PAGE_PATH ? "The selected data will be shown in this browser on your connector's reference page; it is not sent to an AI provider." : `The selected data will be sent to your AI provider when you use these tools. See <a href="${DATA_HANDLING_URL}" rel="noreferrer">how your family's data is handled</a>.`}</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
       ),
     );
   });
@@ -310,8 +313,8 @@ export function createConnectorApp({
     res.redirect("/owner/login");
   });
   app.post("/owner/schoolsoft/logout", async (_req, res) => {
-    oauth.revokeAll();
-    await runtime.logout();
+    oauth.resetAll();
+    await runtime.resetAll();
     sessions.clear();
     res.redirect("/owner/login");
   });

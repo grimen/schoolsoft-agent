@@ -38,7 +38,7 @@ export const IDENTITY_FORMAT: VersionedFormat = {
 export function connectorAccountState(
   config: Pick<ConnectorConfig, "stateDir" | "storageKey">,
   account: string,
-): { store: SessionStore; history: SessionHistoryStore } {
+): { store: SessionStore; history: SessionHistoryStore; resetHistory: () => void } {
   const session = new EncryptedRepository<SessionDocument>(
     config.stateDir,
     "session",
@@ -64,6 +64,9 @@ export function connectorAccountState(
       { read: () => history.read() ?? null, write: (doc) => history.write(doc) },
       account,
     ),
+    // Drops every account's history, not only this one: a full reset ("Disconnect
+    // everything") empties the connector's single history.enc file entirely.
+    resetHistory: () => history.clear(),
   };
 }
 
@@ -119,6 +122,7 @@ export function composeConnector(
     identityStore: {
       read: () => identity.read()?.identity,
       write: (pin) => identity.write({ identity: pin }),
+      clear: () => identity.clear(),
     },
     deps: {
       history: state.history,
@@ -126,6 +130,7 @@ export function composeConnector(
     },
     keepaliveDeps,
     redirectUri: config.publicUrl + "/schoolsoft/callback",
+    resetHistory: state.resetHistory,
   });
   // SCHOOLSOFT_LANG (or the locale) picks the REST fallback language; English otherwise.
   return {

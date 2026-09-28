@@ -9,6 +9,7 @@ import {
   MemorySessionStore,
   MemoryPendingLoginStore,
   MemorySessionHistoryStore,
+  emptyHistory,
   resolveConfig,
 } from "../../src/core/index.js";
 import { FakeTimer } from "../helpers/fake-timer.js";
@@ -72,7 +73,11 @@ function fixture(
       write: (id) => {
         identity = id;
       },
+      clear: () => {
+        identity = undefined;
+      },
     },
+    resetHistory: () => history.write(emptyHistory()),
     loginTimeoutMs: options.timeout,
     now: options.now,
     deps: {
@@ -308,6 +313,36 @@ test("concurrent reads keep focus and request atomic; logout waits for an active
   ]);
   await logout;
   assert.equal(f.store.load(), null);
+  await f.runtime.close();
+});
+
+test("resetAll (Disconnect everything) drops the session, identity pin and history, unlike a plain logout", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  assert.equal(f.identity(), "schoolsoft:taby:21");
+  assert.ok(f.history.read()?.app, "a session is on record before the reset");
+  await f.runtime.resetAll();
+  assert.equal(f.store.load(), null, "the session is gone, like a plain logout");
+  assert.equal(
+    f.identity(),
+    undefined,
+    "the guardian pin is gone: a different guardian may sign in",
+  );
+  assert.deepEqual(f.history.read(), emptyHistory(), "the observed sign-in history is gone");
+  await assert.rejects(f.runtime.execute("get_schedule", {}, [100]), /Not logged in/);
+  await f.runtime.close();
+});
+
+test("resetAll cancels a login in progress first", async () => {
+  const f = fixture();
+  const { url } = await f.runtime.beginLogin();
+  await f.runtime.resetAll();
+  assert.equal(
+    f.runtime.callback(new URLSearchParams(url.split("?")[1]).get("state")!, "CODE"),
+    false,
+    "the cancelled login's callback is no longer accepted",
+  );
+  assert.equal(f.identity(), undefined);
   await f.runtime.close();
 });
 

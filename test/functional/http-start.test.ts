@@ -8,7 +8,12 @@ import { createServer } from "node:net";
 import type { AddressInfo } from "node:net";
 import { IDENTITY_FORMAT, startConnector } from "../../src/http/start.js";
 import { EncryptedRepository } from "../../src/http/storage.js";
-import { SESSION_FORMAT, type PersistedSession } from "../../src/core/index.js";
+import {
+  SESSION_FORMAT,
+  HISTORY_FORMAT,
+  type HistoryDocument,
+  type PersistedSession,
+} from "../../src/core/index.js";
 test("production composition writes encrypted login and clears credentials without losing owner identity", async () => {
   const dir = mkdtempSync(join(tmpdir(), "connector-start-"));
   const probe = createServer().listen(0, "127.0.0.1");
@@ -93,6 +98,84 @@ test("production composition writes encrypted login and clears credentials witho
       Buffer.from(env.SCHOOLSOFT_STORAGE_KEY, "hex"),
       SESSION_FORMAT,
     ).write({ school: "other", data: {}, savedAt: 0, authMethod: "bankid-browser" });
+    assert.equal((await runtime.status()).authenticated, false);
+  } finally {
+    await runtime.close();
+    server.close();
+    server.closeAllConnections();
+    await once(server, "close");
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("resetAll ('Disconnect everything') removes identity.enc and history.enc from disk, not just the session", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "connector-reset-"));
+  const probe = createServer().listen(0, "127.0.0.1");
+  await once(probe, "listening");
+  const port = (probe.address() as AddressInfo).port;
+  probe.close();
+  await once(probe, "close");
+  const env = {
+    SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
+    SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
+    SCHOOLSOFT_STORAGE_KEY: "b".repeat(64),
+    SCHOOLSOFT_SCHOOL: "synthetic",
+    SCHOOLSOFT_STATE_DIR: dir,
+    PORT: String(port),
+  };
+  const { server, runtime } = startConnector(env, {
+    fetchImpl: async (url: string) => {
+      if (url.includes("/login/token"))
+        return {
+          status: 200,
+          data: { access_token: "PRIVATE_TOKEN", refresh_token: "PRIVATE_REFRESH", expires: 3600 },
+          headers: {},
+          setCookies: [],
+        };
+      if (url.endsWith("/eva/api/v1/parent"))
+        return {
+          status: 200,
+          data: {
+            userId: 1,
+            firstName: "Synthetic",
+            lastName: "Parent",
+            children: [
+              {
+                studentId: 2,
+                firstName: "Synthetic Child",
+                schools: [{ orgId: 3, name: "Synthetic School" }],
+              },
+            ],
+          },
+          headers: {},
+          setCookies: [],
+        };
+      return {
+        status: 303,
+        data: "",
+        headers: {},
+        setCookies: ["JSESSIONID=synthetic; Path=/", "hash=synthetic; Path=/"],
+      };
+    },
+  });
+  await once(server, "listening");
+  const key = Buffer.from(env.SCHOOLSOFT_STORAGE_KEY, "hex");
+  const identity = new EncryptedRepository<{ identity: string }>(
+    dir,
+    "identity",
+    key,
+    IDENTITY_FORMAT,
+  );
+  const history = new EncryptedRepository<HistoryDocument>(dir, "history", key, HISTORY_FORMAT);
+  try {
+    const { url } = await runtime.beginLogin();
+    runtime.callback(new URLSearchParams(url.split("?")[1]).get("state")!, "synthetic-code");
+    await runtime.execute("list_children", {}, [2]);
+    assert.equal(identity.read()?.identity, "schoolsoft:synthetic:1", "the pin was written");
+    assert.notEqual(history.read(), undefined, "a sign-in history was written");
+    await runtime.resetAll();
+    assert.equal(identity.read(), undefined, "the identity pin is gone from disk");
+    assert.equal(history.read(), undefined, "the sign-in history is gone from disk");
     assert.equal((await runtime.status()).authenticated, false);
   } finally {
     await runtime.close();

@@ -8,6 +8,7 @@ import { createInterface } from "node:readline/promises";
 import { runCli } from "./program.js";
 import { loadContext } from "../shared/bootstrap.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
+import { redactHome } from "../shared/redact-home.js";
 
 async function main(): Promise<void> {
   const rl = process.stdin.isTTY
@@ -40,6 +41,7 @@ async function main(): Promise<void> {
 }
 
 main().catch((e) => {
-  process.stderr.write(`Fatal: ${e instanceof Error ? e.message : e}\n`);
+  const message = e instanceof Error ? e.message : String(e);
+  process.stderr.write(`Fatal: ${redactHome(message, homedir())}\n`);
   process.exitCode = 1;
 });
