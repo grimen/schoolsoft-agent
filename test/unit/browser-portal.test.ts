@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import {
   BrowserPortal,
   PAGES,
+  SUBJECT_ALIASES,
+  matchSubject,
   normalizeSubject,
 } from "../../src/providers/schoolsoft/portal/browser-portal.js";
 import { PAGE_KEYS } from "../../src/providers/schoolsoft/portal/pages.js";
@@ -167,6 +169,32 @@ test("assessment criteria resolves the subject by name from the menu, then loads
   );
   assert.equal(visited.length, 7, "unknown subject: menu read, gated page never loaded");
   assert.equal(normalizeSubject("  Svenska som Andraspråk "), "svenska som andrasprak");
+});
+
+test("subject names: exact first, then the start of a name, then any part; everyday aliases", () => {
+  const menu = [
+    { subject: "Bild" },
+    { subject: "Matematik" },
+    { subject: "Idrott och hälsa" },
+    { subject: "Engelska" },
+    { subject: "Moderna språk, spanska" },
+    { subject: "NO" },
+    { subject: "Svenska" },
+    { subject: "Svenska som andraspråk" },
+  ];
+  const name = (s: string) => matchSubject(menu, s)?.subject;
+  assert.equal(name("matte"), "Matematik", "alias");
+  assert.equal(name(" MATTE "), "Matematik", "alias, any case");
+  assert.equal(name("matem"), "Matematik", "start of a name");
+  assert.equal(name("idrott"), "Idrott och hälsa");
+  assert.equal(name("halsa"), "Idrott och hälsa", "part of a name, without accents");
+  assert.equal(name("eng"), "Engelska");
+  assert.equal(name("spanska"), "Moderna språk, spanska");
+  assert.equal(name("no"), "NO", "an exact name beats its alias");
+  assert.equal(name("svenska"), "Svenska", "exact beats a longer name that starts with it");
+  assert.equal(name("andra"), "Svenska som andraspråk");
+  assert.equal(name("kemi"), undefined);
+  assert.equal(SUBJECT_ALIASES.matte, "matematik");
 });
 
 test("criteria with an empty subject menu says so; the example-query resolver rejects an empty menu", async () => {

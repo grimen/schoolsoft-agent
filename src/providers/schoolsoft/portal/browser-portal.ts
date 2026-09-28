@@ -35,13 +35,46 @@ export interface BrowserPortalOptions {
   syncWebChild?: () => Promise<void>;
 }
 
-/** Case- and diacritic-insensitive subject name match ("matte" finds "Matematik"). */
+/** A subject name for matching: case- and diacritic-insensitive, trimmed. */
 export function normalizeSubject(s: string): string {
   return s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+/** Everyday names for subjects, normalized, to the start of the portal's name. */
+export const SUBJECT_ALIASES: Readonly<Record<string, string>> = {
+  matte: "matematik",
+  eng: "engelska",
+  idrott: "idrott och halsa",
+  no: "naturorienterande",
+  so: "samhallsorienterande",
+};
+
+/**
+ * The menu entry a name means: the name exactly as the portal has it, else,
+ * for the alias and then the name, a name that equals it, starts with it, or
+ * contains it ("matte" finds "Matematik", "idrott" finds "Idrott och hälsa").
+ */
+export function matchSubject<T extends { subject: string }>(
+  links: readonly T[],
+  subject: string,
+): T | undefined {
+  const given = normalizeSubject(subject);
+  const terms = Object.hasOwn(SUBJECT_ALIASES, given) ? [SUBJECT_ALIASES[given], given] : [given];
+  const names = links.map((l) => normalizeSubject(l.subject));
+  const rules = [
+    (n: string, t: string) => n === t,
+    (n: string, t: string) => n.startsWith(t),
+    (n: string, t: string) => n.includes(t),
+  ];
+  const at = [
+    names.indexOf(given),
+    ...rules.flatMap((rule) => terms.map((t) => names.findIndex((n) => rule(n, t)))),
+  ].find((i) => i !== -1);
+  return at === undefined ? undefined : links[at];
 }
 
 export class BrowserPortal implements BrowserPortalPart {
@@ -112,16 +145,13 @@ export class BrowserPortal implements BrowserPortalPart {
    */
   async getAssessmentCriteria(subject: string, schoolType = 7): Promise<TablePage> {
     const spec = PAGES.assessmentCriteria;
-    const wanted = normalizeSubject(subject);
     // The JSP subject menu only renders under the app session (the web
     // session shows SchoolSoft's React sidebar), so resolve the id there.
     const links = await this.visit("getAssessmentCriteria", PAGES.subjects, async (page) => {
       await page.goto(PAGES.subjects.path);
       return page.evaluate(extractSubjectLinks);
     });
-    const hit =
-      links.find((l) => normalizeSubject(l.subject) === wanted) ??
-      links.find((l) => normalizeSubject(l.subject).includes(wanted));
+    const hit = matchSubject(links, subject);
     if (links.length === 0) throw new AgentError({ kind: "upstream", key: "subject_menu_empty" });
     if (!hit || hit.subjectId === null) {
       throw new AgentError({

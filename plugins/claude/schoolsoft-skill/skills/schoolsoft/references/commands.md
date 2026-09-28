@@ -688,7 +688,9 @@ GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login
 or the login tool with web: true, once) and the headless browser. Read only.
 
 Args:
-  - subject (string): subject name as listed by get_subject_rooms ("Matematik"; "matte" also matches).
+  - subject (string): subject name as listed by get_subject_rooms ("Matematik"). Case and
+    accents do not matter; the start or part of a name matches ("idrott"), and a few everyday
+    names do too ("matte", "eng", "no", "so").
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
