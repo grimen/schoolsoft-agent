@@ -151,6 +151,27 @@ Skolan
   Fritids hemsida  link  https://example.test/fritids
 ```
 
+**Student documents** (`get-student-documents --format text`, needs `login --web` and the hidden browser): current documents first, then archived ones, newest first.
+
+```text
+Student documents · Ett
+
+Archived
+  Date        Title             Created by
+  2026-01-10  IUP höstterminen  Lärare Exempel
+  2025-06-01  Omdöme            Lärare Exempel
+```
+
+**Grades, unreported absence, attendance report and assessment criteria** (`get-grades`, `get-unreported-absence`, `get-attendance-report`, `get-assessment-criteria --subject Matematik`, each with `--format text`; they need `login --web` and the hidden browser) are shown as the school's page shows them: its title, its notice, and its tables in the school's own words.
+
+```text
+Närvarorapport · Ett
+
+Närvarorapport, Vecka 27 till 52
+Orsak  Lektioner  Timmar
+Sjuk   2          1,5
+```
+
 ## Language, time and width
 
 - **Language.** Views are in Swedish when your system language is Swedish, like the error messages. Set `SCHOOLSOFT_LANG=sv` or `SCHOOLSOFT_LANG=en` to choose.
