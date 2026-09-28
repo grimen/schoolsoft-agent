@@ -300,7 +300,7 @@ export const FILES: { child: ChildRef; files: SharedFile[] } = {
     {
       id: "file:1",
       name: "Veckobrev v37",
-      url: "right_student_file_download.jsp?fileid=2",
+      url: "https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2",
       kind: "file",
       category: "Skolan",
     },

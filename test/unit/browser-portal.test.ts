@@ -81,9 +81,9 @@ test("contacts, bookings and files visit their page with the app session and run
   ]);
   assert.deepEqual(await portal.getFiles(), [
     {
-      id: "file:" + textHash("x.pdf"),
+      id: "file:" + textHash("https://sms.schoolsoft.se/taby/jsp/student/x.pdf"),
       name: "Veckobrev",
-      url: "x.pdf",
+      url: "https://sms.schoolsoft.se/taby/jsp/student/x.pdf",
       kind: "file",
       category: null,
     },

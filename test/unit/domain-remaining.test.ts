@@ -219,13 +219,23 @@ test("bookings: time text to start and end, status from the page's words, stable
   );
 });
 
+/** The page the files list is read from, as the browser reports it. */
+const FILES_PAGE = "https://sms.schoolsoft.se/taby/jsp/student/right_student_library.jsp";
+
 test("files: stored files by link, categories, hashed ids", () => {
-  const out = toSharedFiles([
-    { name: "Veckobrev v37", url: "right_student_file_download.jsp?fileid=2", category: "Skolan" },
-    { name: "Fritids hemsida", url: "https://example.test/fritids", category: "Skolan" },
-    { name: "Lovdagar", url: "https://example.test/lov.PDF?x=1" },
-    { name: "Schema", url: "https://example.test/schema.xlsx" },
-  ]);
+  const out = toSharedFiles(
+    [
+      {
+        name: "Veckobrev v37",
+        url: "right_student_file_download.jsp?fileid=2",
+        category: "Skolan",
+      },
+      { name: "Fritids hemsida", url: "https://example.test/fritids", category: "Skolan" },
+      { name: "Lovdagar", url: "https://example.test/lov.PDF?x=1" },
+      { name: "Schema", url: "http://example.test/schema.xlsx" },
+    ],
+    FILES_PAGE,
+  );
   assert.deepEqual(
     out.map((f) => [f.name, f.kind, f.category]),
     [
@@ -237,6 +247,48 @@ test("files: stored files by link, categories, hashed ids", () => {
   );
   assert.equal(out[1].id, `file:${textHash("https://example.test/fritids")}`);
   for (const f of out) assert.ok(SharedFileSchema.safeParse(f).success);
-  drifts(() => toSharedFiles([{ name: "x", url: "" }]), "getFiles", /^0\.url /);
-  drifts(() => toSharedFiles("not a list"), "getFiles", /^\(root\) invalid_type/);
+  drifts(() => toSharedFiles([{ name: "x", url: "" }], FILES_PAGE), "getFiles", /^0\.url /);
+  drifts(() => toSharedFiles("not a list", FILES_PAGE), "getFiles", /^\(root\) invalid_type/);
+});
+
+test("files: relative links become absolute on the portal, absolute ones stay, other schemes lose the url", () => {
+  const [relative, rooted, absolute, plain, script, mail, broken] = toSharedFiles(
+    [
+      { name: "Veckobrev", url: "right_student_file_download.jsp?fileid=2" },
+      { name: "Rot", url: "/taby/jsp/student/right_student_file_download.jsp?fileid=3" },
+      { name: "Fritids", url: "https://example.test/fritids?a=1#b" },
+      { name: "Gammal", url: " http://example.test/gammal.pdf " },
+      { name: "Skript", url: "javascript:void(0)" },
+      { name: "Mejl", url: "mailto:rektor@example.test" },
+      { name: "Trasig", url: "http://[" },
+    ],
+    FILES_PAGE,
+  );
+  assert.equal(
+    relative.url,
+    "https://sms.schoolsoft.se/taby/jsp/student/right_student_file_download.jsp?fileid=2",
+  );
+  assert.equal(relative.kind, "file");
+  assert.equal(
+    rooted.url,
+    "https://sms.schoolsoft.se/taby/jsp/student/right_student_file_download.jsp?fileid=3",
+  );
+  assert.equal(absolute.url, "https://example.test/fritids?a=1#b", "absolute links are kept");
+  assert.equal(plain.url, "http://example.test/gammal.pdf");
+  assert.equal(plain.kind, "file");
+  for (const entry of [script, mail, broken]) {
+    assert.equal(entry.url, null, entry.name);
+    assert.equal(entry.kind, "link", entry.name);
+    assert.ok(SharedFileSchema.safeParse(entry).success, entry.name);
+  }
+  assert.equal(
+    script.id,
+    `file:${textHash("javascript:void(0)")}`,
+    "the id still identifies the entry",
+  );
+  assert.equal(
+    SharedFileSchema.safeParse({ ...relative, url: "javascript:void(0)" }).success,
+    false,
+    "the schema itself refuses any other scheme",
+  );
 });

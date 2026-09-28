@@ -295,6 +295,10 @@ test("the five operations map live-shaped JSON to the domain model", async () =>
   });
 });
 
+/** The relative download link, resolved against the files page. */
+const DOWNLOAD =
+  "https://sms.schoolsoft.se/taby/jsp/student/right_student_file_download.jsp?fileid=2";
+
 test("group A: assignments, news, subject rooms, bookings and files map to the domain model", async () => {
   const { ctx } = wired();
   const child = { id: 100, firstName: "Ett" };
@@ -381,9 +385,9 @@ test("group A: assignments, news, subject rooms, bookings and files map to the d
     child,
     files: [
       {
-        id: `file:${textHash("right_student_file_download.jsp?fileid=2")}`,
+        id: `file:${textHash(DOWNLOAD)}`,
         name: "Veckobrev v37",
-        url: "right_student_file_download.jsp?fileid=2",
+        url: DOWNLOAD,
         kind: "file",
         category: "Skolan",
       },

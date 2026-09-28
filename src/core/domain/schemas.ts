@@ -148,7 +148,12 @@ export type Booking = z.infer<typeof BookingSchema>;
 export const SharedFileSchema = z.object({
   id: z.string().describe("Stable id of this file or link"),
   name: z.string(),
-  url: z.string().describe("The link as the portal gives it; file links need the portal session"),
+  url: z
+    .url({ protocol: /^https?$/ })
+    .nullable()
+    .describe(
+      "Absolute http(s) link; file links need the portal session. null when the portal's link is not http(s)",
+    ),
   kind: z.enum(["file", "link"]).describe("A document stored in the portal, or a link elsewhere"),
   category: text("Heading the portal lists it under"),
 });

@@ -170,18 +170,29 @@ test(
 test("files extractor: categories from headings, file vs link", { skip }, async () => {
   const s = session();
   try {
-    const f = await s.withPage(async (p) => {
+    const { f, served } = await s.withPage(async (p) => {
       await p.goto("/right_student_library.jsp.html");
-      return p.evaluate(extractFiles);
+      return { f: await p.evaluate(extractFiles), served: p.url() };
     });
+    // The fixture is served from file://; on the portal the page is https, as here.
+    const base = "https://sms.schoolsoft.se/taby/jsp/student/right_student_library.jsp";
+    const files = toSharedFiles(f, base);
     assert.deepEqual(
-      toSharedFiles(f).map((x) => [x.name, x.kind, x.category]),
+      files.map((x) => [x.name, x.kind, x.category]),
       [
         ["Veckobrev v37", "file", "Skolan"],
         ["Fritids hemsida", "link", "Skolan"],
         ["Lovdagar 2026", "file", "Kommunen"],
       ],
     );
+    // the relative download link resolves against the page it was on
+    assert.equal(
+      files[0].url,
+      "https://sms.schoolsoft.se/taby/jsp/student/right_student_file_download.jsp?requestid1=1&object=library&fileid=2",
+    );
+    // resolved against a file:// page, the relative link is not http(s): no url
+    assert.equal(toSharedFiles(f, served)[0].url, null);
+    assert.equal(files[1].url, "https://example.test/fritids");
   } finally {
     await s.close();
   }

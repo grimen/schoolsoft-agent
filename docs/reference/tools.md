@@ -627,7 +627,7 @@ Output (validated; a response that does not fit is a `response_drift` error, exi
 | `files` | object[] |  |
 | `files[].id` | string | Stable id of this file or link |
 | `files[].name` | string |  |
-| `files[].url` | string | The link as the portal gives it; file links need the portal session |
+| `files[].url` | string (uri) or null | Absolute http(s) link; file links need the portal session. null when the portal's link is not http(s) |
 | `files[].kind` | `"file"` \| `"link"` | A document stored in the portal, or a link elsewhere |
 | `files[].category` | string or null | Heading the portal lists it under; null when not given |
 

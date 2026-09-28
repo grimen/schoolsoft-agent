@@ -87,7 +87,7 @@ In `src/core/domain/schemas.ts`, nothing in them names SchoolSoft.
 | `NewsItem` | `id` (string), `title`, `body` (text or null), `category`, `author` (text or null), `read`, `hasAttachments` (boolean), `publishedAt` (`DateTime`), `visibleUntil` (`LocalDate`, `DateTime` or null) |
 | `SubjectRoom` | `id` (string), `name`, `groups` (string[]), `teachers: [{ name, role }]` (`role` label or null) |
 | `Booking` | `id` (string), `title`, `description` (text or null), `start` (`DateTime`, or `LocalDate` when the page gives a date only), `end` (`DateTime` or null), `status` (`available`, `booked`, `closed` or `unknown`), `details: [{ label, value }]` (as the page words them, in page order) |
-| `SharedFile` | `id` (string), `name`, `url` (as the page links it), `kind` (`file` or `link`), `category` (text or null) |
+| `SharedFile` | `id` (string), `name`, `url` (absolute `http(s)` URL, or null when the page's link is not `http(s)`), `kind` (`file` or `link`), `category` (text or null) |
 
 ## Group A: operation outputs
 
@@ -107,6 +107,17 @@ containing `bokad`/`booked` is `booked`, `stängd`/`closed`/`passerad` is
 `unknown`. A file link is `file` when it points at `file_download.jsp` or ends
 in a document extension (`pdf`, `doc(x)`, `xls(x)`, `ppt(x)`), else `link`.
 Both rules are unchanged, only moved from the extractor into the provider.
+
+A file's link is made absolute with `new URL(link, page)`, where `page` is
+the address of the files page the browser read it from (for example
+`https://sms.schoolsoft.se/<school>/jsp/student/right_student_library.jsp`),
+so a relative `file_download.jsp` link becomes a full portal address and an
+absolute link is kept as it is. A link that is not `http(s)` (`javascript:`,
+`mailto:`) or does not parse keeps its entry with `url: null` and kind
+`link`. That is not drift: the page's shape is what the rules check, and it
+is intact; only that one link is not safe to hand on. The id is the hash of
+the absolute URL (or of the raw link when there is none). The output schema
+itself accepts only `http(s)` URLs.
 
 The booking time text is parsed as `YYYY-MM-DD HH:MM`, optionally followed by
 ` - HH:MM` (the end, same day), or as `YYYY-MM-DD` alone (a date). Any other
@@ -224,7 +235,7 @@ committed; fixtures are synthetic, built to those names. Everything else is
 | `Booking.title`, `description`, `details` | `.accordion-heading-left > div`, `[id^=description]`, `.inner_right_info` label + value | selectors observed; texts synthetic |
 | `Booking.start`, `end` | `.accordion-heading-date-wide` text | selector observed; the `YYYY-MM-DD HH:MM[ - HH:MM]` format is assumed from the synthetic fixture |
 | `Booking.status` | words in the detail values | word list assumed; `unknown` when none matches |
-| `SharedFile.*` | `#library_con_content` `.h3_bold`, `td > a[href]` | selectors observed; relative `file_download.jsp` links and the extension rule assumed |
+| `SharedFile.*` | `#library_con_content` `.h3_bold`, `td > a[href]` | selectors observed; relative `file_download.jsp` links, the extension rule and the absence of `javascript:`/`mailto:` links in the real list assumed |
 | `TablePage.*` (group B) | generic table extractor | structure observed per page (see the reference); cell meanings not recorded |
 | `StudentDocument.*` (group B) | `Rubrik / Skapad av / Datum` columns, `requestid` in the row link | columns observed; the `YYYY-MM-DD` date format assumed from the synthetic fixture |
 

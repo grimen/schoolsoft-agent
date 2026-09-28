@@ -118,11 +118,12 @@ export class BrowserPortal implements BrowserPortalPart {
   }
 
   async getFiles(): Promise<SharedFile[]> {
-    const links = await this.visit("getFiles", PAGES.files, async (page) => {
+    // Relative links resolve against the page they were on.
+    const { links, base } = await this.visit("getFiles", PAGES.files, async (page) => {
       await page.goto(PAGES.files.path);
-      return page.evaluate(extractFiles);
+      return { links: await page.evaluate(extractFiles), base: page.url() };
     });
-    return toSharedFiles(links);
+    return toSharedFiles(links, base);
   }
 
   getGrades(): Promise<TablePage> {

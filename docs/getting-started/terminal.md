@@ -147,7 +147,7 @@ When                    Title              Status
 Files and links · Ett
 
 Skolan
-  Veckobrev v37    file  right_student_file_download.jsp?fileid=2
+  Veckobrev v37    file  https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2
   Fritids hemsida  link  https://example.test/fritids
 ```
 

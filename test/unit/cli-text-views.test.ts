@@ -399,7 +399,7 @@ test("get-files: under their category in the portal's order, uncategorised as Ot
       "Files and links · Ett",
       "",
       "Skolan",
-      "  Veckobrev v37    file  right_student_file_download.jsp?fileid=2",
+      "  Veckobrev v37    file  https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2",
       "  Fritids hemsida  link  https://example.test/fritids",
       "",
       "Other",
@@ -415,7 +415,7 @@ test("get-files: under their category in the portal's order, uncategorised as Ot
       "Filer och länkar · Ett",
       "",
       "Skolan",
-      "  Veckobrev v37    fil   right_student_file_download.jsp?fileid=2",
+      "  Veckobrev v37    fil   https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2",
       "  Fritids hemsida  länk  https://example.test/fritids",
       "",
       "Övrigt",
@@ -425,11 +425,17 @@ test("get-files: under their category in the portal's order, uncategorised as Ot
       "  Kommunens sida   länk  https://example.test/kommun",
     ),
   );
+  const noUrl = { ...FILES, files: [{ ...FILES.files[0], url: null }] };
+  assert.equal(
+    view("get_files", noUrl).split("\n")[3],
+    "  Veckobrev v37  file  –",
+    "no url: a dash",
+  );
   const blank = { ...FILES, files: [{ ...FILES.files[0], category: " \t" }] };
   assert.equal(view("get_files", blank).split("\n")[2], "Other", "a blank heading is no heading");
   const narrow = view("get_files", FILES, { width: 40 }).split("\n");
   for (const line of narrow) assert.ok(displayWidth(line) <= 40, line);
-  assert.equal(narrow[3], "  Veckobrev v37    file  right_student_…");
+  assert.equal(narrow[3], "  Veckobrev v37    file  https://sms.sc…");
 });
 
 test("empty states are sentences, in both languages", () => {
