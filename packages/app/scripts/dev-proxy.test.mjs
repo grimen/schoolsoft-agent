@@ -7,6 +7,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkConnector, createProxy, upstreamFor } from "./dev-proxy.mjs";
 
+/** An assert.rejects validator: the error message contains `text` verbatim (no regex escaping). */
+const mentions = (text) => (error) => {
+  assert.ok(
+    error instanceof Error && error.message.includes(text),
+    `expected "${text}" in: ${error?.message}`,
+  );
+  return true;
+};
+
 async function listen(server) {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
@@ -172,7 +181,7 @@ test("checkConnector names the URL when the connector is unreachable or unhealth
   });
   const url = await listen(bad);
   try {
-    await assert.rejects(checkConnector(url), new RegExp(url.origin.replace(/[.]/g, "\\.")));
+    await assert.rejects(checkConnector(url), mentions(url.origin));
   } finally {
     bad.close();
   }
@@ -227,7 +236,7 @@ test("checkConnector names the URL when the metadata isn't JSON", async () => {
   try {
     await assert.rejects(
       checkConnector(url),
-      new RegExp(`${url.origin.replace(/[.]/g, "\\.")} returned invalid OAuth metadata`),
+      mentions(`${url.origin} returned invalid OAuth metadata`),
     );
   } finally {
     server.close();
@@ -240,7 +249,7 @@ test("checkConnector names the URL when the metadata lacks issuer", async () => 
   try {
     await assert.rejects(
       checkConnector(url),
-      new RegExp(`${url.origin.replace(/[.]/g, "\\.")} returned invalid OAuth metadata`),
+      mentions(`${url.origin} returned invalid OAuth metadata`),
     );
   } finally {
     server.close();
