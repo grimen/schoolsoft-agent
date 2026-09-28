@@ -247,15 +247,16 @@ committed; fixtures are synthetic, built to those names. Everything else is
 - `src/core/domain/schemas.ts`: the Group A (and later B) types.
 - `src/core/operations/get-{assignments,news,subject-rooms,bookings,files}.ts`: `output`, `childRef`.
 - `src/core/portal/types.ts`: `Portal` returns domain types for these capabilities; the raw `Booking`, `PortalFile`, `SubjectRoom` shapes leave core.
-- `src/providers/schoolsoft/portal/domain/{assignments,news,subject-rooms,bookings,files,ids}.ts`: raw schemas and mappers; `parse.ts` gains `label` and `dateOrDateTimeOrEpoch`.
+- `src/providers/schoolsoft/portal/domain/{assignments,news,subject-rooms,bookings,files}.ts`: raw schemas and mappers; `parse.ts` gains `label`, `dateOrDateTimeOrEpoch` and `textHash` (the FNV-1a ids).
 - `src/providers/schoolsoft/portal/api/{webview,eva}-api.ts`, `browser-portal.ts`, `extractors.ts`: call the mappers; the extractors return text only.
 - `src/cli/text/renderers/`: one view per newly typed operation; `registry.ts`, `labels.ts`.
+- `src/cli/guide/first-run.ts`: a skipped check (no browser, no web login) is neither passed nor failed in the guide's summary line; the browser-served reads make skips common.
 - `test/fixtures/json/`: synthetic `assignments-week.json`, `news.json`, `subjectrooms.json`, `subjectroom-teachers.json`.
 
 ## Tasks & Acceptance
 
 - [x] Spec (this file).
-- [ ] Group A: given live-shaped synthetic fixtures, each of the five returns its domain shape; MCP lists its `outputSchema`; a renamed, a missing and a wrong-typed field each give one drift error naming the operation, nothing cached, session kept; each has a text view; `doctor --verify` covers it.
+- [x] Group A: given live-shaped synthetic fixtures, each of the five returns its domain shape; MCP lists its `outputSchema`; a renamed, a missing and a wrong-typed field each give one drift error naming the operation, nothing cached, session kept; each has a text view; `doctor --verify` covers it.
 - [ ] Group B: the same for the five gated operations.
 - [ ] After #74: `get_contacts`, `get_message`, `get_activity_log`, preserving its redaction.
 - [ ] Live pass (E4.6): confirm every "assumed" row above; record `get_assignment_detail` and `get_grade_prognosis` fields.
