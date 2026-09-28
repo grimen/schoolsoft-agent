@@ -6,9 +6,79 @@ import { join } from "node:path";
 import { validatePlugins } from "../../scripts/validate-plugins.js";
 import { buildSkills, mergeFrontmatter, HOSTS } from "../../scripts/gen-skills.js";
 import { parseFrontmatter } from "./skill.test.js";
+import { envSource, resolveConfig, defaultConfigDir } from "../../src/core/config.js";
 
 test("all host manifests validate structurally", () => {
   assert.deepEqual(validatePlugins(process.cwd()), []);
+});
+
+/**
+ * Replays how @anthropic-ai/mcpb's `getMcpConfigForManifest` (shared/config.js)
+ * turns manifest.user_config + a host-supplied userConfig into the server's
+ * env vars: unset keys fall back to `default`, then every "${user_config.x}"
+ * placeholder in mcp_config is substituted with String(value) via a plain
+ * string replace. Crucially, a key with NO `default` and no explicit
+ * userConfig value never enters the substitution table at all, so its
+ * placeholder is left in the string verbatim — only an explicit default
+ * (including "") guarantees substitution happens.
+ */
+function mcpbEnv(manifest: any, userConfig: Record<string, unknown> = {}): Record<string, string> {
+  const merged: Record<string, unknown> = { ...userConfig };
+  for (const [key, opt] of Object.entries<any>(manifest.user_config ?? {})) {
+    if (!(key in merged) && opt.default !== undefined) merged[key] = opt.default;
+  }
+  const vars: Record<string, string> = {};
+  for (const [key, value] of Object.entries(merged)) vars[`user_config.${key}`] = String(value);
+  const env: Record<string, string> = {};
+  for (const [name, template] of Object.entries<string>(manifest.server.mcp_config.env)) {
+    env[name] = template.replace(/\$\{([^}]+)\}/g, (m, k) => (k in vars ? vars[k] : m));
+  }
+  return env;
+}
+
+test("mcpb manifest's config_dir has no hard-coded default path, so an unset config_dir substitutes to an empty string (not a literal placeholder)", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(process.cwd(), "plugins/mcpb/manifest.json"), "utf8"),
+  );
+  const opt = manifest.user_config.config_dir;
+  assert.equal(opt.required, false);
+  assert.equal(opt.default, "", "default must be empty, never a hard-coded path");
+
+  const env = mcpbEnv(manifest);
+  assert.equal(
+    env.SCHOOLSOFT_CONFIG_DIR,
+    "",
+    "unset config_dir must substitute cleanly, not leak ${user_config.config_dir}",
+  );
+});
+
+test("an existing macOS Application Support folder keeps being used; Windows and Linux get their own platform defaults", () => {
+  const manifest = JSON.parse(
+    readFileSync(join(process.cwd(), "plugins/mcpb/manifest.json"), "utf8"),
+  );
+
+  for (const [platform, home, env] of [
+    ["darwin", "/Users/j", {}],
+    ["win32", "C:\\Users\\j", { APPDATA: "C:\\Users\\j\\AppData\\Roaming" }],
+    ["linux", "/home/j", {}],
+  ] as const) {
+    // What the mcpb host would pass through as SCHOOLSOFT_CONFIG_DIR when the
+    // user leaves the field blank.
+    const hostEnv = { SCHOOLSOFT_CONFIG_DIR: mcpbEnv(manifest).SCHOOLSOFT_CONFIG_DIR, ...env };
+    const config = resolveConfig([envSource(hostEnv), { school: "taby" }], {
+      home,
+      platform,
+      env: hostEnv,
+    });
+    assert.equal(config.configDir, defaultConfigDir(home, platform, env));
+  }
+
+  // The darwin case must resolve to exactly the pre-existing macOS folder
+  // that earlier extension versions already wrote session/history into.
+  assert.equal(
+    defaultConfigDir("/Users/j", "darwin"),
+    "/Users/j/Library/Application Support/schoolsoft-agent",
+  );
 });
 
 test("mergeFrontmatter appends host metadata under the existing metadata block and keeps the body", () => {

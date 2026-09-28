@@ -45,9 +45,9 @@
     "config_dir": {
       "type": "directory",
       "title": "Config directory",
-      "description": "Where the encrypted session and cache are stored.",
+      "description": "Where the encrypted session and cache are stored. Leave blank to use the platform default (existing installs keep their current folder).",
       "required": false,
-      "default": "${HOME}/.schoolsoft-agent"
+      "default": ""
     }
   },
   "compatibility": {
