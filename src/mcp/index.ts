@@ -13,6 +13,7 @@ import { startMcpKeepalive } from "./keepalive.js";
 import { loadContext } from "../shared/bootstrap.js";
 import { detectLang } from "../core/index.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
+import { redactHome } from "../shared/redact-home.js";
 
 async function main(): Promise<void> {
   const context = loadContext({ env: process.env, home: homedir(), platform: process.platform });
@@ -28,6 +29,10 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  console.error("Fatal:", error);
+  const message =
+    error instanceof Error
+      ? redactHome(error.stack ?? error.message, homedir())
+      : redactHome(String(error), homedir());
+  console.error("Fatal:", message);
   process.exit(1);
 });

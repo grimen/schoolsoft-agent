@@ -8,6 +8,7 @@ import { ConnectorOAuthProvider } from "../../src/http/oauth.js";
 import { createConnectorApp } from "../../src/http/server.js";
 import { OwnerSessions } from "../../src/http/owner-session.js";
 import { InputError, type PortalHealth } from "../../src/core/index.js";
+import { docLink } from "../../src/cli/guide/words.js";
 const config = connectorConfig({
   SCHOOLSOFT_PUBLIC_URL: "https://connector.example",
   SCHOOLSOFT_ADMIN_PASSWORD: "synthetic-admin-password-0123456789",
@@ -50,7 +51,7 @@ test("owner console enforces host, password, session, origin and CSRF and comple
         return { url: "https://school.example/login?state=private&foo=1" };
       },
       callback: (state, code) => state === "valid" && code === "code",
-      logout: async () => {
+      resetAll: async () => {
         loggedOut = true;
       },
       execute: async () => ({}),
@@ -126,6 +127,10 @@ test("owner console enforces host, password, session, origin and CSRF and comple
     let response = await request("/owner");
     let html = await response.text();
     assert.match(html, /not connected/);
+    assert.ok(
+      html.includes(`<a href="${docLink("dataHandling")}" rel="noreferrer">`),
+      "links to the data-handling page",
+    );
     const csrf = html.match(/name="csrf" value="([^"]+)"/)![1];
     assert.match(response.headers.get("content-security-policy")!, /frame-ancestors 'none'/);
     // same-origin, never no-referrer: under no-referrer a browser sends `Origin: null`
@@ -369,7 +374,7 @@ test("without a declared proxy, forwarding headers are ignored and the operator 
         }),
         beginLogin: async () => ({ url: "https://school.example/login" }),
         callback: () => false,
-        logout: async () => {},
+        resetAll: async () => {},
         execute: async () => ({}),
         executeForChild: () => Promise.reject(new Error("the overview is not under test here")),
       },

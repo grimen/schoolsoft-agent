@@ -6,6 +6,7 @@ import type { AddressInfo } from "node:net";
 import { createConnectorApp } from "../../src/http/server.js";
 import { ConnectorOAuthProvider, type OAuthState } from "../../src/http/oauth.js";
 import type { ConnectorConfig } from "../../src/http/config.js";
+import { docLink } from "../../src/cli/guide/words.js";
 
 const origin = "https://connector.example";
 const resource = origin + "/mcp";
@@ -63,7 +64,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
         return { synthetic: true, children };
       },
       executeForChild: () => Promise.reject(new Error("the overview is not under test here")),
-      logout: async () => {
+      resetAll: async () => {
         authenticated = false;
       },
     },
@@ -156,6 +157,10 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     const consentHtml = await page.text();
     assert.match(consentHtml, /Synthetic One/);
     assert.match(consentHtml, /started connecting this app yourself.*choose Cancel/);
+    assert.ok(
+      consentHtml.includes(`<a href="${docLink("dataHandling")}" rel="noreferrer">`),
+      "links to the data-handling page",
+    );
     const id = new URL(consentUrl, origin).searchParams.get("request")!;
     const approval = await form(
       "/owner/approve",
@@ -457,6 +462,12 @@ test("disconnect everything revokes both apps' access and refresh tokens", async
     );
   }
   assert.equal((await f.request("/owner", { headers: { Cookie: f.cookie } })).status, 302);
+  assert.deepEqual(f.oauth.listGrants(), [], "no grant survives a full reset");
+  assert.equal(
+    await f.oauth.clientsStore.getClient(a.client.client_id),
+    undefined,
+    "the registered client itself is dropped, not only its grant",
+  );
 });
 
 test("calendar is separately consented; old grants and refresh tokens cannot gain it", async (t) => {

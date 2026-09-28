@@ -474,6 +474,14 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
     this.state.codes = {};
     this.save();
   }
+  /**
+   * "Disconnect everything": revokeAll(), and also drop the registered OAuth clients
+   * themselves so nothing about a previously connected app remains on disk.
+   */
+  resetAll(): void {
+    this.state.clients = {};
+    this.revokeAll();
+  }
   async revokeToken(
     client: OAuthClientInformationFull,
     request: OAuthTokenRevocationRequest,

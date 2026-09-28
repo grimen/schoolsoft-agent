@@ -47,7 +47,7 @@
       "title": "Config directory",
       "description": "Where the encrypted session and cache are stored.",
       "required": false,
-      "default": "${HOME}/Library/Application Support/schoolsoft-agent"
+      "default": "${HOME}/.schoolsoft-agent"
     }
   },
   "compatibility": {
@@ -62,7 +62,7 @@
     }
   },
   "privacy_policies": [
-    "https://github.com/grimen/schoolsoft-agent#privacy"
+    "https://github.com/grimen/schoolsoft-agent/blob/main/docs/getting-started/data-handling.md"
   ],
   "tools": []
 }
