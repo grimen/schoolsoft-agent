@@ -1,6 +1,6 @@
 # How your family's data is handled
 
-This page explains, in plain language, what schoolsoft-agent saves, where it saves it, how long it keeps it, and who receives your children's school information. Read it before you connect an account.
+This page explains, in plain language, what schoolsoft-agent saves, where it saves it, how long it keeps it, and who receives your children's school information. Read it before you connect an account. If you are another family in a class where a parent uses it, see [if your family is in the same class](#if-your-family-is-in-the-same-class).
 
 It describes the code as of version 0.3.0 (September 2026). It covers all three ways to use the project:
 
@@ -125,6 +125,8 @@ When the assistant uses one of the tools, the answer goes to the assistant app. 
 
 The assistant also sees what you write in the chat, such as your child's name or the reason for an absence.
 
+**Personal or business account.** With a personal account (such as Claude Free, Pro or Max, or ChatGPT Free, Plus or Pro), the AI company decides for itself how it handles what it receives: it is its own controller (personuppgiftsansvarig) under its privacy policy. With a business, team or API account, the company is instead your processor (personuppgiftsbiträde), handling the data on your behalf. You then need its data processing terms (a data processing agreement, DPA), which business plans usually include, and you should check where it processes the data.
+
 ### On your computer
 
 Each tool returns one kind of information. The assistant only fetches what it needs for your question.
@@ -241,6 +243,8 @@ A general framework for actions that change data (such as sending messages) is b
 With the connector, you rent the server and control it. There is no one else running it for you. In practice:
 
 - **Your hosting provider can reach your data** while the server uses it. Choose a provider you trust, and protect your hosting account with a strong password and two-step login.
+- **Choose a hosting region in the EU/EEA** where your provider offers one. Your hosting provider processes the data for you, and a server outside the EU/EEA moves your children's and other families' data there.
+- **Run it only for your own family.** The connector serves one guardian. Running it for another family makes you responsible for their data in a way that private use is not.
 - **Keep the storage key and admin password safe**, for example in a password manager. Without the storage key, the saved data cannot be read. Anyone with both the key and the disk can read it.
 - **Backups are your choice.** Your hosting provider may make disk backups. They contain the encrypted files. Check how long it keeps them.
 - **After restoring a backup, disconnect everything.** A backup brings back every app approval that existed when it was made, including ones you removed later. Before you use a restored server, open the owner page, choose **Disconnect everything**, then log in to SchoolSoft and connect each AI app again. Starting with an empty disk is simpler. See the [connector recovery steps](../deployment/connector.md#everyday-use-and-recovery).
@@ -262,6 +266,26 @@ With the connector, you rent the server and control it. There is no one else run
 3. To remove everything, delete the service and its disk or volume in your hosting account, remove the saved settings (storage key and admin password), and check the provider's backups.
 
 **At your AI provider:** delete conversations in your AI account if you do not want them kept. This project cannot do it for you.
+
+## If your family is in the same class
+
+This section is for other families in a class where a parent uses schoolsoft-agent. It is a program that a parent runs themselves, on their own computer or server, to ask an AI assistant about their own child's school information in SchoolSoft. Nobody runs it for them, and the project author receives nothing from it.
+
+**What it can show about you.** Only what SchoolSoft already shows that parent, as a guardian at the school:
+
+- From the class contact list (kontaktlista): your child's name, and your name and role if the school lists guardians. By default, nothing more.
+- If that parent turns on contact details: your e-mail address and phone number as a guardian (vårdnadshavare), as the school lists them. Never your child's own e-mail or phone.
+- From messages and posts that parent received: the names of the other recipients, and what the school or another parent wrote in the text itself.
+
+**What it never does.** It never sends anyone's home address, never sends the e-mail addresses or phone numbers SchoolSoft attaches to a message (only what someone typed into its text), never saves the contact list, and never combines it with anything else. It does not change your data at SchoolSoft.
+
+**Where it goes.** What the parent's assistant fetches goes to that parent's AI provider (for example Anthropic or OpenAI), which may process it outside the EU/EEA under its own terms.
+
+**Who to contact.**
+
+- For your data in SchoolSoft (what the class list shows, who sees it, correcting or removing it): your school. The school's governing body (huvudman: the municipality, or the organisation that runs an independent school) is responsible for it (personuppgiftsansvarig). SchoolSoft AB handles it on the school's behalf.
+- For what one parent does with their assistant: that parent.
+- For how this program works: [open an issue](https://github.com/grimen/schoolsoft-agent/issues), without personal data. The project holds no data about you, so it cannot show, correct or delete any.
 
 ## What would change this page
 

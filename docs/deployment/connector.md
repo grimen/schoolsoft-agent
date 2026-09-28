@@ -16,6 +16,13 @@ One server is for **one guardian account**, with that guardian's selected childr
 Use separate servers for different guardians. This project is independent of
 SchoolSoft AB and BankID; neither endorses or operates it.
 
+**Run it only for your own family, and in the EU/EEA.** Running a connector for
+another family makes you responsible for their children's data in a way that
+private use is not. Where your hosting provider offers a choice, pick a region in
+the EU/EEA (the Render template below uses Frankfurt): a server elsewhere moves your
+family's and other families' school data out of the EU/EEA. See
+[if you run the connector, you are the operator](../getting-started/data-handling.md#if-you-run-the-connector-you-are-the-operator).
+
 ## Before you start
 
 You need your usual SchoolSoft guardian login and BankID, a Claude or ChatGPT
