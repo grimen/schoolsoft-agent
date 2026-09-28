@@ -1,0 +1,4 @@
+[
+  { "id": 901, "firstName": "Lärare", "lastName": "Test", "role": "Mentor" },
+  { "id": 902, "firstName": "Assistent", "lastName": null, "role": null }
+]

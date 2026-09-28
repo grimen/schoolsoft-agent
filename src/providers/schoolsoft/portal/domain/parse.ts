@@ -54,12 +54,30 @@ export const dateOrDateTime = z.string().transform((value, ctx) => {
   return parsed;
 });
 
+const epochMillis = z
+  .number()
+  .int()
+  .positive()
+  .transform((ms) => instantToStockholm(ms));
+
 /** A timestamp as text, or as epoch milliseconds. */
-export const dateTimeOrEpoch = z.union([
-  dateTime,
-  z
-    .number()
-    .int()
-    .positive()
-    .transform((ms) => instantToStockholm(ms)),
-]);
+export const dateTimeOrEpoch = z.union([dateTime, epochMillis]);
+
+/** A label the portal words itself: text or a number, as trimmed text; empty or absent is null. */
+export const label = z
+  .union([z.string(), z.number()])
+  .nullish()
+  .transform((v) => (v === null || v === undefined ? null : String(v).trim() || null));
+
+/** A date stays a date; a timestamp (text or epoch milliseconds) becomes a DateTime. */
+export const dateOrDateTimeOrEpoch = z.union([dateOrDateTime, epochMillis]);
+
+/** Short, stable hash of a text for ids that must not repeat it: FNV-1a, 32 bits, hex. */
+export function textHash(value: string): string {
+  let hash = 0x811c9dc5;
+  for (const byte of new TextEncoder().encode(value)) {
+    hash ^= byte;
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}

@@ -51,7 +51,7 @@ test(
     const rooms = await ctx.portal.getSubjectRooms();
     const first = rooms[0];
     assert.ok(first, "a subject room");
-    const crit = await ctx.portal.getAssessmentCriteria(first.subject);
+    const crit = await ctx.portal.getAssessmentCriteria(first.name);
     assert.ok(crit.title.length > 0);
     const prog = await ctx.portal.getGradePrognosis();
     assert.ok("reconciliationDates" in prog);

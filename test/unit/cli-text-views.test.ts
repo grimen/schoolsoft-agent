@@ -9,10 +9,15 @@ import { TEXT_RENDERERS, textRenderer } from "../../src/cli/text/registry.js";
 import { toText, type RenderContext } from "../../src/cli/text/render.js";
 import { displayWidth } from "../../src/cli/text/terminal.js";
 import {
+  ASSIGNMENTS,
+  BOOKINGS,
   CALENDAR,
   CHILDREN,
+  FILES,
   INBOX,
   LUNCH,
+  NEWS,
+  ROOMS,
   SCHEDULE,
   SCHEDULE_AFTER_DST,
 } from "../helpers/text-fixtures.js";
@@ -258,6 +263,181 @@ test("get-messages: inbox with unread and attachment markers, Stockholm time, cl
   );
 });
 
+test("get-assignments: by date, a time only when given, subtitle joined, unread marked and emphasised (en, sv)", () => {
+  assert.equal(
+    view("get_assignments", ASSIGNMENTS),
+    lines(
+      "Assignments, week 37 2026 · Ett",
+      "",
+      "   Date              Title                                 Status",
+      "*  2026-09-10        Läxa kapitel 3 – Bråk och decimaltal  Ej inlämnad",
+      "   2026-09-11 08:30  Glosförhör                            –",
+      "",
+      "* unread",
+    ),
+  );
+  assert.equal(
+    view("get_assignments", ASSIGNMENTS, { lang: "sv" }),
+    lines(
+      "Uppgifter, vecka 37 2026 · Ett",
+      "",
+      "   Datum             Rubrik                                Status",
+      "*  2026-09-10        Läxa kapitel 3 – Bråk och decimaltal  Ej inlämnad",
+      "   2026-09-11 08:30  Glosförhör                            –",
+      "",
+      "* oläst",
+    ),
+  );
+  const colored = view("get_assignments", ASSIGNMENTS, {}, true).split("\n");
+  assert.equal(
+    colored[3],
+    "\u001b[1m*  2026-09-10        Läxa kapitel 3 – Bråk och decimaltal  Ej inlämnad\u001b[22m",
+  );
+  assert.equal(colored[4], "   2026-09-11 08:30  Glosförhör                            –");
+  const sameDay = {
+    ...ASSIGNMENTS,
+    assignments: [
+      { ...ASSIGNMENTS.assignments[0], date: "2026-09-10T15:00:00+02:00", title: "Sen" },
+      { ...ASSIGNMENTS.assignments[0], date: "2026-09-10T08:00:00+02:00", title: "Tidig" },
+      { ...ASSIGNMENTS.assignments[0], date: "2026-09-10", title: "Heldag" },
+    ],
+  };
+  assert.deepEqual(
+    view("get_assignments", sameDay)
+      .split("\n")
+      .slice(3, 6)
+      .map((l) => l.trim().split(/\s{2,}/)[1]),
+    ["Heldag", "Tidig", "Sen"],
+    "on one day: date-only first, then by time",
+  );
+});
+
+test("get-news: newest first on Stockholm's clock, author, unread and attachment marked (en, sv)", () => {
+  assert.equal(
+    view("get_news", NEWS),
+    lines(
+      "News · Ett (1 unread)",
+      "",
+      "    Date              From         Title",
+      "*+  2026-09-01 07:45  Rektor Test  Studiedag fredag",
+      "    2026-08-28 09:00  –            Fotografering",
+      "",
+      "* unread · + attachment",
+    ),
+  );
+  assert.equal(
+    view("get_news", NEWS, { lang: "sv" }),
+    lines(
+      "Nyheter · Ett (1 olästa)",
+      "",
+      "    Datum             Från         Rubrik",
+      "*+  2026-09-01 07:45  Rektor Test  Studiedag fredag",
+      "    2026-08-28 09:00  –            Fotografering",
+      "",
+      "* oläst · + bilaga",
+    ),
+  );
+  const colored = view("get_news", NEWS, {}, true).split("\n");
+  assert.ok(colored[3].startsWith("\u001b[1m*+"), "unread news in bold");
+  assert.ok(!colored[4].includes("\u001b"), "read news stays plain");
+});
+
+test("get-subject-rooms: a row per subject with its groups and teachers (en, sv)", () => {
+  assert.equal(
+    view("get_subject_rooms", ROOMS),
+    lines(
+      "Subject rooms · Ett",
+      "",
+      "Subject    Groups  Teachers",
+      "Matematik  4B, 4C  Lärare Test, Assistent",
+      "Engelska   –       –",
+    ),
+  );
+  assert.equal(
+    view("get_subject_rooms", ROOMS, { lang: "sv" }),
+    lines(
+      "Ämnesrum · Ett",
+      "",
+      "Ämne       Grupper  Lärare",
+      "Matematik  4B, 4C   Lärare Test, Assistent",
+      "Engelska   –        –",
+    ),
+  );
+});
+
+test("get-bookings: in time order, a range when there is an end, the status in words (en, sv)", () => {
+  assert.equal(
+    view("get_bookings", BOOKINGS),
+    lines(
+      "Bookings · Ett",
+      "",
+      "When                    Title              Status",
+      "2026-10-01 15:00–15:30  Utvecklingssamtal  Booked",
+      "2026-11-12 18:00        Föräldramöte       Available",
+      "2026-12-01 08:00        Drop-in            –",
+      "2026-12-18              Skolavslutning     Closed",
+    ),
+  );
+  assert.equal(
+    view("get_bookings", BOOKINGS, { lang: "sv" }),
+    lines(
+      "Bokningar · Ett",
+      "",
+      "När                     Rubrik             Status",
+      "2026-10-01 15:00–15:30  Utvecklingssamtal  Bokad",
+      "2026-11-12 18:00        Föräldramöte       Ledig",
+      "2026-12-01 08:00        Drop-in            –",
+      "2026-12-18              Skolavslutning     Stängd",
+    ),
+  );
+});
+
+test("get-files: under their category in the portal's order, uncategorised as Other (en, sv)", () => {
+  assert.equal(
+    view("get_files", FILES),
+    lines(
+      "Files and links · Ett",
+      "",
+      "Skolan",
+      "  Veckobrev v37    file  https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2",
+      "  Fritids hemsida  link  https://example.test/fritids",
+      "",
+      "Other",
+      "  Lovdagar         file  https://example.test/lov.pdf",
+      "",
+      "Kommunen",
+      "  Kommunens sida   link  https://example.test/kommun",
+    ),
+  );
+  assert.equal(
+    view("get_files", FILES, { lang: "sv" }),
+    lines(
+      "Filer och länkar · Ett",
+      "",
+      "Skolan",
+      "  Veckobrev v37    fil   https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2",
+      "  Fritids hemsida  länk  https://example.test/fritids",
+      "",
+      "Övrigt",
+      "  Lovdagar         fil   https://example.test/lov.pdf",
+      "",
+      "Kommunen",
+      "  Kommunens sida   länk  https://example.test/kommun",
+    ),
+  );
+  const noUrl = { ...FILES, files: [{ ...FILES.files[0], url: null }] };
+  assert.equal(
+    view("get_files", noUrl).split("\n")[3],
+    "  Veckobrev v37  file  –",
+    "no url: a dash",
+  );
+  const blank = { ...FILES, files: [{ ...FILES.files[0], category: " \t" }] };
+  assert.equal(view("get_files", blank).split("\n")[2], "Other", "a blank heading is no heading");
+  const narrow = view("get_files", FILES, { width: 40 }).split("\n");
+  for (const line of narrow) assert.ok(displayWidth(line) <= 40, line);
+  assert.equal(narrow[3], "  Veckobrev v37    file  https://sms.sc…");
+});
+
 test("empty states are sentences, in both languages", () => {
   const child = { id: 100, firstName: "Ett" };
   const cases: [string, unknown, string, string][] = [
@@ -286,6 +466,16 @@ test("empty states are sentences, in both languages", () => {
       "Ingen lunchmeny den här veckan.",
     ],
     ["get_messages", { messages: [] }, "No messages.", "Inga meddelanden."],
+    [
+      "get_assignments",
+      { ...ASSIGNMENTS, assignments: [] },
+      "No assignments this week.",
+      "Inga uppgifter den här veckan.",
+    ],
+    ["get_news", { child, news: [] }, "No news.", "Inga nyheter."],
+    ["get_subject_rooms", { child, rooms: [] }, "No subject rooms.", "Inga ämnesrum."],
+    ["get_bookings", { child, bookings: [] }, "No bookings.", "Inga bokningar."],
+    ["get_files", { child, files: [] }, "No files or links.", "Inga filer eller länkar."],
   ];
   for (const [op, data, en, sv] of cases) {
     const shown = view(op, data).split("\n");
@@ -357,7 +547,7 @@ test("views do not depend on the machine's time zone", () => {
 });
 
 test("registry: lookups by operation name only", () => {
-  assert.equal(textRenderer("get_news"), undefined);
+  assert.equal(textRenderer("get_activity_log"), undefined);
   assert.equal(textRenderer("toString"), undefined, "no prototype keys");
   assert.equal(textRenderer("get_schedule"), TEXT_RENDERERS.get_schedule);
 });

@@ -85,3 +85,76 @@ export const MessageSchema = z.object({
   hasAttachments: z.boolean(),
 });
 export type Message = z.infer<typeof MessageSchema>;
+
+/** Text the portal words itself (a status, a role); null when not given. */
+const label = (what: string) =>
+  z.string().nullable().describe(`${what}, as the portal words it; null when not given`);
+
+export const AssignmentSchema = z.object({
+  id: z.number().int().describe("Assignment id; pass it to get_assignment_detail"),
+  title: z.string(),
+  subtitle: text("Subtitle"),
+  subjectRoomId: z.string().describe("Id of the subject room it belongs to (SubjectRoom.id)"),
+  date: z
+    .union([LocalDateSchema, DateTimeSchema])
+    .describe("The date the portal lists it under; a date when no time is given"),
+  read: z.boolean(),
+  submissionStatus: label("Submission status"),
+  resultStatus: label("Result report status"),
+});
+export type Assignment = z.infer<typeof AssignmentSchema>;
+
+export const NewsItemSchema = z.object({
+  id: z.string().describe("Stable id of this news item"),
+  title: z.string(),
+  body: text("News text"),
+  category: label("Category"),
+  author: text("Author"),
+  read: z.boolean(),
+  hasAttachments: z.boolean(),
+  publishedAt: DateTimeSchema,
+  visibleUntil: z
+    .union([LocalDateSchema, DateTimeSchema])
+    .nullable()
+    .describe("When the item stops being shown; null when not given"),
+});
+export type NewsItem = z.infer<typeof NewsItemSchema>;
+
+export const SubjectRoomSchema = z.object({
+  id: z.string().describe("Stable id of this subject room"),
+  name: z.string().describe("Subject"),
+  groups: z.array(z.string()).describe("Classes or teaching groups the room belongs to"),
+  teachers: z.array(z.object({ name: z.string(), role: label("Role") })),
+});
+export type SubjectRoom = z.infer<typeof SubjectRoomSchema>;
+
+export const BookingSchema = z.object({
+  id: z.string().describe("Stable id of this booking"),
+  title: z.string(),
+  description: text("Description"),
+  start: z
+    .union([LocalDateSchema, DateTimeSchema])
+    .describe("When it starts; a date when the page gives no time"),
+  end: DateTimeSchema.nullable().describe("When it ends; null when the page gives no end"),
+  status: z
+    .enum(["available", "booked", "closed", "unknown"])
+    .describe("Read from the page's wording; unknown when it says none of these"),
+  details: z
+    .array(z.object({ label: z.string(), value: z.string() }))
+    .describe("Label and value pairs shown beside the booking, in page order"),
+});
+export type Booking = z.infer<typeof BookingSchema>;
+
+export const SharedFileSchema = z.object({
+  id: z.string().describe("Stable id of this file or link"),
+  name: z.string(),
+  url: z
+    .url({ protocol: /^https?$/ })
+    .nullable()
+    .describe(
+      "Absolute http(s) link; file links need the portal session. null when the portal's link is not http(s)",
+    ),
+  kind: z.enum(["file", "link"]).describe("A document stored in the portal, or a link elsewhere"),
+  category: text("Heading the portal lists it under"),
+});
+export type SharedFile = z.infer<typeof SharedFileSchema>;

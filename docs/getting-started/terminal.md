@@ -97,6 +97,60 @@ Inbox (1 unread)
 * unread · + attachment
 ```
 
+**Assignments** (`get-assignments --format text`, optionally `--week 37`). A star marks the ones you have not opened. Read one with `get-assignment-detail --id <ID>` (the ID is in the JSON output).
+
+```text
+Assignments, week 37 2026 · Ett
+
+   Date              Title                                 Status
+*  2026-09-10        Läxa kapitel 3 – Bråk och decimaltal  Ej inlämnad
+   2026-09-11 08:30  Glosförhör                            –
+
+* unread
+```
+
+**News** (`get-news --format text`). Newest first; a star marks unread news and a plus attachments.
+
+```text
+News · Ett (1 unread)
+
+    Date              From         Title
+*+  2026-09-01 07:45  Rektor Test  Studiedag fredag
+    2026-08-28 09:00  –            Fotografering
+
+* unread · + attachment
+```
+
+**Subject rooms** (`get-subject-rooms --format text`): each subject with its groups and teachers.
+
+```text
+Subject rooms · Ett
+
+Subject    Groups  Teachers
+Matematik  4B, 4C  Lärare Test, Assistent
+Engelska   –       –
+```
+
+**Bookings** (`get-bookings --format text`, needs the hidden browser): meetings in time order and whether a time is free.
+
+```text
+Bookings · Ett
+
+When                    Title              Status
+2026-10-01 15:00–15:30  Utvecklingssamtal  Booked
+2026-11-12 18:00        Föräldramöte       Available
+```
+
+**Files and links** (`get-files --format text`, needs the hidden browser), under the school's own headings.
+
+```text
+Files and links · Ett
+
+Skolan
+  Veckobrev v37    file  https://sms.schoolsoft.se/skola/jsp/student/right_student_file_download.jsp?fileid=2
+  Fritids hemsida  link  https://example.test/fritids
+```
+
 ## Language, time and width
 
 - **Language.** Views are in Swedish when your system language is Swedish, like the error messages. Set `SCHOOLSOFT_LANG=sv` or `SCHOOLSOFT_LANG=en` to choose.

@@ -7,7 +7,17 @@
  * composite.ts); the browser is never used for something an API serves.
  */
 
-import type { CalendarEvent, Lesson, LunchDay, Message } from "../domain/schemas.js";
+import type {
+  Assignment,
+  Booking,
+  CalendarEvent,
+  Lesson,
+  LunchDay,
+  Message,
+  NewsItem,
+  SharedFile,
+  SubjectRoom,
+} from "../domain/schemas.js";
 
 export type PortalProvider = "api" | "browser";
 
@@ -23,7 +33,8 @@ export interface Portal {
   getParent(): Promise<GuardianParent>;
   /** One ISO week's lunch menu; `year` is the ISO week-year, used to date each day. */
   getLunchWeek(orgId: number, week: number, year: number): Promise<LunchDay[]>;
-  getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]>;
+  /** The school's news for the child, in the portal's order. */
+  getNews(userId: number, orgId: number, studentId: number): Promise<NewsItem[]>;
   /** Inbox summaries in the portal's order. */
   getInbox(userId: number, orgId: number): Promise<Message[]>;
   getMessage(userId: number, orgId: number, messageId: number): Promise<unknown>;
@@ -34,19 +45,20 @@ export interface Portal {
   getScheduleWeek(week: number): Promise<Lesson[]>;
   /** Lessons and school events for the inclusive local date range, sorted by start. */
   getCalendar(startDate: string, endDate: string): Promise<CalendarEvent[]>;
-  getAssignmentsWeek(week: number, year: number): Promise<unknown[]>;
+  /** The child in focus's assignments listed in one week. */
+  getAssignmentsWeek(week: number, year: number): Promise<Assignment[]>;
   getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }>;
   /** Verksamhetslogg: activity log entries (legacy /rest endpoint, read-only POST with cookies). */
   getActivityLog(limit?: number): Promise<ActivityEntry[]>;
   // ----- browser: legacy JSP pages (no API) -----
   /** Kontaktlistor: the child's class list as the page shows it. */
   getContacts(): Promise<ContactGroup[]>;
-  /** Ämne: subject rooms with teachers and links. */
+  /** Ämne: the child in focus's subject rooms with their teachers. */
   getSubjectRooms(): Promise<SubjectRoom[]>;
-  /** Bokningar: bookable / booked meeting slots (read only). */
+  /** Bokningar: bookable / booked meetings (read only). */
   getBookings(): Promise<Booking[]>;
   /** Alla filer & länkar: shared files and links. */
-  getFiles(): Promise<PortalFile[]>;
+  getFiles(): Promise<SharedFile[]>;
   // ----- browser + WEB session: SchoolSoft's GDPR-gated pages -----
   /** Betyg: grade tables (empty until the school publishes grades). */
   getGrades(): Promise<TablePage>;
@@ -117,14 +129,6 @@ export interface ContactGroup {
   title: string;
   people: ContactPerson[];
 }
-export interface SubjectRoom {
-  subject: string;
-  /** SchoolSoft subject-room id (`activityId` in the REST API). */
-  subjectId: number;
-  /** Class / group names the room belongs to. */
-  groups: string[];
-  teachers: string[];
-}
 
 /** A server-rendered page made of tables: what the gated pages are. */
 export interface TablePage {
@@ -150,19 +154,6 @@ export interface ActivityEntry {
   images?: number;
   recipients?: string;
   comments: number;
-}
-export interface Booking {
-  title: string;
-  description?: string;
-  slots: { start: string; end?: string; status: "available" | "booked" | "closed" | "unknown" }[];
-  /** Label/value pairs shown beside the booking (e.g. status), as the page words them. */
-  info?: Record<string, string>;
-}
-export interface PortalFile {
-  name: string;
-  category?: string;
-  url: string;
-  type: "file" | "link";
 }
 
 // ----- writes -----

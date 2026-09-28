@@ -19,6 +19,7 @@ import {
 } from "../../src/core/index.js";
 import { WEB_SESSION_CAPABILITIES } from "../../src/providers/schoolsoft/routing.js";
 import { CountingPortal, markedLesson } from "../helpers/counting-portal.js";
+import type { NewsItem } from "../../src/core/domain/schemas.js";
 
 const lunchOf = (description: string) => [
   { date: "2026-09-07", weekday: 1, dishes: [{ kind: null, description }] },
@@ -219,7 +220,7 @@ test("without a session scope nothing is cached or served; failures and undefine
   await assert.rejects(s.portal.getScheduleWeek(37), /HTTP 500/);
   assert.equal(s.cache.size(), 0);
   const empty = new CountingPortal(() => 100);
-  empty.getNews = async () => undefined as unknown as unknown[];
+  empty.getNews = async () => undefined as unknown as NewsItem[];
   const portal = withReadCache(empty, {
     cache: s.cache,
     ttls: DEFAULT_CACHE_TTL_MS,

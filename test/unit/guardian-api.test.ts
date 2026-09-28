@@ -225,9 +225,10 @@ test("subject rooms come from the subjectroom REST (app cookies): list, then tea
     fetchImpl,
   });
   const rooms = await api.getSubjectRooms();
+  const teachers = [{ name: "Lärare Test", role: "TEACHER" }];
   assert.deepEqual(rooms, [
-    { subject: "Matematik", subjectId: 11, groups: ["4B"], teachers: ["Lärare Test"] },
-    { subject: "Bild", subjectId: 13, groups: ["4B", "4C"], teachers: ["Lärare Test"] },
+    { id: "subject-room:11", name: "Matematik", groups: ["4B"], teachers },
+    { id: "subject-room:13", name: "Bild", groups: ["4B", "4C"], teachers },
   ]);
   assert.deepEqual(calls, [
     "/rest-api/parent/ps/subjectroom/all cookie=JSESSIONID=app",
@@ -264,7 +265,7 @@ test("orgIdOf rejects a child without schools; focusWebChild surfaces other HTTP
         : { status: 200, data: [] },
   });
   assert.deepEqual(await apiRooms.getSubjectRooms(), [
-    { subject: "Bild", subjectId: 1, groups: [], teachers: [] },
+    { id: "subject-room:1", name: "Bild", groups: [], teachers: [] },
   ]);
 });
 

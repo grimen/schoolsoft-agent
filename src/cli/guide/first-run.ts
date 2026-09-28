@@ -194,8 +194,9 @@ export async function runFirstRun(
   const code = verifyExitCode(report) as ExitCode;
   if (code !== 0) {
     options.emit?.({ status: "check_failed", ...result });
-    const total = report.results.length;
-    line("checkFailed", { failed: total - report.summary.ok, total });
+    // A skipped check (no browser, no web login) neither passed nor failed: it is not counted.
+    const { drift, error, skipped } = report.summary;
+    line("checkFailed", { failed: drift + error, total: report.results.length - skipped });
     line("checkNext");
     throw new CliExit(code, "");
   }
