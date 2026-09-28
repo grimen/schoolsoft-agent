@@ -1,0 +1,26 @@
+[
+  {
+    "id": 401,
+    "title": "Studiedag fredag",
+    "description": "Skolan är stängd, fritids är öppet.",
+    "category": "Skolan",
+    "author": "Rektor Test",
+    "read": false,
+    "hasAttachment": true,
+    "creDate": "2026-09-01 07:45",
+    "toDate": "2026-09-12",
+    "newsConfirm": false
+  },
+  {
+    "id": 402,
+    "title": "Fotografering",
+    "description": null,
+    "category": 3,
+    "author": null,
+    "read": true,
+    "hasAttachment": false,
+    "creDate": 1788252000000,
+    "toDate": null,
+    "newsConfirm": false
+  }
+]

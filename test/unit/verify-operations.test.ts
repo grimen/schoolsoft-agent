@@ -34,7 +34,50 @@ import type { LunchDay } from "../../src/core/domain/schemas.js";
 import { CONTEXT, makeContext } from "../helpers/fakes.js";
 import { CountingPortal } from "../helpers/counting-portal.js";
 
-const TYPED = ["list_children", "get_schedule", "get_calendar", "get_lunch_menu", "get_messages"];
+const TYPED = [
+  "list_children",
+  "get_schedule",
+  "get_calendar",
+  "get_lunch_menu",
+  "get_assignments",
+  "get_news",
+  "get_messages",
+  "get_subject_rooms",
+  "get_bookings",
+  "get_files",
+  "get_grades",
+  "get_student_documents",
+  "get_unreported_absence",
+  "get_attendance_report",
+  "get_assessment_criteria",
+];
+/** Served by the browser: skipped when it is not installed. */
+const BROWSER = new Set(["get_bookings", "get_files"]);
+/** Behind the GDPR gate: skipped without a web login. */
+const GATED = new Set([
+  "get_grades",
+  "get_student_documents",
+  "get_unreported_absence",
+  "get_attendance_report",
+]);
+const EXCLUDED = "get_assessment_criteria";
+
+/** How a child-scoped read ends without a web login: gated and excluded ones are skipped with their reason. */
+function expected(operation: string, browserReady: boolean): VerifyReport["results"][number] {
+  if (operation === EXCLUDED)
+    return {
+      operation,
+      child: 1,
+      status: "skipped",
+      reason: "excluded",
+      note: VERIFY_EXCLUSIONS[EXCLUDED],
+    };
+  if (GATED.has(operation))
+    return { operation, child: 1, status: "skipped", reason: "web_session_required" };
+  if (BROWSER.has(operation) && !browserReady)
+    return { operation, child: 1, status: "skipped", reason: "browser_not_installed" };
+  return { operation, child: 1, status: "ok" };
+}
 
 /** A complete portal that fails the test if anything tries to write. */
 class ReadOnlyPortal extends CountingPortal {
@@ -59,12 +102,13 @@ function setup(o: { guardian?: GuardianContext; web?: WebSession; empty?: boolea
   return { ...h, ctx, portal };
 }
 
-test("the registry's verifiable operations are the five typed reads; nothing is excluded today", () => {
+test("the registry's verifiable operations are the typed reads; only the criteria are excluded, with a reason", () => {
   assert.deepEqual(
     operations.filter(isVerifiable).map((op) => op.name),
     TYPED,
   );
-  assert.deepEqual(VERIFY_EXCLUSIONS, {});
+  assert.deepEqual(Object.keys(VERIFY_EXCLUSIONS), [EXCLUDED]);
+  assert.match(VERIFY_EXCLUSIONS[EXCLUDED], /subject/);
 });
 
 test("all ok: each typed read runs once for the child in focus, fresh where declared, exit 0", async () => {
@@ -75,20 +119,24 @@ test("all ok: each typed read runs once for the child in focus, fresh where decl
     ok: true,
     session: "ok",
     children: { total: 2, verified: [1] },
-    summary: { ok: 5, drift: 0, skipped: 0, error: 0 },
+    summary: { ok: 8, drift: 0, skipped: 7, error: 0 },
     results: [
       { operation: "list_children", status: "ok" },
-      { operation: "get_schedule", child: 1, status: "ok" },
-      { operation: "get_calendar", child: 1, status: "ok" },
-      { operation: "get_lunch_menu", child: 1, status: "ok" },
-      { operation: "get_messages", child: 1, status: "ok" },
+      ...TYPED.slice(1).map((operation) => expected(operation, false)),
     ],
   } satisfies VerifyReport);
   assert.equal(verifyExitCode(report), 0);
   // fresh: true sends the cacheable reads to the portal that bypasses the cache
   assert.deepEqual(
     fresh.calls.map((c) => c.split("(")[0]),
-    ["getScheduleWeek", "getCalendar", "getLunchWeek"],
+    [
+      "getScheduleWeek",
+      "getCalendar",
+      "getLunchWeek",
+      "getAssignmentsWeek",
+      "getNews",
+      "getSubjectRooms",
+    ],
   );
   // get_messages declares no fresh (never cached); nothing else touched the cached portal
   assert.deepEqual(
@@ -107,7 +155,7 @@ test("drift in one operation: path and code only, the others still run, exit 7",
   portal.getLunchWeek = async () => [{ date: "not a date" } as unknown as LunchDay];
   const report = await verifyOperations(ctx, { browserReady: true });
   assert.equal(report.ok, false);
-  assert.deepEqual(report.summary, { ok: 3, drift: 2, skipped: 0, error: 0 });
+  assert.deepEqual(report.summary, { ok: 8, drift: 2, skipped: 5, error: 0 });
   assert.deepEqual(report.results[1], {
     operation: "get_schedule",
     child: 1,
@@ -154,6 +202,8 @@ test("errors are not drift: kind, message key, retryable and HTTP status, never 
       httpStatus: 503,
     },
     { operation: "get_lunch_menu", child: 1, status: "ok" },
+    { operation: "get_assignments", child: 1, status: "ok" },
+    { operation: "get_news", child: 1, status: "ok" },
     {
       operation: "get_messages",
       child: 1,
@@ -162,12 +212,16 @@ test("errors are not drift: kind, message key, retryable and HTTP status, never 
       code: "internal",
       retryable: false,
     },
+    { operation: "get_subject_rooms", child: 1, status: "ok" },
+    { operation: "get_bookings", child: 1, status: "ok" },
+    { operation: "get_files", child: 1, status: "ok" },
+    ...TYPED.slice(10).map((operation) => expected(operation, true)),
   ]);
   assert.doesNotMatch(JSON.stringify(report), /Ett|ECONNRESET|exploded/);
   // no drift: the first error's kind decides
   assert.equal(verifyExitCode(report), 4);
   assert.equal(
-    verifyExitCode({ ...report, results: report.results.slice(4) }),
+    verifyExitCode({ ...report, results: report.results.slice(4, 7) }),
     1,
     "only a bug left: exit 1",
   );
@@ -258,7 +312,7 @@ test("drift of the guardian profile: session drift, every operation skipped, exi
     detail: "children.0.studentId invalid_type",
   });
   assert.equal(report.children, null);
-  assert.deepEqual(report.summary, { ok: 0, drift: 0, skipped: 5, error: 0 });
+  assert.deepEqual(report.summary, { ok: 0, drift: 0, skipped: TYPED.length, error: 0 });
   assert.ok(report.results.every((r) => r.status === "skipped" && r.reason === "session_drift"));
   assert.equal(report.ok, false);
   assert.equal(verifyExitCode(report), 7);
@@ -288,21 +342,16 @@ test("--all-children: child-scoped reads per child by position, the child in foc
     all.results.map((r) => `${r.operation}${r.child === undefined ? "" : "@" + r.child}`),
     [
       "list_children",
-      "get_schedule@1",
-      "get_calendar@1",
-      "get_lunch_menu@1",
-      "get_messages@1",
-      "get_schedule@2",
-      "get_calendar@2",
-      "get_lunch_menu@2",
-      "get_messages@2",
+      ...TYPED.slice(1).map((op) => `${op}@1`),
+      ...TYPED.slice(1).map((op) => `${op}@2`),
     ],
   );
-  assert.equal(all.summary.ok, 9);
-  // each child's reads were made with that child in focus
+  assert.equal(all.summary.ok, 19);
+  // each child's reads (one portal call per operation) were made with that child in focus
+  const perChild = TYPED.length - 1 - GATED.size - 1; // gated and excluded reads make no call
   assert.deepEqual(
     portal.calls.map((c) => c.split("@")[1]),
-    ["100", "100", "100", "100", "101", "101", "101", "101"],
+    [...Array(perChild).fill("100"), ...Array(perChild).fill("101")],
   );
   assert.equal(manager.guardian().childInFocus, 101);
   assert.equal(store.load()?.guardian?.childInFocus, 101, "the persisted focus is unchanged");

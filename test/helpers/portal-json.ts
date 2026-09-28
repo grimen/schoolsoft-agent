@@ -21,8 +21,15 @@ export const rawAgendaLessons = (): Json[] => fixture("agenda-lessons.json") as 
 export const rawAgendaEvents = (): Json[] => fixture("agenda-events.json") as Json[];
 export const rawLunch = (): Json[] => fixture("lunchmenu.json") as Json[];
 export const rawInbox = (): Json[] => fixture("inbox.json") as Json[];
+export const rawAssignments = (): Json[] => fixture("assignments-week.json") as Json[];
+export const rawNews = (): Json[] => fixture("news.json") as Json[];
+export const rawSubjectRooms = (): Json[] => fixture("subjectrooms.json") as Json[];
+export const rawTeachers = (): Json[] => fixture("subjectroom-teachers.json") as Json[];
 
-/** Every entry's text field set to `marker` (lesson/event note, first dish, message preview). */
+/**
+ * Every entry's text field set to `marker` (lesson/event note, first dish, message preview,
+ * assignment subtitle, news text, subject-room group, teacher role).
+ */
 export function marked(pathname: string, marker: string): unknown {
   if (/\/calendar\/lessons\/week\/\d+$/.test(pathname))
     return rawLessonsWeek().map((l) => ({ ...l, description: marker }));
@@ -39,6 +46,14 @@ export function marked(pathname: string, marker: string): unknown {
     }));
   if (pathname.endsWith("/messages/inbox"))
     return rawInbox().map((m) => ({ ...m, message: marker }));
+  if (pathname.endsWith("/ps/assignments/start-page"))
+    return rawAssignments().map((a) => ({ ...a, subTitle: marker }));
+  if (/\/eva\/api\/v2\/parent\/\d+\/schools\/\d+\/news$/.test(pathname))
+    return rawNews().map((n) => ({ ...n, description: marker }));
+  if (pathname.endsWith("/ps/subjectroom/all"))
+    return rawSubjectRooms().map((r) => ({ ...r, groupNames: [marker] }));
+  if (/\/ps\/subjectroom\/\d+\/teachers$/.test(pathname))
+    return rawTeachers().map((t) => ({ ...t, role: marker }));
   return undefined;
 }
 
@@ -62,6 +77,10 @@ export const DRIFT_FIELDS = {
   agenda: "allDay",
   lunch: "dayId",
   inbox: "isRead",
+  assignments: "activityId",
+  news: "read",
+  subjectRooms: "activityId",
+  teachers: "firstName",
 } as const;
 
 /** Raw answers with the first entry drifted. */

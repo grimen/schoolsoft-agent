@@ -10,7 +10,7 @@ Exit codes: `0` ok · `1` bug · `2` not authenticated (run `login`) · `3` not 
 
 Global flags: `--school <slug>`, `--org-id <id>`, `--config-dir <dir>`, `--state-dir <dir>`, `--pretty`, `--format <json|text>`.
 
-`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for `list-children`, `get-schedule`, `get-calendar`, `get-lunch-menu`, `get-messages`; any other command prints pretty JSON and a one-line note on stderr.
+`--format json` is the default and what agents and scripts read. `--format text` prints a view for people, in Swedish or English like the error messages, for `list-children`, `get-schedule`, `get-calendar`, `get-lunch-menu`, `get-messages`, `get-assignments`, `get-news`, `get-subject-rooms`, `get-bookings`, `get-files`, `get-grades`, `get-student-documents`, `get-unreported-absence`, `get-attendance-report`, `get-assessment-criteria`; any other command prints pretty JSON and a one-line note on stderr.
 
 | Command | Purpose | Annotations |
 |---|---|---|
@@ -253,10 +253,10 @@ Args:
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { week, year, child, assignments: [{ id, title, subTitle, sortDate, submissionStatus, ... }] }.
+Returns: { week, year, child: { id, firstName }, assignments: [{ id, title, subtitle, subjectRoomId, date, read, submissionStatus, resultStatus }] }.
 
 Use when: "vilka läxor/prov finns den här veckan", "vad ska lämnas in".
-For full details of one assignment, use get_assignment_detail.
+For full details of one assignment, use get_assignment_detail with its id.
 
 | Flag | Required | Description |
 |---|---|---|
@@ -264,6 +264,27 @@ For full details of one assignment, use get_assignment_detail.
 | `--year <number>` | no | Calendar year. Defaults to the current year. |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `week` | integer |  |
+| `year` | integer |  |
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `assignments` | object[] |  |
+| `assignments[].id` | integer | Assignment id; pass it to get_assignment_detail |
+| `assignments[].title` | string |  |
+| `assignments[].subtitle` | string or null | Subtitle; null when not given |
+| `assignments[].subjectRoomId` | string | Id of the subject room it belongs to (SubjectRoom.id) |
+| `assignments[].date` | string (date) or string (date-time) | The date the portal lists it under; a date when no time is given |
+| `assignments[].read` | boolean |  |
+| `assignments[].submissionStatus` | string or null | Submission status, as the portal words it; null when not given |
+| `assignments[].resultStatus` | string or null | Result report status, as the portal words it; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-assignments
@@ -300,7 +321,7 @@ Args:
   - limit (number, optional): max items, default 20.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { child, news: [{ id, title, description, category, creDate, toDate, read, hasAttachment, author }] }.
+Returns: { child: { id, firstName }, news: [{ id, title, body, category, author, read, hasAttachments, publishedAt, visibleUntil }] }.
 
 Use when: "något nytt från skolan", "senaste nyheterna".
 
@@ -309,6 +330,26 @@ Use when: "något nytt från skolan", "senaste nyheterna".
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--limit <number>` | no | Max items, default 20 |
 | `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `news` | object[] |  |
+| `news[].id` | string | Stable id of this news item |
+| `news[].title` | string |  |
+| `news[].body` | string or null | News text; null when not given |
+| `news[].category` | string or null | Category, as the portal words it; null when not given |
+| `news[].author` | string or null | Author; null when not given |
+| `news[].read` | boolean |  |
+| `news[].hasAttachments` | boolean |  |
+| `news[].publishedAt` | string (date-time) | ISO-8601 date-time with Europe/Stockholm's UTC offset, e.g. 2026-09-07T08:30:00+02:00 |
+| `news[].visibleUntil` | string (date) or string (date-time) or null | When the item stops being shown; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-news
@@ -433,7 +474,7 @@ Args:
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { child, subjects: [{ subject, subjectId, groups, teachers }] }.
+Returns: { child: { id, firstName }, rooms: [{ id, name, groups, teachers: [{ name, role }] }] }.
 
 Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
 
@@ -441,6 +482,23 @@ Use when: "vem är Ellas mattelärare", "vilka ämnen har hon".
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `rooms` | object[] |  |
+| `rooms[].id` | string | Stable id of this subject room |
+| `rooms[].name` | string | Subject |
+| `rooms[].groups` | string[] | Classes or teaching groups the room belongs to |
+| `rooms[].teachers` | object[] |  |
+| `rooms[].teachers[].name` | string |  |
+| `rooms[].teachers[].role` | string or null | Role, as the portal words it; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-subject-rooms
@@ -457,13 +515,33 @@ Served through the headless browser (no API); run "schoolsoft-agent browser inst
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, bookings: [{ title, description?, slots: [{ start, status }], info? }] }.
+Returns: { child: { id, firstName }, bookings: [{ id, title, description, start, end, status: "available" | "booked" | "closed" | "unknown", details: [{ label, value }] }] }.
 
 Use when: "när är utvecklingssamtalet", "finns det tider att boka".
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `bookings` | object[] |  |
+| `bookings[].id` | string | Stable id of this booking |
+| `bookings[].title` | string |  |
+| `bookings[].description` | string or null | Description; null when not given |
+| `bookings[].start` | string (date) or string (date-time) | When it starts; a date when the page gives no time |
+| `bookings[].end` | string (date-time) or null | When it ends; null when the page gives no end |
+| `bookings[].status` | `"available"` \| `"booked"` \| `"closed"` \| `"unknown"` | Read from the page's wording; unknown when it says none of these |
+| `bookings[].details` | object[] | Label and value pairs shown beside the booking, in page order |
+| `bookings[].details[].label` | string |  |
+| `bookings[].details[].value` | string |  |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-bookings
@@ -480,7 +558,7 @@ Args:
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
-Returns: { child, files: [{ name, url, type: "file" | "link", category? }] }.
+Returns: { child: { id, firstName }, files: [{ id, name, url, kind: "file" | "link", category }] }.
 
 Use when: "finns det något dokument från skolan om …", "länken till fritids".
 
@@ -488,6 +566,22 @@ Use when: "finns det något dokument från skolan om …", "länken till fritids
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
 | `--fresh` | no | Skip the short-lived in-memory copy and read from SchoolSoft now. Use only when the user asks for the very latest. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `files` | object[] |  |
+| `files[].id` | string | Stable id of this file or link |
+| `files[].name` | string |  |
+| `files[].url` | string (uri) or null | Absolute http(s) link; file links need the portal session. null when the portal's link is not http(s) |
+| `files[].kind` | `"file"` \| `"link"` | A document stored in the portal, or a link elsewhere |
+| `files[].category` | string or null | Heading the portal lists it under; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-files
@@ -504,13 +598,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's grades.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-grades
@@ -527,13 +640,30 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, documents: [{ id, title, createdBy, date, archived, link }] }.
 
 Use when: the user asks about the child's documents.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `documents` | object[] |  |
+| `documents[].id` | string | Stable id of this document |
+| `documents[].title` | string |  |
+| `documents[].createdBy` | string or null | Who created it; null when not given |
+| `documents[].date` | string (date) | Calendar date YYYY-MM-DD in Europe/Stockholm |
+| `documents[].archived` | boolean |  |
+| `documents[].link` | string | The document's page in the portal; it needs the web login |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-student-documents
@@ -550,13 +680,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's absence.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-unreported-absence
@@ -573,13 +722,32 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: the user asks about the child's attendance.
 
 | Flag | Required | Description |
 |---|---|---|
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-attendance-report
@@ -594,11 +762,13 @@ GDPR-gated at SchoolSoft: needs a WEB login session (run "schoolsoft-agent login
 or the login tool with web: true, once) and the headless browser. Read only.
 
 Args:
-  - subject (string): subject name as listed by get_subject_rooms ("Matematik"; "matte" also matches).
+  - subject (string): subject name as listed by get_subject_rooms ("Matematik"). Case and
+    accents do not matter; the start or part of a name matches ("idrott"), and a few everyday
+    names do too ("matte", "eng", "no", "so").
   - school_type (number, optional): SchoolSoft school type code, default 7 (grundskola).
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows }] } }.
+Returns: { child: { id, firstName }, page: { title, message, sections: [{ heading, headers, rows: [{ cells, link }] }] } }.
 
 Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska".
 
@@ -607,6 +777,25 @@ Use when: "hur ligger Ella till i matte", "vilka kunskapskrav gäller i engelska
 | `--subject <value>` | yes | Subject name, e.g. Matematik |
 | `--school-type <number>` | no | SchoolSoft school type code, default 7 |
 | `--child-id <number>` | no | Child's student id from list_children. Defaults to the child currently in focus. |
+
+Output (validated; a response that does not fit is a `response_drift` error, exit 7):
+
+| Field | Type | Description |
+|---|---|---|
+| `child` | object | The child the result is for |
+| `child.id` | integer | Child id; pass it as child_id |
+| `child.firstName` | string |  |
+| `page` | object | A page of tables as the portal shows it; cell meanings are the page's own |
+| `page.title` | string |  |
+| `page.message` | string or null | Notice shown instead of, or above, the tables; null when not given |
+| `page.sections` | object[] |  |
+| `page.sections[].heading` | string or null | Heading above the table; null when not given |
+| `page.sections[].headers` | string[] | Column headings, as the page words them |
+| `page.sections[].rows` | object[] |  |
+| `page.sections[].rows[].cells` | string[] | Cell texts, one per column |
+| `page.sections[].rows[].link` | string or null | The row's link; null when not given |
+
+`--format text` prints a view of this result for people instead of JSON.
 
 ```bash
 schoolsoft-agent get-assessment-criteria --subject "Rösjöskolan"

@@ -125,7 +125,23 @@ test("every operation that declares an output schema is validated by runOperatio
   const typed = operations.filter((op) => op.output);
   assert.deepEqual(
     typed.map((op) => op.name),
-    ["list_children", "get_schedule", "get_calendar", "get_lunch_menu", "get_messages"],
+    [
+      "list_children",
+      "get_schedule",
+      "get_calendar",
+      "get_lunch_menu",
+      "get_assignments",
+      "get_news",
+      "get_messages",
+      "get_subject_rooms",
+      "get_bookings",
+      "get_files",
+      "get_grades",
+      "get_student_documents",
+      "get_unreported_absence",
+      "get_attendance_report",
+      "get_assessment_criteria",
+    ],
   );
   const ctx = {} as OperationContext;
   for (const op of typed) {

@@ -27,7 +27,9 @@ import {
  * with the reason. Reported as skipped. The registry test requires every other
  * verifiable operation to accept `{}`.
  */
-export const VERIFY_EXCLUSIONS: Readonly<Record<string, string>> = {};
+export const VERIFY_EXCLUSIONS: Readonly<Record<string, string>> = {
+  get_assessment_criteria: "needs a subject name, which the check cannot choose for the user",
+};
 
 export type VerifyStatus = "ok" | "drift" | "skipped" | "error";
 export type VerifySkipReason =

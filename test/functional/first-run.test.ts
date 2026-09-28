@@ -132,7 +132,7 @@ test("bare, on a terminal with nothing configured: the whole guide, from a name 
     "Never type BankID codes or passwords here.",
     "Logged in as Test Testsson.",
     "Step 4 of 5: Check that it works",
-    "Everything works: 5 of 5 checks passed.",
+    "Everything works: 8 of 8 checks passed.",
     "Found 2 children on your account.",
     "Step 5 of 5: This week's schedule",
     "Mon 2026-08-31",
@@ -204,7 +204,7 @@ test("setup --query on a terminal: no prompt, best match, JSON result on stdout"
     configDir: g.configDir,
     stateDir: g.stateDir,
     children: 2,
-    check: { ok: 5, drift: 0, skipped: 0, error: 0 },
+    check: { ok: 8, drift: 0, skipped: 7, error: 0 },
   });
   // --pretty applies; --format text leaves stdout empty (the guide is the text)
   const pretty = await g.run("--pretty", "setup", "--query", "testskolan");
@@ -320,12 +320,14 @@ test("a check that drifts: two lines, check_failed on stdout, exit 7, no schedul
   const r = await g.run("setup", "--query", "testskolan");
   assert.equal(r.code, EXIT.UPSTREAM);
   const lines = r.err.split("\n");
-  assert.equal(lines.at(-2), "Something does not work yet: 1 of 5 checks did not pass.");
+  assert.equal(lines.at(-2), "Something does not work yet: 1 of 8 checks did not pass.");
   assert.match(lines.at(-1)!, /^Next: run schoolsoft-agent doctor --verify for details/);
   assert.doesNotMatch(r.err, /Step 5 of 5/);
   const data = JSON.parse(r.out);
   assert.equal(data.status, "check_failed");
-  assert.deepEqual(data.check, { ok: 4, drift: 1, skipped: 0, error: 0 });
+  // skipped, not failed: bookings and files (no browser here), the gated pages (no web login)
+  // and the criteria (they need a subject)
+  assert.deepEqual(data.check, { ok: 7, drift: 1, skipped: 7, error: 0 });
 
   // an error that is not drift exits by its kind (network: 4)
   const down = harness({
@@ -436,7 +438,7 @@ test("Swedish: every line of the guide in Swedish, from the locale or SCHOOLSOFT
       "Välkommen till schoolsoft-agent.",
       "Steg 1 av 5: Hitta skolan",
       "Steg 3 av 5: Logga in med BankID",
-      "Allt fungerar: 5 av 5 kontroller gick bra.",
+      "Allt fungerar: 8 av 8 kontroller gick bra.",
       "Hittade 2 barn på ditt konto.",
       "mån 2026-08-31",
       "Klart. schoolsoft-agent är redo.",

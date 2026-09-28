@@ -21,6 +21,13 @@ import {
 } from "../../src/providers/schoolsoft/portal/extractors.js";
 import { inspectPage } from "../../src/core/portal/inspect.js";
 import { PAGES } from "../../src/providers/schoolsoft/portal/pages.js";
+import { toBookings } from "../../src/providers/schoolsoft/portal/domain/bookings.js";
+import { toSharedFiles } from "../../src/providers/schoolsoft/portal/domain/files.js";
+import {
+  toStudentDocuments,
+  toTablePage,
+} from "../../src/providers/schoolsoft/portal/domain/tables.js";
+import { TablePageSchema } from "../../src/core/domain/schemas.js";
 
 const fixtures = join(process.cwd(), "test", "fixtures", "jsp");
 const status = await browserStatus({ kind: "chromium" });
@@ -134,39 +141,63 @@ test(
   },
 );
 
-test("bookings extractor: title, date, description, status words", { skip }, async () => {
-  const s = session();
-  try {
-    const b = await s.withPage(async (p) => {
-      await p.goto("/right_student_timebooking.jsp.html");
-      return p.evaluate(extractBookings);
-    });
-    assert.equal(b.length, 2);
-    assert.equal(b[0].title, "Utvecklingssamtal höstterminen");
-    assert.equal(b[0].slots[0].start, "2026-10-01 15:00 - 15:30");
-    assert.equal(b[0].slots[0].status, "booked");
-    assert.match(b[0].description ?? "", /^Välkommen/);
-    assert.equal(b[1].slots[0].status, "available");
-  } finally {
-    await s.close();
-  }
-});
+test(
+  "bookings extractor: title, time text, description, label/value details",
+  { skip },
+  async () => {
+    const s = session();
+    try {
+      const b = await s.withPage(async (p) => {
+        await p.goto("/right_student_timebooking.jsp.html");
+        return p.evaluate(extractBookings);
+      });
+      assert.equal(b.length, 2);
+      assert.equal(b[0].title, "Utvecklingssamtal höstterminen");
+      assert.equal(b[0].when, "2026-10-01 15:00 - 15:30");
+      assert.deepEqual(b[0].details, [{ label: "Status", value: "Bokad" }]);
+      assert.match(b[0].description ?? "", /^Välkommen/);
+      assert.equal(b[1].when, "2026-11-12 18:00");
+      assert.equal(b[1].description, undefined);
+      // The provider parses these texts into Bookings; the whole page must map.
+      assert.deepEqual(
+        toBookings(b).map((x) => [x.start, x.end, x.status]),
+        [
+          ["2026-10-01T15:00:00+02:00", "2026-10-01T15:30:00+02:00", "booked"],
+          ["2026-11-12T18:00:00+01:00", null, "available"],
+        ],
+      );
+    } finally {
+      await s.close();
+    }
+  },
+);
 
 test("files extractor: categories from headings, file vs link", { skip }, async () => {
   const s = session();
   try {
-    const f = await s.withPage(async (p) => {
+    const { f, served } = await s.withPage(async (p) => {
       await p.goto("/right_student_library.jsp.html");
-      return p.evaluate(extractFiles);
+      return { f: await p.evaluate(extractFiles), served: p.url() };
     });
+    // The fixture is served from file://; on the portal the page is https, as here.
+    const base = "https://sms.schoolsoft.se/taby/jsp/student/right_student_library.jsp";
+    const files = toSharedFiles(f, base);
     assert.deepEqual(
-      f.map((x) => [x.name, x.type, x.category]),
+      files.map((x) => [x.name, x.kind, x.category]),
       [
         ["Veckobrev v37", "file", "Skolan"],
         ["Fritids hemsida", "link", "Skolan"],
         ["Lovdagar 2026", "file", "Kommunen"],
       ],
     );
+    // the relative download link resolves against the page it was on
+    assert.equal(
+      files[0].url,
+      "https://sms.schoolsoft.se/taby/jsp/student/right_student_file_download.jsp?requestid1=1&object=library&fileid=2",
+    );
+    // resolved against a file:// page, the relative link is not http(s): no url
+    assert.equal(toSharedFiles(f, served)[0].url, null);
+    assert.equal(files[1].url, "https://example.test/fritids");
   } finally {
     await s.close();
   }
@@ -193,6 +224,14 @@ test(
         url: "right_student_review.jsp?action=view&archive=1&requestid=11",
       });
       assert.equal(docs.sections[0].rows.length, 2);
+      // The provider maps the whole page to documents: ids, dates and the archive flag.
+      assert.deepEqual(
+        toStudentDocuments(docs).map((d) => [d.id, d.title, d.date, d.archived]),
+        [
+          ["document:11", "IUP höstterminen", "2026-01-10", true],
+          ["document:12", "Omdöme", "2025-06-01", true],
+        ],
+      );
       const att = await load("right_student_absence_student.jsp.html");
       assert.equal(att.sections.length, 1, "the filter form's table is ignored");
       assert.deepEqual(att.sections[0].headers, ["Orsak", "Lektioner", "Timmar"]);
@@ -214,6 +253,8 @@ test(
       const grades = await load("right_student_gradesubject.jsp.html");
       assert.equal(grades.title, "Betyg");
       assert.deepEqual(grades.sections, [], "session-warning table under #top-box is not content");
+      for (const page of [att, msg, crit, grades])
+        assert.ok(TablePageSchema.safeParse(toTablePage(page, "getGrades")).success);
     } finally {
       await s.close();
     }

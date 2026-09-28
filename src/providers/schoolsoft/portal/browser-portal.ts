@@ -8,17 +8,25 @@ import type { BrowserSession, PortalPage } from "../../../core/browser/session.j
 import type { BrowserPortalPart } from "../../../core/portal/composite.js";
 import {
   WebLoginRequiredError,
-  type Booking,
+  type Capability,
   type ContactGroup,
-  type PortalFile,
-  type TablePage,
 } from "../../../core/portal/types.js";
+import type {
+  Booking,
+  SharedFile,
+  StudentDocument,
+  TablePage,
+} from "../../../core/domain/schemas.js";
+import { toStudentDocuments, toTablePage } from "./domain/tables.js";
+import { toBookings } from "./domain/bookings.js";
+import { toSharedFiles } from "./domain/files.js";
 import {
   extractBookings,
   extractContacts,
   extractFiles,
   extractSubjectLinks,
   extractTablePage,
+  type PageTable,
 } from "./extractors.js";
 import type { PageSpec } from "../../../core/portal/page-spec.js";
 import { PAGES } from "./pages.js";
@@ -34,13 +42,46 @@ export interface BrowserPortalOptions {
   syncWebChild?: () => Promise<void>;
 }
 
-/** Case- and diacritic-insensitive subject name match ("matte" finds "Matematik"). */
+/** A subject name for matching: case- and diacritic-insensitive, trimmed. */
 export function normalizeSubject(s: string): string {
   return s
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+/** Everyday names for subjects, normalized, to the start of the portal's name. */
+export const SUBJECT_ALIASES: Readonly<Record<string, string>> = {
+  matte: "matematik",
+  eng: "engelska",
+  idrott: "idrott och halsa",
+  no: "naturorienterande",
+  so: "samhallsorienterande",
+};
+
+/**
+ * The menu entry a name means: the name exactly as the portal has it, else,
+ * for the alias and then the name, a name that equals it, starts with it, or
+ * contains it ("matte" finds "Matematik", "idrott" finds "Idrott och hälsa").
+ */
+export function matchSubject<T extends { subject: string }>(
+  links: readonly T[],
+  subject: string,
+): T | undefined {
+  const given = normalizeSubject(subject);
+  const terms = Object.hasOwn(SUBJECT_ALIASES, given) ? [SUBJECT_ALIASES[given], given] : [given];
+  const names = links.map((l) => normalizeSubject(l.subject));
+  const rules = [
+    (n: string, t: string) => n === t,
+    (n: string, t: string) => n.startsWith(t),
+    (n: string, t: string) => n.includes(t),
+  ];
+  const at = [
+    names.indexOf(given),
+    ...rules.flatMap((rule) => terms.map((t) => names.findIndex((n) => rule(n, t)))),
+  ].find((i) => i !== -1);
+  return at === undefined ? undefined : links[at];
 }
 
 export class BrowserPortal implements BrowserPortalPart {
@@ -60,7 +101,8 @@ export class BrowserPortal implements BrowserPortalPart {
     return this.o.session.withPage(run, { web: spec.web });
   }
 
-  private table(capability: string, spec: PageSpec, query = ""): Promise<TablePage> {
+  /** A gated page of tables, as the extractor lifted it (mapped by the caller). */
+  private table(capability: Capability, spec: PageSpec, query = ""): Promise<PageTable> {
     return this.visit(capability, spec, async (page) => {
       await page.goto(spec.path + query);
       return page.evaluate(extractTablePage);
@@ -74,31 +116,41 @@ export class BrowserPortal implements BrowserPortalPart {
     });
   }
 
-  getBookings(): Promise<Booking[]> {
-    return this.visit("getBookings", PAGES.bookings, async (page) => {
+  /** The page's texts, parsed outside the page; text that does not parse is drift. */
+  async getBookings(): Promise<Booking[]> {
+    const texts = await this.visit("getBookings", PAGES.bookings, async (page) => {
       await page.goto(PAGES.bookings.path);
       return page.evaluate(extractBookings);
     });
+    return toBookings(texts);
   }
 
-  getFiles(): Promise<PortalFile[]> {
-    return this.visit("getFiles", PAGES.files, async (page) => {
+  async getFiles(): Promise<SharedFile[]> {
+    // Relative links resolve against the page they were on.
+    const { links, base } = await this.visit("getFiles", PAGES.files, async (page) => {
       await page.goto(PAGES.files.path);
-      return page.evaluate(extractFiles);
+      return { links: await page.evaluate(extractFiles), base: page.url() };
     });
+    return toSharedFiles(links, base);
   }
 
-  getGrades(): Promise<TablePage> {
-    return this.table("getGrades", PAGES.grades);
+  async getGrades(): Promise<TablePage> {
+    return toTablePage(await this.table("getGrades", PAGES.grades), "getGrades");
   }
-  getStudentDocuments(): Promise<TablePage> {
-    return this.table("getStudentDocuments", PAGES.documents);
+  async getStudentDocuments(): Promise<StudentDocument[]> {
+    return toStudentDocuments(await this.table("getStudentDocuments", PAGES.documents));
   }
-  getUnreportedAbsence(): Promise<TablePage> {
-    return this.table("getUnreportedAbsence", PAGES.unreportedAbsence);
+  async getUnreportedAbsence(): Promise<TablePage> {
+    return toTablePage(
+      await this.table("getUnreportedAbsence", PAGES.unreportedAbsence),
+      "getUnreportedAbsence",
+    );
   }
-  getAttendanceReport(): Promise<TablePage> {
-    return this.table("getAttendanceReport", PAGES.attendanceReport);
+  async getAttendanceReport(): Promise<TablePage> {
+    return toTablePage(
+      await this.table("getAttendanceReport", PAGES.attendanceReport),
+      "getAttendanceReport",
+    );
   }
 
   /**
@@ -108,16 +160,13 @@ export class BrowserPortal implements BrowserPortalPart {
    */
   async getAssessmentCriteria(subject: string, schoolType = 7): Promise<TablePage> {
     const spec = PAGES.assessmentCriteria;
-    const wanted = normalizeSubject(subject);
     // The JSP subject menu only renders under the app session (the web
     // session shows SchoolSoft's React sidebar), so resolve the id there.
     const links = await this.visit("getAssessmentCriteria", PAGES.subjects, async (page) => {
       await page.goto(PAGES.subjects.path);
       return page.evaluate(extractSubjectLinks);
     });
-    const hit =
-      links.find((l) => normalizeSubject(l.subject) === wanted) ??
-      links.find((l) => normalizeSubject(l.subject).includes(wanted));
+    const hit = matchSubject(links, subject);
     if (links.length === 0) throw new AgentError({ kind: "upstream", key: "subject_menu_empty" });
     if (!hit || hit.subjectId === null) {
       throw new AgentError({
@@ -132,6 +181,6 @@ export class BrowserPortal implements BrowserPortalPart {
       spec,
       `?subject=${hit.subjectId}&schooltype=${schoolType}`,
     );
-    return { ...table, title: table.title || hit.subject };
+    return toTablePage({ ...table, title: table.title || hit.subject }, "getAssessmentCriteria");
   }
 }

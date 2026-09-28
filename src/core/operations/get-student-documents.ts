@@ -1,5 +1,7 @@
+import { z } from "zod";
 import { defineOperation, READ_ONLY } from "./types.js";
 import { ChildSchema, withChild } from "./_shared.js";
+import { ChildRefSchema, StudentDocumentSchema } from "../domain/schemas.js";
 
 export const getStudentDocuments = defineOperation({
   name: "get_student_documents",
@@ -13,15 +15,16 @@ or the login tool with web: true, once) and the headless browser
 Args:
   - child_id (number, optional): from list_children.
 
-Returns: { child, page: { title, message?, sections: [{ heading?, headers, rows: [{ cells, url? }] }] } }.
+Returns: { child: { id, firstName }, documents: [{ id, title, createdBy, date, archived, link }] }.
 
 Use when: the user asks about the child's documents.`,
   input: { child_id: ChildSchema },
+  output: z.object({ child: ChildRefSchema, documents: z.array(StudentDocumentSchema) }),
   portal: ["getStudentDocuments"],
   annotations: READ_ONLY,
   async run(ctx, { child_id }) {
-    const { childSummary } = await withChild(ctx, child_id);
-    const page = await ctx.portal.getStudentDocuments();
-    return { child: childSummary, page };
+    const { childRef } = await withChild(ctx, child_id);
+    const documents = await ctx.portal.getStudentDocuments();
+    return { child: childRef, documents };
   },
 });

@@ -59,6 +59,8 @@ export {
 } from "./wiring.js";
 export { runOperation } from "./operations/run.js";
 export type {
+  Assignment,
+  Booking,
   CalendarEvent,
   Child,
   ChildRef,
@@ -66,6 +68,12 @@ export type {
   Lesson,
   LunchDay,
   Message,
+  NewsItem,
+  SharedFile,
+  StudentDocument,
+  SubjectRoom,
+  TablePage,
+  TableSection,
 } from "./domain/schemas.js";
 export {
   CalendarEventSchema,
@@ -228,12 +236,7 @@ export type {
   GuardianChildSchool,
   ContactGroup,
   ContactPerson,
-  SubjectRoom,
   ActivityEntry,
-  Booking,
-  PortalFile,
-  TablePage,
-  TableSection,
   AbsenceNotice,
   AbsenceReceipt,
 } from "./portal/types.js";

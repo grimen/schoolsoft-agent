@@ -47,10 +47,11 @@ function wired(o: { empty?: boolean; intercept?: (pathname: string) => Fetch | u
   if (!o.empty) store.save(savedSession(now));
   const fetchImpl: typeof sim.fetch = async (url, school, request) =>
     (await o.intercept?.(new URL(url).pathname)) ?? sim.fetch(url, school, request);
-  const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], {
-    home: "/unused",
-    platform: "linux",
-  });
+  // The most the budget allows, so the stand-in's answers are not paced out over seconds.
+  const config = resolveConfig(
+    [{ school: "taby", configDir: "/nowhere", requestsPerMinute: 60, requestBurst: 20 }],
+    { home: "/unused", platform: "linux" },
+  );
   const manager = createSessionManager(config, {
     store,
     history: new MemorySessionHistoryStore(),
@@ -130,6 +131,14 @@ const FIXTURE_VALUES = [
   "Ta med matsäck",
   "Veckobrev",
   "Veckans händelser",
+  "Läxa kapitel 3",
+  "Bråk och decimaltal",
+  "Glosförhör",
+  "Studiedag fredag",
+  "Fotografering",
+  "Engelska",
+  "Mentor",
+  "Assistent",
   "100",
   "101",
   "5001",
@@ -139,7 +148,30 @@ const FIXTURE_VALUES = [
   "2026-",
 ];
 
-test("doctor --verify: all five typed reads parse, exit 0, JSON report", async () => {
+/** The typed reads, in registry order, that run here: no browser and no web login. */
+const API_TYPED = [
+  "list_children",
+  "get_schedule",
+  "get_calendar",
+  "get_lunch_menu",
+  "get_assignments",
+  "get_news",
+  "get_messages",
+  "get_subject_rooms",
+];
+
+/** Skipped here, in registry order: the browser-served reads, the gated pages, and the criteria (they need a subject). */
+const SKIPPED = [
+  ["get_bookings", "browser_not_installed"],
+  ["get_files", "browser_not_installed"],
+  ["get_grades", "web_session_required"],
+  ["get_student_documents", "web_session_required"],
+  ["get_unreported_absence", "web_session_required"],
+  ["get_attendance_report", "web_session_required"],
+  ["get_assessment_criteria", "excluded"],
+];
+
+test("doctor --verify: every typed read parses, exit 0, JSON report", async () => {
   const { ctx } = wired();
   const r = await cli(ctx, "doctor", "--verify");
   assert.equal(r.code, EXIT.OK, r.err);
@@ -148,10 +180,16 @@ test("doctor --verify: all five typed reads parse, exit 0, JSON report", async (
   assert.equal(data.ok, true);
   assert.equal(data.session, "ok");
   assert.deepEqual(data.children, { total: 2, verified: [1] });
-  assert.deepEqual(data.summary, { ok: 5, drift: 0, skipped: 0, error: 0 });
+  assert.deepEqual(data.summary, { ok: 8, drift: 0, skipped: 7, error: 0 });
   assert.deepEqual(
     data.results.map((x) => x.operation),
-    ["list_children", "get_schedule", "get_calendar", "get_lunch_menu", "get_messages"],
+    [...API_TYPED, ...SKIPPED.map(([operation]) => operation)],
+  );
+  assert.deepEqual(
+    data.results
+      .filter((x) => x.status === "skipped")
+      .map((x) => [x.operation, x.status === "skipped" && x.reason]),
+    SKIPPED,
   );
   for (const value of FIXTURE_VALUES) assert.ok(!r.out.includes(value), value);
 });
@@ -166,7 +204,7 @@ test("doctor --verify: a renamed field is drift with path and code, no value in 
   assert.equal(r.err, "");
   const data = report(r.out);
   assert.equal(data.ok, false);
-  assert.deepEqual(data.summary, { ok: 4, drift: 1, skipped: 0, error: 0 });
+  assert.deepEqual(data.summary, { ok: 7, drift: 1, skipped: 7, error: 0 });
   const drift = data.results.find((x) => x.status === "drift")!;
   assert.equal(drift.operation, "get_schedule");
   assert.equal(drift.child, 1);
@@ -185,15 +223,18 @@ test("doctor --verify: an upstream 5xx is an error, not drift", async () => {
   const r = await cli(ctx, "doctor", "--verify");
   assert.equal(r.code, EXIT.UPSTREAM);
   const data = report(r.out);
-  assert.deepEqual(data.results.at(-1), {
-    operation: "get_messages",
-    child: 1,
-    status: "error",
-    kind: "upstream",
-    code: "upstream",
-    retryable: true,
-    httpStatus: 503,
-  });
+  assert.deepEqual(
+    data.results.find((x) => x.operation === "get_messages"),
+    {
+      operation: "get_messages",
+      child: 1,
+      status: "error",
+      kind: "upstream",
+      code: "upstream",
+      retryable: true,
+      httpStatus: 503,
+    },
+  );
   assert.equal(data.summary.drift, 0);
   assert.doesNotMatch(r.out, /Ett|inbox is down|messages\/inbox/);
 });
@@ -227,10 +268,10 @@ test("doctor --verify --all-children: every child by position, focus restored, n
   assert.equal(r.code, EXIT.OK, r.err);
   const data = report(r.out);
   assert.deepEqual(data.children, { total: 2, verified: [1, 2] });
-  assert.equal(data.summary.ok, 9);
+  assert.equal(data.summary.ok, 15);
   assert.deepEqual(
     data.results.filter((x) => x.child === 2).map((x) => x.operation),
-    ["get_schedule", "get_calendar", "get_lunch_menu", "get_messages"],
+    API_TYPED.slice(1).concat(SKIPPED.map(([operation]) => operation)),
   );
   // one lessons read per child; the first child is back in focus afterwards
   assert.equal(sim.requests.filter((x) => /lessons\/week/.test(x)).length, 2);

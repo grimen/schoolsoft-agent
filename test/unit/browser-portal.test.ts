@@ -10,6 +10,8 @@ import assert from "node:assert/strict";
 import {
   BrowserPortal,
   PAGES,
+  SUBJECT_ALIASES,
+  matchSubject,
   normalizeSubject,
 } from "../../src/providers/schoolsoft/portal/browser-portal.js";
 import { PAGE_KEYS } from "../../src/providers/schoolsoft/portal/pages.js";
@@ -19,6 +21,7 @@ import type {
   WithPageOptions,
 } from "../../src/core/browser/session.js";
 import { WebLoginRequiredError } from "../../src/core/portal/types.js";
+import { textHash } from "../../src/providers/schoolsoft/portal/domain/parse.js";
 
 function fakeSession(evaluateResults: Record<string, unknown>) {
   const visited: string[] = [];
@@ -59,13 +62,32 @@ test("every page spec has a path under the tenant and at least one anchor", () =
 test("contacts, bookings and files visit their page with the app session and run the extractor read-only", async () => {
   const { session, visited, options } = fakeSession({
     extractContacts: [{ title: "Elever", people: [] }],
-    extractBookings: [{ title: "Utvecklingssamtal", slots: [] }],
-    extractFiles: [{ name: "Veckobrev", url: "x", type: "file" }],
+    extractBookings: [{ title: "Utvecklingssamtal", when: "2026-10-01", details: [] }],
+    extractFiles: [{ name: "Veckobrev", url: "x.pdf" }],
   });
   const portal = new BrowserPortal({ session });
   assert.deepEqual(await portal.getContacts(), [{ title: "Elever", people: [] }]);
-  assert.deepEqual(await portal.getBookings(), [{ title: "Utvecklingssamtal", slots: [] }]);
-  assert.deepEqual(await portal.getFiles(), [{ name: "Veckobrev", url: "x", type: "file" }]);
+  // the page's texts are mapped to the domain outside the page
+  assert.deepEqual(await portal.getBookings(), [
+    {
+      id: "booking:2026-10-01#" + textHash("Utvecklingssamtal"),
+      title: "Utvecklingssamtal",
+      description: null,
+      start: "2026-10-01",
+      end: null,
+      status: "unknown",
+      details: [],
+    },
+  ]);
+  assert.deepEqual(await portal.getFiles(), [
+    {
+      id: "file:" + textHash("https://sms.schoolsoft.se/taby/jsp/student/x.pdf"),
+      name: "Veckobrev",
+      url: "https://sms.schoolsoft.se/taby/jsp/student/x.pdf",
+      kind: "file",
+      category: null,
+    },
+  ]);
   assert.deepEqual(visited, [PAGES.contacts.path, PAGES.bookings.path, PAGES.files.path]);
   for (const o of options) {
     assert.equal(o.allowWrites, undefined, "never allows writes");
@@ -76,6 +98,7 @@ test("contacts, bookings and files visit their page with the app session and run
 test("gated pages refuse without a web session and never navigate; with one they sync the child, use web cookies and run the table extractor", async () => {
   const page = { title: "Elevdokument", sections: [] };
   const { session, visited, options } = fakeSession({ extractTablePage: page });
+  const mapped = { title: "Elevdokument", message: null, sections: [] };
   const noWeb = new BrowserPortal({ session, hasWebSession: () => false });
   await assert.rejects(noWeb.getGrades(), WebLoginRequiredError);
   await assert.rejects(noWeb.getAttendanceReport(), /web login session/);
@@ -88,8 +111,8 @@ test("gated pages refuse without a web session and never navigate; with one they
       order.push("sync:" + visited.length);
     },
   });
-  assert.deepEqual(await withWeb.getStudentDocuments(), page);
-  await withWeb.getGrades();
+  assert.deepEqual(await withWeb.getStudentDocuments(), [], "no tables, no documents");
+  assert.deepEqual(await withWeb.getGrades(), mapped);
   await withWeb.getUnreportedAbsence();
   await withWeb.getAttendanceReport();
   assert.deepEqual(visited, [
@@ -147,6 +170,32 @@ test("assessment criteria resolves the subject by name from the menu, then loads
   );
   assert.equal(visited.length, 7, "unknown subject: menu read, gated page never loaded");
   assert.equal(normalizeSubject("  Svenska som Andraspråk "), "svenska som andrasprak");
+});
+
+test("subject names: exact first, then the start of a name, then any part; everyday aliases", () => {
+  const menu = [
+    { subject: "Bild" },
+    { subject: "Matematik" },
+    { subject: "Idrott och hälsa" },
+    { subject: "Engelska" },
+    { subject: "Moderna språk, spanska" },
+    { subject: "NO" },
+    { subject: "Svenska" },
+    { subject: "Svenska som andraspråk" },
+  ];
+  const name = (s: string) => matchSubject(menu, s)?.subject;
+  assert.equal(name("matte"), "Matematik", "alias");
+  assert.equal(name(" MATTE "), "Matematik", "alias, any case");
+  assert.equal(name("matem"), "Matematik", "start of a name");
+  assert.equal(name("idrott"), "Idrott och hälsa");
+  assert.equal(name("halsa"), "Idrott och hälsa", "part of a name, without accents");
+  assert.equal(name("eng"), "Engelska");
+  assert.equal(name("spanska"), "Moderna språk, spanska");
+  assert.equal(name("no"), "NO", "an exact name beats its alias");
+  assert.equal(name("svenska"), "Svenska", "exact beats a longer name that starts with it");
+  assert.equal(name("andra"), "Svenska som andraspråk");
+  assert.equal(name("kemi"), undefined);
+  assert.equal(SUBJECT_ALIASES.matte, "matematik");
 });
 
 test("criteria with an empty subject menu says so; the example-query resolver rejects an empty menu", async () => {

@@ -7,15 +7,23 @@ import type {
   AbsenceNotice,
   AbsenceReceipt,
   ActivityEntry,
-  Booking,
   ContactGroup,
   GuardianParent,
   Portal,
-  PortalFile,
+} from "../../src/core/index.js";
+import type {
+  Assignment,
+  Booking,
+  CalendarEvent,
+  Lesson,
+  LunchDay,
+  Message,
+  NewsItem,
+  SharedFile,
+  StudentDocument,
   SubjectRoom,
   TablePage,
-} from "../../src/core/index.js";
-import type { CalendarEvent, Lesson, LunchDay, Message } from "../../src/core/domain/schemas.js";
+} from "../../src/core/domain/schemas.js";
 
 /** A domain lesson whose title is the read's marker. */
 export function markedLesson(title: string): Lesson {
@@ -53,7 +61,7 @@ export class CountingPortal implements Portal {
     return `child ${child} ${name} #${n}`;
   }
   private async page(name: string, args: unknown[]): Promise<TablePage> {
-    return { title: await this.read(name, args), sections: [] };
+    return { title: await this.read(name, args), message: null, sections: [] };
   }
 
   async getParent(): Promise<GuardianParent> {
@@ -63,8 +71,21 @@ export class CountingPortal implements Portal {
     const description = await this.read("getLunchWeek", [orgId, week, year]);
     return [{ date: "2026-09-07", weekday: 1, dishes: [{ kind: null, description }] }];
   }
-  async getNews(userId: number, orgId: number, studentId: number): Promise<unknown[]> {
-    return [await this.read("getNews", [userId, orgId, studentId])];
+  async getNews(userId: number, orgId: number, studentId: number): Promise<NewsItem[]> {
+    const title = await this.read("getNews", [userId, orgId, studentId]);
+    return [
+      {
+        id: `news:${title}`,
+        title,
+        body: null,
+        category: null,
+        author: null,
+        read: false,
+        hasAttachments: false,
+        publishedAt: "2026-09-07T08:30:00+02:00",
+        visibleUntil: null,
+      },
+    ];
   }
   async getInbox(userId: number, orgId: number): Promise<Message[]> {
     const subject = await this.read("getInbox", [userId, orgId]);
@@ -110,8 +131,20 @@ export class CountingPortal implements Portal {
       },
     ];
   }
-  async getAssignmentsWeek(week: number, year: number): Promise<unknown[]> {
-    return [await this.read("getAssignmentsWeek", [week, year])];
+  async getAssignmentsWeek(week: number, year: number): Promise<Assignment[]> {
+    const title = await this.read("getAssignmentsWeek", [week, year]);
+    return [
+      {
+        id: 1,
+        title,
+        subtitle: null,
+        subjectRoomId: "subject-room:1",
+        date: "2026-09-07",
+        read: false,
+        submissionStatus: null,
+        resultStatus: null,
+      },
+    ];
   }
   async getAssignmentDetail(id: number): Promise<{ view: unknown; sections: unknown }> {
     return { view: await this.read("getAssignmentDetail", [id]), sections: [] };
@@ -124,20 +157,42 @@ export class CountingPortal implements Portal {
     return [{ title: await this.read("getContacts", []), people: [] }];
   }
   async getSubjectRooms(): Promise<SubjectRoom[]> {
-    const subject = await this.read("getSubjectRooms", []);
-    return [{ subject, subjectId: 1, groups: [], teachers: [] }];
+    const name = await this.read("getSubjectRooms", []);
+    return [{ id: "subject-room:1", name, groups: [], teachers: [] }];
   }
   async getBookings(): Promise<Booking[]> {
-    return [{ title: await this.read("getBookings", []), slots: [] }];
+    const title = await this.read("getBookings", []);
+    return [
+      {
+        id: `booking:${title}`,
+        title,
+        description: null,
+        start: "2026-10-01",
+        end: null,
+        status: "unknown",
+        details: [],
+      },
+    ];
   }
-  async getFiles(): Promise<PortalFile[]> {
-    return [{ name: await this.read("getFiles", []), url: "https://example.test/f", type: "file" }];
+  async getFiles(): Promise<SharedFile[]> {
+    const name = await this.read("getFiles", []);
+    return [{ id: "file:1", name, url: "https://example.test/f", kind: "file", category: null }];
   }
   getGrades(): Promise<TablePage> {
     return this.page("getGrades", []);
   }
-  getStudentDocuments(): Promise<TablePage> {
-    return this.page("getStudentDocuments", []);
+  async getStudentDocuments(): Promise<StudentDocument[]> {
+    const title = await this.read("getStudentDocuments", []);
+    return [
+      {
+        id: "document:1",
+        title,
+        createdBy: null,
+        date: "2026-01-10",
+        archived: false,
+        link: "right_student_review.jsp?requestid=1",
+      },
+    ];
   }
   getUnreportedAbsence(): Promise<TablePage> {
     return this.page("getUnreportedAbsence", []);

@@ -53,7 +53,11 @@ test("lunch, assignments, assignment detail, news carry the child and pass ids t
   assert.deepEqual(lunch.days[0].dishes, [{ kind: "Lunch", description: "Spagetti" }]);
   assert.equal(lunch.days[0].date, isoWeekDate(lunch.year, 37, 5));
   const a = await run("get_assignments", ctx, { week: 37, year: 2026 });
-  assert.deepEqual(a.assignments, [{ id: 7, title: "Läxa" }]);
+  assert.deepEqual(a.child, { id: 100, firstName: "Ett" });
+  assert.deepEqual(
+    a.assignments.map((x: any) => [x.id, x.title]),
+    [[7, "Läxa"]],
+  );
   const d = await run("get_assignment_detail", ctx, { id: 7 });
   assert.equal(d.assignment.view.id, 7);
   const n = await run("get_news", ctx, { limit: 1 });
@@ -106,11 +110,11 @@ test("browser-backed and web-gated operations return the child plus the portal p
   const { ctx } = makeContext();
   await run("login", ctx);
   for (const [name, key] of [
-    ["get_subject_rooms", "subjects"],
+    ["get_subject_rooms", "rooms"],
     ["get_bookings", "bookings"],
     ["get_files", "files"],
     ["get_grades", "page"],
-    ["get_student_documents", "page"],
+    ["get_student_documents", "documents"],
     ["get_unreported_absence", "page"],
     ["get_attendance_report", "page"],
     ["get_grade_prognosis", "reconciliationDates"],
