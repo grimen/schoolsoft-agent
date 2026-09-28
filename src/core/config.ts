@@ -52,9 +52,9 @@ export interface Config {
   /** Operations that change data at the school portal may run. Off unless the user turns it on. */
   allowWrites: boolean;
   /**
-   * Other families' e-mail and phone in contact lists reach the assistant. Off unless
-   * the user turns it on: it sends other people's contact details to the AI provider
-   * (docs/planning/specs/2026-09-28-other-families-data.md).
+   * Other guardians' e-mail and phone in contact lists reach the assistant (never a
+   * pupil's). Off unless the user turns it on: it sends other people's contact details
+   * to the AI provider (docs/planning/specs/2026-09-28-other-families-data.md).
    */
   contactDetails: boolean;
   /** In-memory read cache (default on; never on disk). */

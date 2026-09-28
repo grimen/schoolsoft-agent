@@ -6,7 +6,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  GUARDIAN_WORDS,
+  PUPIL_WORDS,
   STAFF_GROUP_HEADINGS,
+  isGuardian,
   THIRD_PARTY_CAPABILITIES,
   isStaffGroup,
   redactActivityEntry,
@@ -82,26 +85,93 @@ test("contacts: a group with nothing to hide is not marked", () => {
   );
 });
 
-test("contacts: the opt-in reveals e-mail and phone, never anything else such as an address", () => {
+test("contacts: the opt-in reveals a guardian's e-mail and phone, never anything else such as an address", () => {
   const withExtra = [
     {
-      title: "Elever",
+      title: "Vårdnadshavare",
       people: [
-        { name: "Anna", role: "", email: "a@example.test", address: "Exempelgatan 1" },
-        { name: "Bo", role: "", phone: "070" },
+        { name: "Doris", role: "", email: "d@example.test", address: "Exempelgatan 1" },
+        { name: "Bo", role: "Förälder", phone: "070" },
       ],
     },
   ] as unknown as ContactGroup[];
   assert.deepEqual(redactContacts(withExtra, true), [
     {
-      title: "Elever",
+      title: "Vårdnadshavare",
       people: [
-        { name: "Anna", role: "", email: "a@example.test" },
-        { name: "Bo", role: "", phone: "070" },
+        { name: "Doris", role: "", email: "d@example.test" },
+        { name: "Bo", role: "Förälder", phone: "070" },
       ],
     },
   ]);
-  assert.deepEqual(redactContacts(withExtra, false)[0].people[0], { name: "Anna", role: "" });
+  assert.deepEqual(redactContacts(withExtra, false)[0].people[0], { name: "Doris", role: "" });
+});
+
+test("contacts: with the opt-in on, pupils and unknown roles stay hidden; guardians and staff show (R1)", () => {
+  const [pupils, guardians, staff, unknown] = redactContacts(CLASS_LIST, true);
+  // A pupil's own e-mail and phone never pass, whatever the setting.
+  assert.deepEqual(pupils, {
+    title: "Elever",
+    detailsHidden: true,
+    people: [
+      { name: "Anna Exempel", role: "" },
+      { name: "Bertil Exempel", role: "" },
+      { name: "Cecilia Exempel", role: "" },
+    ],
+  });
+  assert.deepEqual(guardians, CLASS_LIST[1]);
+  assert.deepEqual(staff, CLASS_LIST[2]);
+  // Neither heading nor role says guardian: withheld (fail closed).
+  assert.deepEqual(unknown, {
+    title: "Övriga",
+    detailsHidden: true,
+    people: [{ name: "Ernst Exempel", role: "" }],
+  });
+});
+
+test("contacts: the person's role decides before the heading; a mixed or unknown one withholds", () => {
+  const person = (role: string) => ({ name: "X", role, email: "x@example.test" });
+  const shown = (title: string, role: string) =>
+    redactContacts([{ title, people: [person(role)] }], true)[0].people[0].email !== undefined;
+  // Guardians, by role or by heading, in Swedish or English.
+  assert.equal(shown("Elever", "Vårdnadshavare till Anna"), true);
+  assert.equal(shown("Klass 4B", "Förälder"), true);
+  assert.equal(shown("Klass 4B", "målsman"), true);
+  assert.equal(shown("Guardians", ""), true);
+  assert.equal(shown("Klass 4B", "Parent"), true);
+  assert.equal(shown("Vårdnadshavarna", ""), true);
+  // Pupils, by role or by heading, even under a guardians heading.
+  assert.equal(shown("Vårdnadshavare", "Elev"), false);
+  assert.equal(shown("Klass 4B", "Student"), false);
+  assert.equal(shown("Pupils", ""), false);
+  assert.equal(shown("Barn", ""), false);
+  // Both at once, in one role or in the heading alone: ambiguous, withheld.
+  assert.equal(shown("Vårdnadshavare", "Vårdnadshavare till eleven Anna"), false);
+  assert.equal(shown("Elever och vårdnadshavare", ""), false);
+  // Neither: unknown, withheld.
+  assert.equal(shown("Klass 4B", "Kontaktperson"), false);
+  assert.equal(shown("", ""), false);
+  assert.equal(shown("Klass 4B", "Mentor"), false);
+  // Without the opt-in, a guardian is hidden too.
+  assert.equal(
+    redactContacts([{ title: "Vårdnadshavare", people: [person("")] }], false)[0].people[0].email,
+    undefined,
+  );
+});
+
+test("contacts: staff headings keep work details whatever the person's role says", () => {
+  const assistant = { name: "Y", role: "Elevassistent", email: "y@skola.example" };
+  for (const reveal of [false, true])
+    assert.deepEqual(redactContacts([{ title: "Personal", people: [assistant] }], reveal), [
+      { title: "Personal", people: [assistant] },
+    ]);
+});
+
+test("guardians are recognised by word, compared case-insensitively", () => {
+  for (const word of GUARDIAN_WORDS) assert.equal(isGuardian(word.toUpperCase(), ""), true, word);
+  for (const word of PUPIL_WORDS) assert.equal(isGuardian(word, "Vårdnadshavare"), false, word);
+  assert.equal(isGuardian("", "Vårdnadshavare"), true);
+  assert.equal(isGuardian("", ""), false);
 });
 
 test("staff headings are compared whole and case-insensitively", () => {
@@ -225,7 +295,9 @@ test("the decorator redacts the three capabilities and passes every other one th
   const redacted = withThirdPartyRedaction(full, { contactDetails: false });
   const revealed = withThirdPartyRedaction(full, { contactDetails: true });
   assert.equal((await redacted.getContacts())[0].people[0].email, undefined);
-  assert.equal((await revealed.getContacts())[0].people[0].email, "anna@example.test");
+  assert.equal((await redacted.getContacts())[1].people[0].email, undefined);
+  assert.equal((await revealed.getContacts())[0].people[0].email, undefined);
+  assert.equal((await revealed.getContacts())[1].people[0].email, "doris@example.test");
   for (const portal of [redacted, revealed]) {
     assert.deepEqual(await portal.getMessage(1, 2, 3), { id: 3, recipients: ["Doris"] });
     assert.deepEqual(await portal.getActivityLog(5), [

@@ -541,13 +541,14 @@ test("other families' contact details are a separate, unticked consent that a re
   );
   assert.match(
     plain.consentHtml,
-    /<input type="checkbox" name="scopes" value="get_contacts_details">Other families/,
+    /<input type="checkbox" name="scopes" value="get_contacts_details">Other guardians/,
   );
   assert.doesNotMatch(plain.consentHtml, /value="get_contacts_details" checked/);
   assert.match(
     plain.consentHtml,
-    /sends other families&#39; e-mail addresses and phone numbers to your AI provider/,
+    /sends other guardians&#39; e-mail addresses and phone numbers to your AI provider/,
   );
+  assert.match(plain.consentHtml, /Pupils&#39; own e-mail and phone are never sent/);
   const tokens = await (await f.exchange(plain.client.client_id, plain.code)).json();
   assert.equal(tokens.scope.includes("get_contacts_details"), false);
   const listed = await f.rpc(tokens.access_token, "tools/list");

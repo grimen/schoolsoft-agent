@@ -449,9 +449,9 @@ Example call:
 Get the contact list for the child's class (Kontaktlistor): classmates and,
 where the school publishes them, guardians, by name and role. School staff
 keep their work e-mail and phone. Other families' e-mail and phone are left
-out (the group says detailsHidden: true) unless the user turned on
-SCHOOLSOFT_CONTACT_DETAILS, which sends them to the AI provider; only the
-user can change that setting.
+out (the group says detailsHidden: true). Pupils' own are never returned;
+other guardians' only if the user turned on SCHOOLSOFT_CONTACT_DETAILS, which
+sends them to the AI provider. Only the user can change that setting.
 
 Served through the headless browser (SchoolSoft has no API for this page);
 run "schoolsoft-agent browser install" once. Personal data of other

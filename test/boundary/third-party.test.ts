@@ -22,6 +22,10 @@ import { SchoolsoftSim, savedSession } from "../helpers/schoolsoft-sim.js";
 const CLASS_LIST: ContactGroup[] = [
   { title: "Elever", people: [{ name: "Anna Exempel", role: "", email: "anna@example.test" }] },
   {
+    title: "Vårdnadshavare",
+    people: [{ name: "Doris Exempel", role: "", email: "doris@example.test" }],
+  },
+  {
     title: "Personal",
     people: [{ name: "Lärare Exempel", role: "Mentor", email: "larare@skola.example" }],
   },
@@ -75,13 +79,18 @@ test("every portal createPortals hands out redacts, and never caches, other fami
   const w = wired();
   await w.manager.ensureSession();
   for (const portal of [w.portals.portal, w.portals.freshPortal]) {
-    const [pupils, staff] = await portal.getContacts();
+    const [pupils, guardians, staff] = await portal.getContacts();
     assert.deepEqual(pupils, {
       title: "Elever",
       detailsHidden: true,
       people: [{ name: "Anna Exempel", role: "" }],
     });
-    assert.deepEqual(staff, CLASS_LIST[1]);
+    assert.deepEqual(guardians, {
+      title: "Vårdnadshavare",
+      detailsHidden: true,
+      people: [{ name: "Doris Exempel", role: "" }],
+    });
+    assert.deepEqual(staff, CLASS_LIST[2]);
     assert.deepEqual(await portal.getMessage(21, 20, 5), {
       id: 5,
       subject: "Utflykt",
@@ -106,10 +115,15 @@ test("every portal createPortals hands out redacts, and never caches, other fami
   assert.equal(w.sim.requests.filter((r) => r.endsWith("/getbyloggedinuser")).length, 3);
 });
 
-test("the opt-in reveals other families' contact details, and nothing else", async () => {
+test("the opt-in reveals guardians' contact details, never a pupil's, and nothing else", async () => {
   const w = wired({ contactDetails: true });
   await w.manager.ensureSession();
-  assert.deepEqual(await w.portals.portal.getContacts(), CLASS_LIST);
+  for (const portal of [w.portals.portal, w.portals.freshPortal])
+    assert.deepEqual(await portal.getContacts(), [
+      { title: "Elever", detailsHidden: true, people: [{ name: "Anna Exempel", role: "" }] },
+      CLASS_LIST[1],
+      CLASS_LIST[2],
+    ]);
   assert.deepEqual((await w.portals.freshPortal.getMessage(21, 20, 5)) as object, {
     id: 5,
     subject: "Utflykt",

@@ -20,9 +20,9 @@ export const DETAIL_SCOPES: readonly DetailScope[] = [
   {
     scope: "get_contacts_details",
     operation: "get_contacts",
-    title: "Other families' e-mail addresses and phone numbers in the class contact list",
+    title: "Other guardians' e-mail addresses and phone numbers in the class contact list",
     warning:
-      "This sends other families' e-mail addresses and phone numbers to your AI provider. They have not agreed to it. Without it, the app sees their names and roles only.",
+      "This sends other guardians' e-mail addresses and phone numbers to your AI provider. They have not agreed to it. Pupils' own e-mail and phone are never sent. Without it, the app sees names and roles only. Tick it only when you need to contact someone, and disconnect the app afterwards to turn it off.",
   },
 ];
 

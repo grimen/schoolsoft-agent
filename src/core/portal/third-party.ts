@@ -5,7 +5,9 @@
  *
  * - Contact lists: other families keep name and role; staff groups keep their
  *   work e-mail and phone. `contactDetails` (the user's explicit opt-in) keeps
- *   e-mail and phone for everyone. No other field ever passes.
+ *   e-mail and phone for other guardians only: never a pupil's own, and never
+ *   for a person not recognised as a guardian (fail closed). No other field ever
+ *   passes.
  * - Messages: recipients become display names; keys holding contact details are
  *   removed at any depth. The text stays: it is what the user asked to read.
  * - Activity log: only the known fields of an entry pass.
@@ -45,12 +47,51 @@ export function isStaffGroup(title: string): boolean {
   return STAFF_GROUP_HEADINGS.includes(title.trim().toLocaleLowerCase("sv"));
 }
 
+/**
+ * Word stems, lower case, that mark a guardian in a role or group heading. A word
+ * matches when it starts with a stem ("Vårdnadshavarna", "Parents").
+ */
+export const GUARDIAN_WORDS: readonly string[] = [
+  "vårdnadshavar",
+  "föräld",
+  "målsm",
+  "guardian",
+  "parent",
+];
+
+/** Word stems, lower case, that mark a pupil ("Elever", "Elevassistent", "Barn"). */
+export const PUPIL_WORDS: readonly string[] = ["elev", "pupil", "student", "barn", "child"];
+
+type Signal = "guardian" | "pupil" | "both" | "none";
+
+function signal(text: string): Signal {
+  const words = text.toLocaleLowerCase("sv").split(/[^\p{L}]+/u);
+  const has = (stems: readonly string[]) =>
+    words.some((word) => stems.some((stem) => word.startsWith(stem)));
+  const guardian = has(GUARDIAN_WORDS);
+  const pupil = has(PUPIL_WORDS);
+  return guardian && pupil ? "both" : guardian ? "guardian" : pupil ? "pupil" : "none";
+}
+
+/**
+ * Whether a contact outside the staff groups is a guardian, whose details the
+ * opt-in may reveal. The person's role decides; only an empty or unrecognised role
+ * falls back to the group heading. Anything that is not clearly a guardian (a
+ * pupil, both at once, neither) is not: the failure mode is hiding a guardian's
+ * details, never passing a pupil's.
+ */
+export function isGuardian(role: string, heading: string): boolean {
+  const byRole = signal(role);
+  return (byRole === "none" ? signal(heading) : byRole) === "guardian";
+}
+
 export function redactContacts(groups: ContactGroup[], contactDetails: boolean): ContactGroup[] {
   return groups.map((group) => {
-    const reveal = contactDetails || isStaffGroup(group.title);
+    const staff = isStaffGroup(group.title);
     let hidden = false;
     const people = group.people.map((p) => {
       const person: ContactPerson = { name: p.name, role: p.role };
+      const reveal = staff || (contactDetails && isGuardian(p.role, group.title));
       if (!reveal) hidden ||= p.email !== undefined || p.phone !== undefined;
       else {
         if (p.email !== undefined) person.email = p.email;
@@ -111,7 +152,7 @@ export function redactActivityEntry(entry: ActivityEntry): ActivityEntry {
 }
 
 export interface RedactionOptions {
-  /** The user's explicit opt-in to other families' e-mail and phone in contact lists. */
+  /** The user's explicit opt-in to other guardians' e-mail and phone in contact lists. */
   contactDetails: boolean;
 }
 

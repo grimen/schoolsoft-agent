@@ -228,7 +228,7 @@ export interface PortalDeps {
   /** The host request's cancellation: requests still queued in the budget are then never sent. */
   signal?: AbortSignal;
   /**
-   * The user's explicit opt-in to other families' e-mail and phone in contact lists
+   * The user's explicit opt-in to other guardians' e-mail and phone in contact lists
    * (`Config.contactDetails` locally, the grant's detail scope on the connector).
    * Off unless given: a host that forgets to pass it redacts.
    */
