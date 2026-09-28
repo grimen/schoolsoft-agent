@@ -71,6 +71,7 @@ test("envSource maps SCHOOLSOFT_* and ignores empty strings", () => {
     keepaliveWebMinutes: undefined,
     keepaliveQuietHours: undefined,
     allowWrites: undefined,
+    contactDetails: undefined,
     requestsPerMinute: undefined,
     requestBurst: undefined,
     maxConcurrentRequests: undefined,

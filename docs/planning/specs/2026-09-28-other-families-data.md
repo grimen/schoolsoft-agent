@@ -84,6 +84,7 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 - `contactDetails` / `SCHOOLSOFT_CONTACT_DETAILS` is a new setting: compatible. Its default (off) is observable and is now part of the contract; making it on by default would be a default that sends more on the user's behalf and is never done.
 - `get_contacts_details` is a new scope, offered only when the connector offers `get_contacts`. The stability page names detail scopes next to the operation scopes.
 - Cache TTLs are tuning values, not a contract.
+- `get_contacts` and `get_activity_log` keep their `fresh` input, because removing an input is breaking. It is accepted and changes nothing: both are always read from SchoolSoft.
 
 ## Open questions
 
@@ -94,13 +95,13 @@ A boundary test proves it: portals from `createPortals` redact all three capabil
 
 ## Tasks & Acceptance
 
-- [ ] Redaction decorator: families reduced, staff kept, unknown headings reduced, address never returned, `detailsHidden` set; reveal keeps e-mail and phone for families only.
-- [ ] Messages: recipients to display names, contact keys removed at any depth, body kept. Activity log: known fields only.
-- [ ] Cache: contacts and activity log never cached, even with a TTL.
-- [ ] Setting `contactDetails` / `SCHOOLSOFT_CONTACT_DETAILS`: off by default, strict switch; `setup` mentions it.
-- [ ] Connector: `get_contacts_details` offered only with `get_contacts`, unticked with the warning, dropped without its operation, not gained by refresh, passed per request to the portal.
-- [ ] Boundary test: every surface's portal redacts; adapters cannot bypass.
-- [ ] Data-handling, architecture, stability and generated reference docs match; #64's first box ticked.
+- [x] Redaction decorator: families reduced, staff kept, unknown headings reduced, address never returned, `detailsHidden` set; reveal keeps e-mail and phone for families only.
+- [x] Messages: recipients to display names, contact keys removed at any depth, body kept. Activity log: known fields only.
+- [x] Cache: contacts and activity log never cached, even with a TTL.
+- [x] Setting `contactDetails` / `SCHOOLSOFT_CONTACT_DETAILS`: off by default, strict switch; `setup` mentions it.
+- [x] Connector: `get_contacts_details` offered only with `get_contacts`, unticked with the warning, dropped without its operation, not gained by refresh, passed per request to the portal.
+- [x] Boundary test: every surface's portal redacts; adapters cannot bypass.
+- [x] Data-handling, architecture, stability and generated reference docs match; #64's first box ticked.
 
 ## Verification
 

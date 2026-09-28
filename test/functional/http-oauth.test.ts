@@ -13,11 +13,11 @@ const callback = "https://claude.ai/api/mcp/auth_callback";
 const verifier = "v".repeat(64);
 const challenge = createHash("sha256").update(verifier).digest("base64url");
 const allowedScopes = ["list_children", "get_schedule", "get_calendar", "get_lunch_menu"];
-async function fixture(t: TestContext, vendorCallback = callback) {
+async function fixture(t: TestContext, vendorCallback = callback, offered = allowedScopes) {
   let state: OAuthState | undefined;
   const oauth = new ConnectorOAuthProvider({
     resourceUrl: resource,
-    scopes: allowedScopes,
+    scopes: offered,
     repository: {
       read: () => state,
       write: (value) => {
@@ -29,6 +29,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
   let executeHook: (() => void) | undefined;
   const executions: { name: string; args: Record<string, unknown>; children: readonly number[] }[] =
     [];
+  const contactDetails: (boolean | undefined)[] = [];
   const config: ConnectorConfig = {
     publicUrl: origin,
     adminPassword: "synthetic-admin-password-32-characters",
@@ -59,6 +60,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
       execute: async (name, args, children, authorization) => {
         authorization?.check?.();
         executions.push({ name, args, children });
+        contactDetails.push(authorization?.contactDetails);
         executeHook?.();
         return { synthetic: true, children };
       },
@@ -140,15 +142,15 @@ async function fixture(t: TestContext, vendorCallback = callback) {
       code_challenge: challenge,
       code_challenge_method: "S256",
       state: "original-state",
-      scope: allowedScopes.join(" "),
+      scope: offered.join(" "),
       ...extra,
     });
     return request("/authorize?" + query);
   }
-  async function connection(scopes = allowedScopes) {
+  async function connection(scopes = offered, requested = scopes) {
     const { response, client } = await register();
     assert.equal(response.status, 201);
-    const auth = await authorize(client.client_id, { scope: scopes.join(" ") });
+    const auth = await authorize(client.client_id, { scope: requested.join(" ") });
     assert.equal(auth.status, 302);
     const consentUrl = auth.headers.get("location")!;
     const page = await request(consentUrl, { headers: { Cookie: cookie } });
@@ -172,7 +174,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     assert.equal(redirect.origin, new URL(vendorCallback).origin);
     assert.equal(redirect.searchParams.get("state"), "original-state");
     const code = redirect.searchParams.get("code")!;
-    return { client, code, id };
+    return { client, code, id, consentHtml };
   }
   const exchange = (clientId: string, code: string, extra: Record<string, string> = {}) =>
     form("/token", {
@@ -223,6 +225,7 @@ async function fixture(t: TestContext, vendorCallback = callback) {
     exchange,
     rpc,
     executions,
+    contactDetails,
     setAuthenticated: (value: boolean) => {
       authenticated = value;
     },
@@ -525,4 +528,51 @@ test("replaying an authorization code over HTTP withdraws the access and refresh
   });
   assert.equal(refresh.status, 400);
   assert.equal((await f.rpc(others.access_token, "tools/list")).response.status, 200);
+});
+
+test("other families' contact details are a separate, unticked consent that a refresh cannot gain", async (t) => {
+  const offered = [...allowedScopes, "get_contacts", "get_contacts_details"];
+  const f = await fixture(t, callback, offered);
+  // Asked for everything, approved the tools only: the parent left the detail box empty.
+  const plain = await f.connection([...allowedScopes, "get_contacts"], offered);
+  assert.match(
+    plain.consentHtml,
+    /<input type="checkbox" name="scopes" value="get_contacts" checked>/,
+  );
+  assert.match(
+    plain.consentHtml,
+    /<input type="checkbox" name="scopes" value="get_contacts_details">Other families/,
+  );
+  assert.doesNotMatch(plain.consentHtml, /value="get_contacts_details" checked/);
+  assert.match(
+    plain.consentHtml,
+    /sends other families&#39; e-mail addresses and phone numbers to your AI provider/,
+  );
+  const tokens = await (await f.exchange(plain.client.client_id, plain.code)).json();
+  assert.equal(tokens.scope.includes("get_contacts_details"), false);
+  const listed = await f.rpc(tokens.access_token, "tools/list");
+  // A detail scope is not a tool.
+  assert.ok(
+    !listed.data.result.tools.some((tool: { name: string }) => tool.name.endsWith("_details")),
+  );
+  await f.rpc(tokens.access_token, "tools/call", {
+    name: "schoolsoft_get_contacts",
+    arguments: {},
+  });
+  const gain = await f.form("/token", {
+    grant_type: "refresh_token",
+    client_id: plain.client.client_id,
+    refresh_token: tokens.refresh_token,
+    resource,
+    scope: "get_contacts get_contacts_details",
+  });
+  assert.equal(gain.status, 400);
+  // Ticked on purpose: this grant's reads carry the reveal, per request.
+  const revealed = await f.connection(["get_contacts", "get_contacts_details"]);
+  const detailed = await (await f.exchange(revealed.client.client_id, revealed.code)).json();
+  await f.rpc(detailed.access_token, "tools/call", {
+    name: "schoolsoft_get_contacts",
+    arguments: {},
+  });
+  assert.deepEqual(f.contactDetails, [false, true]);
 });

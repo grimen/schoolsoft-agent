@@ -12,6 +12,7 @@ Args:
   - child_id (number, optional): selects the school.
 
 Returns: { message: { id, subject, message, sender, date, recipients, attachments, ... } }.
+Recipients are display names only; no one's e-mail or phone is included.
 
 Use when: the user wants to read a specific message listed by get_messages.`,
   input: { id: z.number().int().describe("Message id from get_messages"), child_id: ChildSchema },

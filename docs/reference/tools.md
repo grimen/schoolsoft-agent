@@ -394,6 +394,7 @@ Args:
   - child_id (number, optional): selects the school.
 
 Returns: { message: { id, subject, message, sender, date, recipients, attachments, ... } }.
+Recipients are display names only; no one's e-mail or phone is included.
 
 Use when: the user wants to read a specific message listed by get_messages.
 
@@ -421,9 +422,10 @@ what the class has been doing, newest first.
 Args:
   - child_id (number, optional): from list_children.
   - limit (number, optional): max posts, default 20.
-  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
+  - fresh (boolean, optional): accepted; this list is always read from SchoolSoft, never kept in memory.
 
 Returns: { child, entries: [{ id, date, title, author, text, recipients, comments }] }.
+recipients is the names SchoolSoft shows; comments is a count.
 
 Use when: "vad har de gjort i skolan den här veckan", "senaste inläggen från läraren".
 
@@ -445,7 +447,11 @@ Example call:
 ## `schoolsoft_get_contacts`
 
 Get the contact list for the child's class (Kontaktlistor): classmates and,
-where the school publishes them, guardians, with e-mail and phone.
+where the school publishes them, guardians, by name and role. School staff
+keep their work e-mail and phone. Other families' e-mail and phone are left
+out (the group says detailsHidden: true) unless the user turned on
+SCHOOLSOFT_CONTACT_DETAILS, which sends them to the AI provider; only the
+user can change that setting.
 
 Served through the headless browser (SchoolSoft has no API for this page);
 run "schoolsoft-agent browser install" once. Personal data of other
@@ -453,11 +459,11 @@ families: show only what the user asked for.
 
 Args:
   - child_id (number, optional): from list_children.
-  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
+  - fresh (boolean, optional): accepted; this list is always read from SchoolSoft, never kept in memory.
 
-Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
+Returns: { child, groups: [{ title, detailsHidden?, people: [{ name, role, email?, phone? }] }] }.
 
-Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".
+Use when: "vad heter Ellas klasskompisar", "mejla mentorn", "vilka går i klassen".
 
 | Argument | Type | Required | Description |
 |---|---|---|---|

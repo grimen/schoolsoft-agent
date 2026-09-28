@@ -231,6 +231,7 @@ export const testConfig: Config = {
   keepalive: { mode: "off", webIntervalMs: 600_000, quietHours: null },
   requestBudget: {},
   allowWrites: false,
+  contactDetails: false,
 };
 
 export function makeContext(

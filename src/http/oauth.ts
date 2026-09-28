@@ -23,6 +23,7 @@ import type {
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { clientKey } from "./client-key.js";
+import { effectiveScopes } from "./scopes.js";
 
 export interface ConnectorGrant {
   resourceUrl: string;
@@ -290,7 +291,8 @@ export class ConnectorOAuthProvider implements OAuthServerProvider {
   }
   approve(id: string, scopes?: string[], childIds: number[] = []): string {
     const pending = this.pending(id);
-    const selected = this.scopes(scopes ?? pending.scopes, pending.scopes);
+    // A detail scope approved without its operation grants nothing, so it is not granted.
+    const selected = this.scopes(effectiveScopes(scopes ?? pending.scopes), pending.scopes);
     if (!childIds.length || childIds.some((child) => !Number.isSafeInteger(child) || child <= 0))
       throw new InvalidRequestError("Choose at least one child");
     this.prune();

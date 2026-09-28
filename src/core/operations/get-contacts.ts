@@ -5,7 +5,11 @@ export const getContacts = defineOperation({
   name: "get_contacts",
   title: "Get class contact list",
   description: `Get the contact list for the child's class (Kontaktlistor): classmates and,
-where the school publishes them, guardians, with e-mail and phone.
+where the school publishes them, guardians, by name and role. School staff
+keep their work e-mail and phone. Other families' e-mail and phone are left
+out (the group says detailsHidden: true) unless the user turned on
+SCHOOLSOFT_CONTACT_DETAILS, which sends them to the AI provider; only the
+user can change that setting.
 
 Served through the headless browser (SchoolSoft has no API for this page);
 run "schoolsoft-agent browser install" once. Personal data of other
@@ -13,11 +17,11 @@ families: show only what the user asked for.
 
 Args:
   - child_id (number, optional): from list_children.
-  - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
+  - fresh (boolean, optional): accepted; this list is always read from SchoolSoft, never kept in memory.
 
-Returns: { child, groups: [{ title, people: [{ name, role, email?, phone? }] }] }.
+Returns: { child, groups: [{ title, detailsHidden?, people: [{ name, role, email?, phone? }] }] }.
 
-Use when: "vad heter Ellas klasskompisar", "mejl till föräldrarna i klassen".`,
+Use when: "vad heter Ellas klasskompisar", "mejla mentorn", "vilka går i klassen".`,
   input: { child_id: ChildSchema, fresh: FreshSchema },
   portal: ["getContacts"],
   annotations: READ_ONLY,

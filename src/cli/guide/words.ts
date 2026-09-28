@@ -189,6 +189,10 @@ export const WORDS = {
     en: "What you ask about is sent to the assistant's company. Read the page above first.",
     sv: "Det du frågar om skickas till assistentens företag. Läs sidan ovan först.",
   },
+  hostsOtherFamilies: {
+    en: "Other families' e-mail and phone in class contact lists are not sent. SCHOOLSOFT_CONTACT_DETAILS=1 sends them to the assistant's company too, without those families' say.",
+    sv: "Andra familjers e-post och telefon i klasslistor skickas inte. SCHOOLSOFT_CONTACT_DETAILS=1 skickar dem också till assistentens företag, utan att de familjerna fått säga sitt.",
+  },
   hostClaude: {
     en: (p) => `Claude Desktop (short name ${p.school}): ${docLink("claudeDesktop")}`,
     sv: (p) => `Claude Desktop (kortnamn ${p.school}): ${docLink("claudeDesktop")}`,

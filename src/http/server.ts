@@ -20,6 +20,7 @@ import { API_BASE } from "./routes.js";
 import { PACKAGE_VERSION } from "../shared/version.js";
 import { PAGE_PATH } from "./reference/app.js";
 import { referencePage } from "./reference/page.js";
+import { detailScope, grantsContactDetails, offeredScopes } from "./scopes.js";
 export interface ServerOptions {
   config: ConnectorConfig;
   oauth: ConnectorOAuthProvider;
@@ -260,16 +261,27 @@ export function createConnectorApp({
           `<label><input type="checkbox" name="children" value="${c.id}">${esc(c.name)}</label><br>`,
       )
       .join("");
+    // Tools are ticked; a detail scope (other families' contact details) never is, and
+    // comes in its own section with its warning.
     const scopes = pending.scopes
+      .filter((s) => !detailScope(s))
       .map(
         (s) =>
           `<label><input type="checkbox" name="scopes" value="${esc(s)}" checked>${esc(s)}</label><br>`,
       )
       .join("");
+    const details = pending.scopes
+      .map(detailScope)
+      .filter((detail) => detail !== undefined)
+      .map(
+        (detail) =>
+          `<h2>Other families' contact details</h2><p><strong>${esc(detail.warning)}</strong> It applies only together with ${esc(detail.operation)}.</p><label><input type="checkbox" name="scopes" value="${esc(detail.scope)}">${esc(detail.title)}</label><br>`,
+      )
+      .join("");
     res.send(
       page(
         "Choose what this app may read",
-        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. ${pending.redirectUri === config.publicUrl + PAGE_PATH ? "The selected data will be shown in this browser on your connector's reference page; it is not sent to an AI provider." : "The selected data will be sent to your AI provider when you use these tools."}</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
+        `<p>App name (provided by the app): ${esc(pending.clientName)}</p><p>Return address: ${esc(pending.redirectUri)}</p><p>Continue only if you started connecting this app yourself a moment ago. If the link to this page came from someone else, choose Cancel.</p><p>Select at least one child. ${pending.redirectUri === config.publicUrl + PAGE_PATH ? "The selected data will be shown in this browser on your connector's reference page; it is not sent to an AI provider." : "The selected data will be sent to your AI provider when you use these tools."}</p>${form("/owner/approve", res.locals.csrf, hidden("request", id) + children + scopes + details, "Allow selected access")}${form("/owner/deny", res.locals.csrf, hidden("request", id), "Cancel")}`,
       ),
     );
   });
@@ -320,7 +332,7 @@ export function createConnectorApp({
       provider: oauth,
       issuerUrl: new URL(config.publicUrl),
       resourceServerUrl: new URL(config.publicUrl + "/mcp"),
-      scopesSupported: [...CONNECTOR_OPERATIONS],
+      scopesSupported: offeredScopes(CONNECTOR_OPERATIONS),
       authorizationOptions: { rateLimit: perCaller },
       tokenOptions: { rateLimit: perCaller },
       clientRegistrationOptions: { rateLimit: perCaller },
@@ -369,6 +381,7 @@ export function createConnectorApp({
                   oauth.verifyGrant(grantId);
                 },
                 signal: cancellation.signal,
+                contactDetails: grantsContactDetails(auth.scopes),
               });
               oauth.verifyGrant(grantId);
               return { content: [{ type: "text", text: JSON.stringify(data) }] };

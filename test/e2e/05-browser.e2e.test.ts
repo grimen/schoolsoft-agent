@@ -31,7 +31,7 @@ test(
     record(
       "B1",
       "Browser provider (contacts/subjects/bookings/files)",
-      `contact groups ${contacts.length} (${people} people); subjects ${subjects.length} (${subjects.filter((s) => s.teachers.length).length} with teachers); bookings ${bookings.length}; files ${files.length}`,
+      `contact groups ${contacts.length} (${people} people, ${contacts.filter((g) => g.detailsHidden).length} groups with other families' details hidden); subjects ${subjects.length} (${subjects.filter((s) => s.teachers.length).length} with teachers); bookings ${bookings.length}; files ${files.length}`,
     );
   },
 );

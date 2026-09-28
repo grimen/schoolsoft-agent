@@ -68,6 +68,11 @@ export type ReadOutcome = { ok: true; value: unknown } | { ok: false; error: unk
 export interface ExecutionAuthorization {
   check?: () => void;
   signal?: AbortSignal;
+  /**
+   * The grant holds the detail scope for contact lists (scopes.ts): other families'
+   * e-mail and phone are passed on. Absent: they are left out.
+   */
+  contactDetails?: boolean;
 }
 interface Pending {
   cancelled: boolean;
@@ -422,6 +427,8 @@ export class ConnectorRuntime {
       // A request the caller abandoned while it waited in the budget's queue is never sent.
       signal: authorization.signal,
       browser: null,
+      // Decided by this request's grant only, never by the deployment's settings.
+      contactDetails: authorization.contactDetails === true,
       beforeRead: validateFocus,
       beforeRecovery: check,
       afterRecovery: async () => {

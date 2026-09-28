@@ -135,7 +135,7 @@ What to know before turning it on:
 
 ### The assistant shows an older version of something I just changed
 
-Some answers are remembered in the program's memory for a short time: the lunch menu, subject list and contact lists for up to 6 hours, shared files 1 hour, schedule and calendar 30 minutes, news, assignments and the activity log 10 minutes. Messages, bookings, grades, documents, absence and attendance are always read from SchoolSoft. Ask for "the latest" (the assistant passes `fresh: true`, on the command line `--fresh`), or set `SCHOOLSOFT_CACHE=off`. Nothing remembered this way is written to disk; it is gone when the program closes, when you log in or out, and when you switch child.
+Some answers are remembered in the program's memory for a short time: the lunch menu and subject list for up to 6 hours, shared files 1 hour, schedule and calendar 30 minutes, news and assignments 10 minutes. Contact lists, the activity log, messages, bookings, grades, documents, absence and attendance are always read from SchoolSoft. Ask for "the latest" (the assistant passes `fresh: true`, on the command line `--fresh`), or set `SCHOOLSOFT_CACHE=off`. Nothing remembered this way is written to disk; it is gone when the program closes, when you log in or out, and when you switch child.
 
 ## "… was written by a newer version of schoolsoft-agent"
 

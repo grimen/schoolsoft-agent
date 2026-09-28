@@ -129,7 +129,10 @@ export function loadContext(inputs: BootstrapInputs): () => OperationContext {
     const manager = createSessionManager(config, { pid: process.pid });
     const built: OperationContext = {
       manager,
-      ...createPortals(manager, { engine: config.browser }),
+      ...createPortals(manager, {
+        engine: config.browser,
+        contactDetails: config.contactDetails,
+      }),
       provider: resolveProvider(config),
       config,
       log: inputs.log ?? ((m) => console.error(m)),

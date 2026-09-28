@@ -36,6 +36,7 @@ import { MemoryReadCache, type ReadCache } from "./cache/read-cache.js";
 import { DEFAULT_CACHE_TTL_MS } from "./cache/policy.js";
 import { withReadCache, type CacheScope } from "./portal/cached.js";
 import { withWebSessionObserver } from "./portal/observed.js";
+import { THIRD_PARTY_CAPABILITIES, withThirdPartyRedaction } from "./portal/third-party.js";
 import {
   KeepaliveScheduler,
   type KeepaliveTask,
@@ -226,6 +227,12 @@ export interface PortalDeps {
   fetchImpl?: unknown;
   /** The host request's cancellation: requests still queued in the budget are then never sent. */
   signal?: AbortSignal;
+  /**
+   * The user's explicit opt-in to other families' e-mail and phone in contact lists
+   * (`Config.contactDetails` locally, the grant's detail scope on the connector).
+   * Off unless given: a host that forgets to pass it redacts.
+   */
+  contactDetails?: boolean;
 }
 
 /** The cached portal, and the same portal with the cache bypassed and refreshed (`fresh: true`). */
@@ -330,13 +337,19 @@ export function createPortals(manager: SessionManager, deps: PortalDeps = {}): P
       await deps.afterRecovery?.();
     },
   });
+  // Other families' data is reduced here, below the cache, for every surface
+  // (docs/planning/specs/2026-09-28-other-families-data.md).
+  const redacted = withThirdPartyRedaction(recovering, {
+    contactDetails: deps.contactDetails === true,
+  });
   const cache = CACHES.get(manager);
-  if (!cache) return { portal: recovering, freshPortal: recovering };
+  if (!cache) return { portal: redacted, freshPortal: redacted };
   const cached = (mode: "read" | "refresh") =>
-    withReadCache(recovering, {
+    withReadCache(redacted, {
       cache,
       ttls: DEFAULT_CACHE_TTL_MS,
-      never: provider.webSessionCapabilities,
+      // Never kept beyond the request: web-session reads and other families' data.
+      never: [...provider.webSessionCapabilities, ...THIRD_PARTY_CAPABILITIES],
       scope: () => cacheScope(manager),
       guard: deps.beforeRead,
       mode,

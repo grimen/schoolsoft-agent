@@ -207,9 +207,18 @@ test("wiring: a context without a fresh portal simply runs the operation; the ca
 });
 
 test("every operation that can be answered from the cache declares `fresh`, and no other does", () => {
+  // Never cached since docs/planning/specs/2026-09-28-other-families-data.md; they keep
+  // `fresh` because removing an input is a breaking change. It changes nothing there.
+  const alwaysFresh = new Set(["get_contacts", "get_activity_log"]);
   for (const op of operations) {
     const cacheable = op.portal.some((c) => DEFAULT_CACHE_TTL_MS[c as Capability] !== undefined);
-    assert.equal("fresh" in op.input, cacheable, op.name);
+    assert.equal("fresh" in op.input, cacheable || alwaysFresh.has(op.name), op.name);
+    if (alwaysFresh.has(op.name))
+      assert.match(
+        op.description,
+        /- fresh \(boolean, optional\): accepted; .* always read/,
+        op.name,
+      );
     if (cacheable) assert.match(op.description, /- fresh \(boolean, optional\)/, op.name);
   }
 });

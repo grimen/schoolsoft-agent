@@ -22,6 +22,7 @@ import {
 } from "./problem.js";
 import { parseChildId, parseQuery, restRoutes } from "./routes.js";
 import { SessionSchema } from "./api-schemas.js";
+import { grantsContactDetails } from "./scopes.js";
 import { OVERVIEW_QUERY, OVERVIEW_SCOPES, OVERVIEW_SLUG, buildOverview } from "./overview.js";
 
 /** Requests per minute per caller (clientKey) across the whole REST surface. */
@@ -153,6 +154,7 @@ export function restApi({
                 oauth.verifyGrant(grantId);
               },
               signal: cancellation.signal,
+              contactDetails: grantsContactDetails(scopes),
             },
             keep,
           ),
@@ -184,6 +186,7 @@ export function restApi({
             oauth.verifyGrant(grantId);
           },
           signal: cancellation.signal,
+          contactDetails: grantsContactDetails(req.auth!.scopes),
         });
         oauth.verifyGrant(grantId);
         res.json(data);

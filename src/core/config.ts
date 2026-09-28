@@ -51,6 +51,12 @@ export interface Config {
   browser: BrowserEngine;
   /** Operations that change data at the school portal may run. Off unless the user turns it on. */
   allowWrites: boolean;
+  /**
+   * Other families' e-mail and phone in contact lists reach the assistant. Off unless
+   * the user turns it on: it sends other people's contact details to the AI provider
+   * (docs/planning/specs/2026-09-28-other-families-data.md).
+   */
+  contactDetails: boolean;
   /** In-memory read cache (default on; never on disk). */
   cache: boolean;
   /** Background session keepalive for long-lived processes (default off). */
@@ -72,6 +78,7 @@ export interface ConfigSource {
   browserEngine?: string;
   browserCdp?: string;
   allowWrites?: boolean | string;
+  contactDetails?: boolean | string;
   cache?: string | boolean;
   keepalive?: string;
   keepaliveWebMinutes?: number | string;
@@ -187,6 +194,7 @@ export const ENV = {
   browserEngine: "SCHOOLSOFT_BROWSER_ENGINE",
   browserCdp: "SCHOOLSOFT_BROWSER_CDP",
   allowWrites: "SCHOOLSOFT_ALLOW_WRITES",
+  contactDetails: "SCHOOLSOFT_CONTACT_DETAILS",
   cache: "SCHOOLSOFT_CACHE",
   keepalive: "SCHOOLSOFT_KEEPALIVE",
   keepaliveWebMinutes: "SCHOOLSOFT_KEEPALIVE_WEB_MINUTES",
@@ -211,6 +219,7 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
     browserEngine: pick(ENV.browserEngine),
     browserCdp: pick(ENV.browserCdp),
     allowWrites: pick(ENV.allowWrites),
+    contactDetails: pick(ENV.contactDetails),
     cache: pick(ENV.cache),
     keepalive: pick(ENV.keepalive),
     keepaliveWebMinutes: pick(ENV.keepaliveWebMinutes),
@@ -221,7 +230,7 @@ export function envSource(env: Record<string, string | undefined>): ConfigSource
   };
 }
 
-/** Only an explicit yes turns writes on; anything unrecognised is an error, never a silent "on". */
+/** Only an explicit yes turns a switch (writes, other families' contact details) on; anything unrecognised is an error, never a silent "on". */
 function parseSwitch(raw: boolean | string | undefined, name: string): boolean {
   if (raw === undefined || typeof raw === "boolean") return raw ?? false;
   const v = raw.trim().toLowerCase();
@@ -372,6 +381,7 @@ export function resolveConfig(
     configDir,
     browser,
     allowWrites: parseSwitch(first(sources, "allowWrites"), "allowWrites"),
+    contactDetails: parseSwitch(first(sources, "contactDetails"), "contactDetails"),
     cache: resolveCache(first(sources, "cache")),
     keepalive: resolveKeepalive(sources),
     requestBudget: resolveRequestBudget(sources),
