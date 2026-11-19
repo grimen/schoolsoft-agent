@@ -116,8 +116,12 @@ export interface SchoolProvider<S extends ProviderSession = ProviderSession> {
   /** Provider-owned persisted credentials (the `data` blob of a PersistedSession). */
   serializeSession(session: S): Record<string, unknown>;
   createAuthStrategies(config: Config, deps: AuthDeps): AuthStrategy<S>[];
+  /**
+   * `session` is asked on every use, never kept: the session manager replaces its session
+   * object at each login, and a portal built before a login must read the one after it.
+   */
   createApiPortal(
-    session: S,
+    session: () => S,
     ctx: ApiPortalContext,
   ): ApiPortalPart & {
     syncWebChild(): Promise<void>;

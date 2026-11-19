@@ -284,6 +284,79 @@ test("createSessionManager defaults: file store in stateDir, web login runs a he
   );
 });
 
+test("a portal and a browser session built before the login read with the session the login created", async () => {
+  const { createSessionManager, createPortals, createBrowserSession } =
+    await import("../../src/core/wiring.js");
+  const { MemorySessionStore } = await import("../../src/core/session/store.js");
+  const { MemoryPendingLoginStore } = await import("../../src/core/session/pending-login.js");
+  const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
+  const cookies: (string | undefined)[] = [];
+  const fetchImpl = async (
+    url: string,
+    _school: string,
+    request: { headers?: Record<string, string> },
+  ) => {
+    const answer = (status: number, data: unknown, setCookies: string[] = []) => ({
+      status,
+      data,
+      headers: {},
+      setCookies,
+    });
+    if (url.includes("/login/token"))
+      return answer(200, { access_token: "t", refresh_token: "r", expires: 3600 });
+    if (url.endsWith("/eva/api/v1/parent"))
+      return answer(200, {
+        userId: 1,
+        firstName: "P",
+        lastName: "T",
+        children: [
+          { studentId: 100, firstName: "C", lastName: "T", schools: [{ orgId: 20, name: "S" }] },
+        ],
+      });
+    if (url.includes("eva-apps/auth"))
+      return answer(303, "", ["JSESSIONID=after-login; Path=/", "hash=h; Path=/"]);
+    cookies.push(request.headers?.Cookie);
+    return answer(200, []);
+  };
+  const logs: string[] = [];
+  const orig = console.error;
+  console.error = (m: string) => logs.push(m);
+  try {
+    const manager = createSessionManager(config, {
+      store: new MemorySessionStore(),
+      pending: new MemoryPendingLoginStore(),
+      fetchImpl,
+      redirectUri: "https://parent.example/callback",
+      browserAuthorization: async () => "CODE",
+    });
+    // What a long-lived host does: the context is built once, before anyone has logged in.
+    const { portal } = createPortals(manager, { browser: null, fetchImpl });
+    const added: { name: string; value: string }[] = [];
+    const page = { addInitScript: async () => {}, route: async () => {} };
+    const context = {
+      addCookies: async (c: typeof added) => void added.push(...c),
+      newPage: async () => page,
+      close: async () => {},
+    };
+    const browser = createBrowserSession(manager, {
+      playwrightLoader: async () =>
+        ({
+          chromium: {
+            launch: async () => ({ newContext: async () => context, close: async () => {} }),
+          },
+        }) as never,
+    });
+    await assert.rejects(manager.ensureSession(), /no saved session/);
+    await manager.login();
+    assert.deepEqual(await portal.getScheduleWeek(47), []);
+    assert.deepEqual(cookies, ["JSESSIONID=after-login; hash=h; usertype=1"]);
+    await browser.withPage(async () => {});
+    assert.equal(added.find((c) => c.name === "JSESSIONID")?.value, "after-login");
+  } finally {
+    console.error = orig;
+  }
+});
+
 test("createPortal honours an explicit null browser; web cookies are null without a web session", async () => {
   const { createSessionManager, createPortal, createBrowserSession } =
     await import("../../src/core/wiring.js");

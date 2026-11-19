@@ -95,7 +95,7 @@ for (const id of providerIds) {
   test(`[${id}] portals and directory are constructible without network and cover the routing`, () => {
     const budget = new CountingBudget();
     const session = provider.createSession("demo", { budget });
-    const api = provider.createApiPortal(session, {
+    const api = provider.createApiPortal(() => session, {
       budget,
       webCookieHeader: () => null,
       webChildTarget: () => null,

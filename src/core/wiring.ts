@@ -240,12 +240,12 @@ export function createBrowserSession(
   deps: Pick<PortalDeps, "engine" | "playwrightLoader"> = {},
 ): PlaywrightSession {
   const provider = getProvider(manager.providerId);
-  const session = manager.getSession();
   return new PlaywrightSession({
-    school: session.school,
+    school: manager.getSession().school,
     budget: requestBudgetOf(manager),
     origin: provider.webLogin.origin,
-    cookieHeader: () => session.cookieHeader(),
+    // Asked on every use: a login replaces the manager's session object.
+    cookieHeader: () => manager.getSession().cookieHeader(),
     webCookies: () => manager.getWebSession()?.cookies ?? null,
     engine: deps.engine,
     loader: deps.playwrightLoader,
@@ -282,7 +282,7 @@ export function createApiPortal(
   deps: Pick<PortalDeps, "fetchImpl" | "beforeRead" | "signal"> = {},
 ) {
   return getProvider(manager.providerId).createApiPortal(
-    manager.getSession(),
+    () => manager.getSession(),
     apiContext(manager, deps),
   );
 }
