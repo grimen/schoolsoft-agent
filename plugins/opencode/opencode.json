@@ -7,7 +7,7 @@
         "npx",
         "-y",
         "-p",
-        "schoolsoft-agent@0.3.0",
+        "schoolsoft-agent@0.4.0",
         "schoolsoft-agent-mcp"
       ],
       "environment": {
