@@ -1,6 +1,6 @@
 /**
  * Tests the BankID browser-flow callback server against real localhost
- * HTTP — success, state mismatch, provider error, and port conflicts.
+ * HTTP — success, requests without the login's state, provider error, and port conflicts.
  * The browser opener is injected so no real browser is involved; the
  * "user completing BankID" is simulated by fetching the callback URL.
  */
@@ -41,16 +41,31 @@ test("happy path: callback with correct state resolves with the code", async () 
   assert.match(authUrl, /redirect_uri=http%3A%2F%2F127\.0\.0\.1/);
 });
 
-test("state mismatch is rejected (CSRF protection)", async () => {
+test("a request without this login's state neither completes nor cancels it; the real redirect still does", async () => {
   const port = usePort();
+  const refused: { status: number; body: string }[] = [];
   const login = runBrowserLogin({
     school: "testskola",
     port,
-    openBrowser: () => {
-      void fetch(`http://127.0.0.1:${port}/callback?code=EVIL&state=wrong-state`);
+    openBrowser: async (authUrl) => {
+      for (const query of ["code=EVIL&state=wrong-state", "error=<b>cancel</b>", "code=EVIL"]) {
+        const res = await fetch(`http://127.0.0.1:${port}/callback?${query}`);
+        refused.push({ status: res.status, body: await res.text() });
+      }
+      const state = stateFrom(authUrl);
+      void fetch(`http://127.0.0.1:${port}/callback?code=REAL&state=${encodeURIComponent(state)}`);
     },
   });
-  await assert.rejects(login, /did not match the request/);
+  assert.equal((await login).result.code, "REAL");
+  assert.deepEqual(
+    refused.map((r) => r.status),
+    [400, 400, 400],
+  );
+  assert.match(refused[0].body, /does not belong to the login in progress/);
+  assert.ok(
+    refused[1].body.includes("&lt;b&gt;cancel&lt;/b&gt;"),
+    "its error text is shown, escaped",
+  );
 });
 
 test("provider error param is surfaced", async () => {
@@ -58,8 +73,9 @@ test("provider error param is surfaced", async () => {
   const login = runBrowserLogin({
     school: "testskola",
     port,
-    openBrowser: () => {
-      void fetch(`http://127.0.0.1:${port}/callback?error=access_denied`);
+    openBrowser: (authUrl) => {
+      const state = encodeURIComponent(stateFrom(authUrl));
+      void fetch(`http://127.0.0.1:${port}/callback?error=access_denied&state=${state}`);
     },
   });
   await assert.rejects(login, /access_denied/);
@@ -201,9 +217,10 @@ test("the error page escapes whatever the identity provider put in the query str
   const login = runBrowserLogin({
     school: "testskola",
     port,
-    openBrowser: () => {
+    openBrowser: (authUrl) => {
+      const state = encodeURIComponent(stateFrom(authUrl));
       void fetch(
-        `http://127.0.0.1:${port}/callback?error=${encodeURIComponent('<script>alert("x")</script>&"')}`,
+        `http://127.0.0.1:${port}/callback?state=${state}&error=${encodeURIComponent('<script>alert("x")</script>&"')}`,
       )
         .then((res) => res.text())
         .then(resolveBody);

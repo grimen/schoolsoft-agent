@@ -77,6 +77,12 @@ export const MESSAGES = {
     en: (p) => `Not configured: no school is set${p.reason ? ` (${p.reason})` : ""}.`,
     sv: (p) => `Inte konfigurerad: ingen skola är vald${p.reason ? ` (${p.reason})` : ""}.`,
   },
+  config_file_unreadable: {
+    en: (p) =>
+      `The settings file ${p.file} cannot be read (${p.detail}). Correct it or delete it, then run configure again.`,
+    sv: (p) =>
+      `Inställningsfilen ${p.file} kan inte läsas (${p.detail}). Rätta den eller ta bort den och kör sedan configure igen.`,
+  },
   not_authenticated: {
     en: (p) => `Not logged in to SchoolSoft (${p.reason}).`,
     sv: (p) => `Inte inloggad på SchoolSoft (${p.reason}).`,
@@ -192,12 +198,6 @@ export const MESSAGES = {
     en: (p) => `The login page reported an error: ${p.error}.`,
     sv: (p) => `Inloggningssidan rapporterade ett fel: ${p.error}.`,
   },
-  login_state_mismatch: {
-    en: () =>
-      `The login response did not match the request that opened it (possible CSRF); nothing was accepted.`,
-    sv: () =>
-      `Inloggningssvaret matchade inte begäran som öppnade det (möjlig CSRF); inget godtogs.`,
-  },
   login_no_code: {
     en: () => `The login response carried no authorization code.`,
     sv: () => `Inloggningssvaret saknade auktoriseringskod.`,
@@ -213,6 +213,12 @@ export const MESSAGES = {
   web_login_timeout: {
     en: (p) => `The web login did not reach the school portal within ${p.seconds} s.`,
     sv: (p) => `Webbinloggningen nådde inte skolportalen inom ${p.seconds} s.`,
+  },
+  web_login_needs_login: {
+    en: () =>
+      `The web login is saved together with the app session, and there is no saved session yet. Log in first, then do the web login.`,
+    sv: () =>
+      `Webbinloggningen sparas tillsammans med appsessionen, och det finns ingen sparad session ännu. Logga in först och gör sedan webbinloggningen.`,
   },
   web_login_unavailable: {
     en: () => `The web login is not available in this configuration.`,

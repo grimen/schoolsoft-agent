@@ -153,6 +153,8 @@ test("createPortal injects the web-login cookies into the browser session for ga
     openBrowser: () => {},
     webLogin: async () => web,
   });
+  // the web session is saved inside the app session's record, so one has to exist
+  store.save({ school: "taby", data: {}, savedAt: 1, authMethod: "bankid-browser" });
   await manager.webLogin();
   assert.equal(manager.getWebSession()?.cookies.length, 1);
   const injected: { name: string; value: string }[] = [];
@@ -239,6 +241,20 @@ test("createSessionManager defaults: file store in stateDir, web login runs a he
       resolveConfig([{ school: "taby", configDir: "/nowhere", stateDir }], defaults),
       { playwrightLoader: loader },
     );
+    await assert.rejects(
+      chromium.webLogin(),
+      /no saved session yet/,
+      "without an app session there is nowhere to save it, so no browser is opened",
+    );
+    assert.deepEqual(launched, []);
+    const { FileSessionStore } = await import("../../src/core/session/file-store.js");
+    const { accountKey } = await import("../../src/core/accounts.js");
+    new FileSessionStore(stateDir, accountKey("schoolsoft", "taby")).save({
+      school: "taby",
+      data: {},
+      savedAt: 1,
+      authMethod: "bankid-browser",
+    });
     const r = await chromium.webLogin();
     assert.equal(r.status, "web_logged_in");
     assert.deepEqual(launched, [{ headless: false }]);
@@ -266,6 +282,79 @@ test("createSessionManager defaults: file store in stateDir, web login runs a he
     logs[0],
     /Web login: complete BankID\/SAML in the browser window \(https:\/\/sms\.schoolsoft\.se\/taby\/\)/,
   );
+});
+
+test("a portal and a browser session built before the login read with the session the login created", async () => {
+  const { createSessionManager, createPortals, createBrowserSession } =
+    await import("../../src/core/wiring.js");
+  const { MemorySessionStore } = await import("../../src/core/session/store.js");
+  const { MemoryPendingLoginStore } = await import("../../src/core/session/pending-login.js");
+  const config = resolveConfig([{ school: "taby", configDir: "/nowhere" }], defaults);
+  const cookies: (string | undefined)[] = [];
+  const fetchImpl = async (
+    url: string,
+    _school: string,
+    request: { headers?: Record<string, string> },
+  ) => {
+    const answer = (status: number, data: unknown, setCookies: string[] = []) => ({
+      status,
+      data,
+      headers: {},
+      setCookies,
+    });
+    if (url.includes("/login/token"))
+      return answer(200, { access_token: "t", refresh_token: "r", expires: 3600 });
+    if (url.endsWith("/eva/api/v1/parent"))
+      return answer(200, {
+        userId: 1,
+        firstName: "P",
+        lastName: "T",
+        children: [
+          { studentId: 100, firstName: "C", lastName: "T", schools: [{ orgId: 20, name: "S" }] },
+        ],
+      });
+    if (url.includes("eva-apps/auth"))
+      return answer(303, "", ["JSESSIONID=after-login; Path=/", "hash=h; Path=/"]);
+    cookies.push(request.headers?.Cookie);
+    return answer(200, []);
+  };
+  const logs: string[] = [];
+  const orig = console.error;
+  console.error = (m: string) => logs.push(m);
+  try {
+    const manager = createSessionManager(config, {
+      store: new MemorySessionStore(),
+      pending: new MemoryPendingLoginStore(),
+      fetchImpl,
+      redirectUri: "https://parent.example/callback",
+      browserAuthorization: async () => "CODE",
+    });
+    // What a long-lived host does: the context is built once, before anyone has logged in.
+    const { portal } = createPortals(manager, { browser: null, fetchImpl });
+    const added: { name: string; value: string }[] = [];
+    const page = { addInitScript: async () => {}, route: async () => {} };
+    const context = {
+      addCookies: async (c: typeof added) => void added.push(...c),
+      newPage: async () => page,
+      close: async () => {},
+    };
+    const browser = createBrowserSession(manager, {
+      playwrightLoader: async () =>
+        ({
+          chromium: {
+            launch: async () => ({ newContext: async () => context, close: async () => {} }),
+          },
+        }) as never,
+    });
+    await assert.rejects(manager.ensureSession(), /no saved session/);
+    await manager.login();
+    assert.deepEqual(await portal.getScheduleWeek(47), []);
+    assert.deepEqual(cookies, ["JSESSIONID=after-login; hash=h; usertype=1"]);
+    await browser.withPage(async () => {});
+    assert.equal(added.find((c) => c.name === "JSESSIONID")?.value, "after-login");
+  } finally {
+    console.error = orig;
+  }
 });
 
 test("createPortal honours an explicit null browser; web cookies are null without a web session", async () => {
@@ -439,7 +528,8 @@ test("createSessionManager: the login URL is recorded in the pending marker and 
   assert.match(started.url ?? "", /react\/#\/login\/parent/);
   assert.equal(opened.length, 1, "the browser opener still runs");
   // end the background login so its callback server does not keep the process alive
-  await fetch("http://127.0.0.1:43555/callback?error=cancelled");
+  const state = new URLSearchParams((started.url ?? "").split("?")[1]).get("state");
+  await fetch(`http://127.0.0.1:43555/callback?error=cancelled&state=${state}`);
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(pending.read()?.state, "failed");
   assert.match(pending.read()?.error ?? "", /cancelled/);

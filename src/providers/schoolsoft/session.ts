@@ -52,13 +52,18 @@ export class SchoolsoftSession implements ProviderSession {
     return this.tokens.cookieHeader;
   }
 
-  /** Credentials to persist; the expiry is read from the JWT, as it always was. */
+  /**
+   * Credentials to persist; the expiry is read from the JWT, as it always was. Only what
+   * is set: a session without credentials serialises to `{}`, which is how the session
+   * manager tells a login that yielded nothing from one worth saving.
+   */
   serialize(): SchoolsoftCredentials {
-    const c = this.tokens;
+    const { accessToken, refreshToken } = this.tokens;
+    const expiresAt = accessToken ? decodeJwtClaims(accessToken)?.exp : undefined;
     return {
-      accessToken: c.accessToken ?? undefined,
-      refreshToken: c.refreshToken ?? undefined,
-      accessTokenExpiresAt: c.accessToken ? decodeJwtClaims(c.accessToken)?.exp : undefined,
+      ...(accessToken ? { accessToken } : {}),
+      ...(refreshToken ? { refreshToken } : {}),
+      ...(expiresAt !== undefined ? { accessTokenExpiresAt: expiresAt } : {}),
     };
   }
 }

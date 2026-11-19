@@ -43,7 +43,11 @@ export interface CallbackOptions {
   openBrowser?: (url: string) => void;
 }
 
-/** Resolves with the authorization code, rejects on timeout, error or state mismatch. */
+/**
+ * Resolves with the authorization code; rejects on timeout or when the redirect that
+ * carries the expected state reports an error or no code. A request without that state
+ * is refused and the wait goes on.
+ */
 export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
   /* c8 ignore next: the real opener would launch the user's browser */
   const openBrowser = options.openBrowser ?? defaultOpenInBrowser;
@@ -71,15 +75,25 @@ export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
       const err = url.searchParams.get("error");
       const gotState = url.searchParams.get("state");
       const gotCode = url.searchParams.get("code");
-      const html = (body: string) => {
-        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      const page = (status: number, body: string) => {
+        res.writeHead(status, { "content-type": "text/html; charset=utf-8" });
         res.end(body);
+      };
+      const finish = (body: string) => {
+        page(200, body);
         clearTimeout(timeout);
         // Give the response a moment to flush before closing.
         setTimeout(() => server.close(), 100);
       };
+      // Only the redirect that carries this login's state may end it. Anything else on
+      // this port (another page in the browser, a stale tab, a local process) is answered
+      // and ignored, so it can neither complete nor cancel the login the user is in.
+      if (gotState !== options.expectedState) {
+        page(400, ERROR_HTML(err ?? "This request does not belong to the login in progress."));
+        return;
+      }
       if (err) {
-        html(ERROR_HTML(err));
+        finish(ERROR_HTML(err));
         reject(
           new AgentError({
             kind: "not_authenticated",
@@ -90,19 +104,12 @@ export function awaitCallbackCode(options: CallbackOptions): Promise<string> {
         );
         return;
       }
-      if (gotState !== options.expectedState) {
-        html(ERROR_HTML("State mismatch — possible CSRF, try again."));
-        reject(
-          new AgentError({ kind: "not_authenticated", key: "login_state_mismatch", hint: "login" }),
-        );
-        return;
-      }
       if (!gotCode) {
-        html(ERROR_HTML("No authorization code in callback."));
+        finish(ERROR_HTML("No authorization code in callback."));
         reject(new AgentError({ kind: "not_authenticated", key: "login_no_code", hint: "login" }));
         return;
       }
-      html(SUCCESS_HTML);
+      finish(SUCCESS_HTML);
       resolve(gotCode);
     });
 

@@ -215,7 +215,11 @@ test("remote login state is exact, one-use, private; metadata and reads honor ch
   });
   const { url } = await f.runtime.beginLogin();
   assert.equal((await f.runtime.status()).loginInProgress, true);
-  await assert.rejects(f.runtime.beginLogin(), /already in progress/);
+  assert.deepEqual(
+    await f.runtime.beginLogin(),
+    { url },
+    "asking again while the login waits gives the same link, not a second login",
+  );
   const state = new URLSearchParams(url.split("?")[1]).get("state")!;
   assert.equal(f.runtime.callback("wrong", "CODE"), false);
   assert.equal(f.runtime.callback("x".repeat(state.length), "CODE"), false);
@@ -373,13 +377,58 @@ test("cancel queued login before it starts and close after callback cannot persi
   const f = fixture();
   const beginning = f.runtime.beginLogin();
   const rejection = assert.rejects(beginning, /cancelled/);
-  await f.runtime.logout();
+  const loggedOut = f.runtime.logout();
+  await assert.rejects(
+    f.runtime.beginLogin(),
+    /already in progress/,
+    "a login that is being cancelled has no link to hand out again",
+  );
+  await loggedOut;
   await rejection;
   assert.equal((await f.runtime.status()).loginError, "cancelled");
   const { url } = await f.runtime.beginLogin();
   f.runtime.callback(new URLSearchParams(url.split("?")[1]).get("state")!, "CODE");
   await f.runtime.close();
   assert.equal(f.store.load(), null);
+});
+
+test("a sign-in that ends before SchoolSoft issues anything leaves the working session in place", async () => {
+  let now = 0;
+  const f = fixture({ timeout: 20, now: () => now });
+  await login(f.runtime);
+  const saved = f.store.load();
+  assert.ok(saved, "signed in");
+  const { url } = await f.runtime.beginLogin();
+  now = 21;
+  assert.equal(
+    f.runtime.callback(new URLSearchParams(url.split("?")[1]).get("state")!, "CODE"),
+    false,
+    "the link expired",
+  );
+  await delay(5); // the cancelled login leaves the queue
+  const status = await f.runtime.status();
+  assert.equal(status.authenticated, true, "the session from before is still the session");
+  assert.equal(status.loginInProgress, false);
+  assert.deepEqual(f.store.load()?.data, saved.data);
+  assert.deepEqual(await f.runtime.execute("list_children", {}, [100]), {
+    children: [{ id: 100, firstName: "Child 100" }],
+    childInFocus: 100,
+  });
+  await f.runtime.close();
+});
+
+test("a sign-in that fails after SchoolSoft issued tokens removes them, a working session included", async () => {
+  const f = fixture();
+  await login(f.runtime);
+  const { url } = await f.runtime.beginLogin();
+  // the token exchange succeeds, then the guardian profile cannot be read
+  f.override((u) => (u.endsWith("/eva/api/v1/parent") ? driftedParent("renamed") : undefined));
+  f.runtime.callback(new URLSearchParams(url.split("?")[1]).get("state")!, "CODE");
+  await delay(5);
+  assert.equal((await f.runtime.status()).authenticated, false);
+  assert.equal(f.store.load(), null, "tokens no guardian check has seen are never kept");
+  assert.equal((await f.runtime.status()).loginError, "upstream");
+  await f.runtime.close();
 });
 
 test("failed upstream login clears any partial tokens", async () => {

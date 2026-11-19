@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileSource, loadConfig, loadContext } from "../../src/shared/bootstrap.js";
+import { AgentError } from "../../src/core/index.js";
 
 test("fileSource: absent → {}, present → parsed with configDir, corrupt → error naming the file", () => {
   const dir = mkdtempSync(join(tmpdir(), "cfg-"));
@@ -16,7 +17,14 @@ test("fileSource: absent → {}, present → parsed with configDir, corrupt → 
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
   assert.deepEqual(fileSource(dir), { school: "taby", configDir: dir });
   writeFileSync(join(dir, "config.json"), "{oops");
-  assert.throws(() => fileSource(dir), /Could not parse .*config\.json/);
+  assert.throws(
+    () => fileSource(dir),
+    (e: unknown) =>
+      e instanceof AgentError &&
+      e.kind === "not_configured" &&
+      /settings file .*config\.json cannot be read .*Correct it or delete it/.test(e.message),
+    "a hand edit that went wrong is the user's to fix: never a raw error (exit 1, or a host that will not start)",
+  );
 });
 
 test("loadConfig without overrides reads env + file; loadContext builds one memoised context", () => {

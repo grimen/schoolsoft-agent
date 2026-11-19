@@ -21,7 +21,10 @@ export type { BreakerState } from "./breaker.js";
 export interface OutboundCall {
   /** Changes data at the portal: never the probe, never sent while the breaker is not closed. */
   write?: boolean;
-  /** The caller's cancellation; a request cancelled while queued is never sent. */
+  /**
+   * The caller's cancellation; a request cancelled while queued is never sent, and a read
+   * that fails after its caller left is reported as cancelled, not as push-back.
+   */
   signal?: AbortSignal;
 }
 
@@ -106,6 +109,12 @@ export class PortalBudget implements RequestBudget {
     try {
       answer = await send();
     } catch (e) {
+      // A read the caller gave up on while it was on its way says nothing about the
+      // portal: it is not push-back. A write is never cut short, so its failure is real.
+      if (call.signal?.aborted && !call.write) {
+        this.settle(() => this.breaker.abandon(probe));
+        throw new RequestCancelledError();
+      }
       this.settle(() => this.breaker.pushback(this.o.now(), probe, null));
       throw e;
     }

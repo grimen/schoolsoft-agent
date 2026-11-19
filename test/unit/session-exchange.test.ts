@@ -8,6 +8,7 @@ import {
   type ExchangeFetch,
 } from "../../src/providers/schoolsoft/auth/session-exchange.js";
 import { SessionTokens } from "../../src/providers/schoolsoft/tokens.js";
+import { UpstreamError, keepsSession } from "../../src/core/errors/index.js";
 
 function fakeClient() {
   const client = new SessionTokens("testskola");
@@ -114,4 +115,19 @@ test("failure message without a redirect location", async () => {
     exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
     /status 302\)\. The token/,
   );
+});
+
+test("a 5xx is the portal failing, not the token refused: transient, so a saved session survives it", async () => {
+  const { client } = fakeClient();
+  const fetchImpl: ExchangeFetch = async () => ({
+    status: 503,
+    data: "",
+    headers: {},
+    setCookies: [],
+  });
+  await assert.rejects(
+    exchangeTokenForCookies(client, { userType: "parent", userId: 1, orgId: 2, fetchImpl }),
+    (e: unknown) => e instanceof UpstreamError && e.status === 503 && keepsSession(e),
+  );
+  assert.equal(client.cookieHeader, null);
 });

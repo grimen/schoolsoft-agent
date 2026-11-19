@@ -8,6 +8,9 @@
 import type { Command } from "commander";
 import { join } from "node:path";
 import {
+  AgentError,
+  InputError,
+  NotConfiguredError,
   accountKey,
   accountSource,
   createRequestBudget,
@@ -19,8 +22,6 @@ import {
 } from "../../core/index.js";
 import { writeConfigFile, readConfigFile } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
-import { CliExit } from "../program.js";
-import { EXIT } from "../exit-codes.js";
 
 type Globals = Record<string, string | undefined>;
 
@@ -34,6 +35,15 @@ export function configDirOf(deps: CliDeps, g: Globals): string {
 }
 
 /** The provider id from a flag or the environment; undefined means the default. */
+/** No school in the public list matched what was asked for (configure and the setup guide). */
+export const schoolNotFound = (query: string) =>
+  new AgentError({
+    kind: "input",
+    key: "school_not_found",
+    params: { query },
+    hint: "school_query",
+  });
+
 export function providerIdOf(deps: CliDeps, g: Globals): string | undefined {
   return g.provider ?? envSource(deps.env).provider;
 }
@@ -96,14 +106,12 @@ export function registerConfigure(
         const query =
           opts.query ??
           (deps.prompt ? await deps.prompt("School name (e.g. Rösjöskolan): ") : undefined);
-        if (!query) {
-          throw new CliExit(
-            EXIT.ERROR,
-            "Nothing to configure: pass --school <slug> [--org-id <id>] or --query <name>.",
-          );
-        }
+        // A person's mistake each time, so an error with a kind, both languages and a next
+        // step, as everywhere else; exit 1 is kept for faults in the tool itself.
+        if (!query)
+          throw new NotConfiguredError("pass --school <slug> [--org-id <id>] or --query <name>");
         const hits = await findSchools(configDir, providerId, query);
-        if (hits.length === 0) throw new CliExit(EXIT.ERROR, `No school matched "${query}".`);
+        if (hits.length === 0) throw schoolNotFound(query);
         let pick = hits[0];
         if (deps.prompt && hits.length > 1 && !opts.query) {
           deps.stderr(
@@ -112,7 +120,7 @@ export function registerConfigure(
           const answer = await deps.prompt(`Pick 1-${hits.length} [1]: `);
           const n = Number(answer || "1");
           if (!Number.isInteger(n) || n < 1 || n > hits.length)
-            throw new CliExit(EXIT.ERROR, "Invalid choice.");
+            throw new InputError(`choose a number from 1 to ${hits.length}, got "${answer}"`);
           pick = hits[n - 1];
         }
         school = pick.slug;

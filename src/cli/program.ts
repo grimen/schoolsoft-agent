@@ -66,6 +66,14 @@ export class CliExit extends Error {
   }
 }
 
+/** The global options a command line can carry, by the config key each one sets. */
+const GLOBAL_FLAGS = {
+  school: "--school",
+  orgId: "--org-id",
+  configDir: "--config-dir",
+  stateDir: "--state-dir",
+} as const;
+
 export function globalOverrides(opts: Record<string, unknown>): ConfigSource {
   return {
     school: opts.school as string | undefined,
@@ -163,8 +171,10 @@ async function backgroundLogin(
     };
   }
   const argv: string[] = [];
-  for (const [k, v] of Object.entries(globalOverrides(globals)))
-    if (v) argv.push(`--${kebab(k)}`, String(v));
+  // The child parses these as this process did, so they are spelled as its flags are.
+  const given = globalOverrides(globals);
+  for (const key of Object.keys(GLOBAL_FLAGS) as (keyof typeof GLOBAL_FLAGS)[])
+    if (given[key]) argv.push(GLOBAL_FLAGS[key], String(given[key]));
   argv.push("login");
   if (args.strategy) argv.push("--strategy", String(args.strategy));
   const pid = deps.detach!(argv);

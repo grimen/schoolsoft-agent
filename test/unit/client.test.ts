@@ -65,6 +65,8 @@ function connector(start: Tokens = { accessToken: "A1", refreshToken: "R1" }) {
   let refresh = start.refreshToken;
   let generation = 1;
   let onRefresh: (() => Promise<void>) | undefined;
+  /** The next refresh is answered with this status instead (then it is used up). */
+  let refreshFailure: number | undefined;
   /** 401s held back until this many have arrived, so they meet the client at once. */
   let together = 0;
   let waiting: (() => void)[] = [];
@@ -83,6 +85,11 @@ function connector(start: Tokens = { accessToken: "A1", refreshToken: "R1" }) {
     seen.push(entry);
     if (entry.url === BASE + "/token") {
       await onRefresh?.();
+      if (refreshFailure !== undefined) {
+        const status = refreshFailure;
+        refreshFailure = undefined;
+        return new Response("upstream unavailable", { status });
+      }
       const form = new URLSearchParams(entry.body);
       if (form.get("refresh_token") !== refresh)
         return json({ error: "invalid_grant", error_description: "Refresh token reused" }, 400);
@@ -123,6 +130,9 @@ function connector(start: Tokens = { accessToken: "A1", refreshToken: "R1" }) {
     },
     answer: (handler: Handler) => {
       api = handler;
+    },
+    failNextRefresh: (status: number) => {
+      refreshFailure = status;
     },
     holdRefresh: (hold: () => Promise<void>) => {
       onRefresh = hold;
@@ -218,6 +228,26 @@ test("a refused refresh clears the tokens and fails every waiting call once", as
   assert.equal(again.problem, "oauth-token");
   assert.equal(again.status, null, "nothing sent without tokens");
   assert.equal(c.refreshes(), 1);
+});
+
+test("a refresh the connector could not answer keeps the tokens: the next call renews and succeeds", async () => {
+  for (const status of [502, 429]) {
+    const c = connector();
+    const store = memoryTokenStore({ accessToken: "A1", refreshToken: "R1" });
+    const client = createClient({ baseUrl: BASE, clientId: "app", tokens: store, fetch: c.fetch });
+    c.expire();
+    c.failNextRefresh(status);
+    const failed = await client.schedule(7).then(unexpected, (e: unknown) => e as ConnectorError);
+    assert.ok(failed instanceof ConnectorError);
+    assert.deepEqual(
+      [failed.kind, failed.retryable, failed.status, failed.problem],
+      ["upstream", true, status, null],
+      "not a disconnection: nothing was refused",
+    );
+    assert.deepEqual(store.current(), { accessToken: "A1", refreshToken: "R1" });
+    assert.deepEqual(await client.schedule(7), SCHEDULE);
+    assert.equal(store.current()?.refreshToken, "R2", "the kept refresh token still worked");
+  }
 });
 
 test("a 401 that survives the refresh disconnects; a known expiry refreshes before sending", async () => {

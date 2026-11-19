@@ -76,6 +76,8 @@ interface Pending {
   accept?: (code: string) => void;
   reject?: (error: Error) => void;
   timer?: ReturnType<typeof setTimeout>;
+  /** What `beginLogin` answered; asking again while this login waits gets the same answer. */
+  link?: Promise<{ url: string }>;
 }
 function loginError(reason: string): AgentError {
   return new AgentError({
@@ -95,6 +97,8 @@ export class ConnectorRuntime {
   private outstanding = 0;
   private lastLoginError?: LoginFailure;
   private readonly keepalive;
+  /** Writes to the session store, so a failed login can tell whether it saved anything. */
+  private saves = 0;
 
   constructor(private readonly options: ConnectorRuntimeOptions) {
     this.now = options.now ?? Date.now;
@@ -103,7 +107,14 @@ export class ConnectorRuntime {
       // One process tracks its own login (this.pending); no marker is written to the data disk.
       pending: new MemoryPendingLoginStore(),
       ...options.deps,
-      store: options.store,
+      store: {
+        load: () => options.store.load(),
+        save: (session) => {
+          this.saves++;
+          options.store.save(session);
+        },
+        clear: () => options.store.clear(),
+      },
       redirectUri: options.redirectUri,
       browserAuthorization: ({ url, state }) => this.authorize(url, state),
     });
@@ -148,13 +159,20 @@ export class ConnectorRuntime {
 
   beginLogin(): Promise<{ url: string }> {
     if (this.closed) return Promise.reject(new InputError("Connector is closed."));
-    if (this.pending) return Promise.reject(new InputError("A login is already in progress."));
+    // Asked again while a login waits for BankID (the page with the link was closed or
+    // reloaded): the same link once more, never a second login. A login that is being
+    // cancelled has no link left to give.
+    if (this.pending)
+      return this.pending.cancelled
+        ? Promise.reject(new InputError("A login is already in progress."))
+        : this.pending.link!;
     const pending: Pending = { cancelled: false };
     this.pending = pending;
     this.lastLoginError = undefined;
-    return new Promise((resolve, reject) => {
+    pending.link = new Promise((resolve, reject) => {
       this.publishUrl = resolve;
       void this.serialized(async () => {
+        const savesBefore = this.saves;
         try {
           if (pending.cancelled) throw loginError("Login cancelled.");
           await this.manager.login();
@@ -162,7 +180,11 @@ export class ConnectorRuntime {
           this.checkIdentity();
         } catch (error) {
           this.lastLoginError ??= "upstream";
-          this.manager.logout();
+          // Remove what this login saved: tokens of a guardian never checked against the
+          // pin, or of a login the owner cancelled. A login that ended before it saved
+          // anything (expired, cancelled, refused upstream) leaves the session that was
+          // working before it in place.
+          if (this.saves !== savesBefore) this.manager.logout();
           reject(error);
         } finally {
           clearTimeout(pending.timer);
@@ -171,6 +193,7 @@ export class ConnectorRuntime {
         }
       });
     });
+    return pending.link;
   }
 
   callback(state: string, code: string): boolean {

@@ -24,7 +24,7 @@ export interface BrowserFlowResult {
 /**
  * Runs the full interactive flow. Resolves with the authorization code
  * once the user has completed login (e.g. via BankID), or rejects on
- * timeout / state mismatch.
+ * timeout or an error the login page reports for this login.
  */
 export async function runBrowserLogin(options: {
   school: string;

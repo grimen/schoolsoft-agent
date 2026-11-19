@@ -410,10 +410,14 @@ test("browserStatus without probes resolves the real playwright; chromiumPath fa
 test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn error", async () => {
   const { defaultSpawner } = await import("../../src/core/browser/install.js");
   const { EventEmitter } = await import("node:events");
+  const stdio: unknown[] = [];
   const mk = (fire: (c: InstanceType<typeof EventEmitter>) => void) => {
     const child = new EventEmitter();
     queueMicrotask(() => fire(child));
-    return (() => child) as never;
+    return ((_cmd: string, _args: string[], options: { stdio: unknown }) => {
+      stdio.push(options.stdio);
+      return child;
+    }) as never;
   };
   assert.equal(
     await defaultSpawner(
@@ -438,6 +442,11 @@ test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn er
       mk((c) => c.emit("error", new Error("ENOENT"))),
     ),
     /ENOENT/,
+  );
+  assert.deepEqual(
+    stdio[0],
+    ["inherit", 2, 2],
+    "the installer's progress goes to stderr, so stdout stays the command's one JSON result",
   );
 });
 
@@ -473,4 +482,77 @@ test("every navigation is one request of the budget; its status and Retry-After 
     limited.withPage((p) => p.goto("/jsp/three.jsp")),
     (e) => e instanceof PortalPushbackError && e.sent,
   );
+});
+
+test("two reads at the same time each use and close their own browser; a failed context still closes it; close() ends what is running", async () => {
+  interface Launched {
+    closed: boolean;
+    contextFails?: boolean;
+  }
+  const launched: Launched[] = [];
+  let failNextContext = false;
+  const loader = async () =>
+    ({
+      chromium: {
+        launch: async () => {
+          const mine: Launched = { closed: false, contextFails: failNextContext };
+          failNextContext = false;
+          launched.push(mine);
+          return {
+            newContext: async () => {
+              if (mine.contextFails) throw new Error("no context");
+              return {
+                addCookies: async () => {},
+                newPage: async () => ({ addInitScript: async () => {}, route: async () => {} }),
+                close: async () => {},
+              };
+            },
+            close: async () => {
+              mine.closed = true;
+            },
+          };
+        },
+      },
+    }) as never;
+  const s = new PlaywrightSession({
+    budget: new CountingBudget(),
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=a; hash=b",
+    loader,
+  });
+  let releaseSlow!: () => void;
+  const hold = new Promise<void>((resolve) => (releaseSlow = resolve));
+  const slow = s.withPage(async () => {
+    await hold;
+    return launched[0].closed;
+  });
+  while (launched.length < 1) await new Promise((r) => setImmediate(r));
+  await s.withPage(async () => {}); // a second read starts and finishes while the first runs
+  assert.deepEqual(
+    launched.map((b) => b.closed),
+    [false, true],
+    "the read that finished closed its own browser, not the one still in use",
+  );
+  releaseSlow();
+  assert.equal(await slow, false, "the first read's browser was open for all of it");
+  assert.deepEqual(
+    launched.map((b) => b.closed),
+    [true, true],
+    "and nothing is left running",
+  );
+
+  failNextContext = true;
+  await assert.rejects(
+    s.withPage(async () => {}),
+    /no context/,
+  );
+  assert.equal(launched[2].closed, true, "a browser whose context never opened is closed too");
+
+  let releaseStuck!: () => void;
+  const stuck = s.withPage(() => new Promise<void>((resolve) => (releaseStuck = resolve)));
+  while (launched.length < 4) await new Promise((r) => setImmediate(r));
+  await s.close();
+  assert.equal(launched[3].closed, true, "close() reaches a browser whose call has not finished");
+  releaseStuck();
+  await stuck;
 });

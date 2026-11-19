@@ -14,6 +14,7 @@ import {
   mkdtempSync,
   readFileSync,
   readdirSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
@@ -97,6 +98,31 @@ test("exclusive creation: the first writer's content wins, a second call reports
   if (posix) assert.equal(mode(file), 0o600);
   // Anything but "already exists" is the caller's problem.
   assert.throws(() => createPrivateFile(join(root, "x".repeat(300)), "x"), /ENAMETOOLONG/);
+  assert.deepEqual(
+    readdirSync(join(root, "state")),
+    ["key.bin"],
+    "the file appears whole, and nothing temporary is left beside it",
+  );
+});
+
+test("exclusive creation on a filesystem without hard links creates the file directly", () => {
+  const root = mkdtempSync(join(tmpdir(), "private-"));
+  const file = join(root, "state", "key.bin");
+  const noLinks = () => {
+    throw Object.assign(new Error("operation not permitted"), { code: "EPERM" });
+  };
+  assert.equal(createPrivateFile(file, Buffer.from("one"), noLinks), true);
+  assert.equal(createPrivateFile(file, Buffer.from("two"), noLinks), false);
+  assert.equal(readFileSync(file, "utf8"), "one");
+  if (posix) assert.equal(mode(file), 0o600);
+  assert.deepEqual(readdirSync(join(root, "state")), ["key.bin"]);
+  // Creating it directly can fail too; anything but "already exists" is still the caller's.
+  const other = join(root, "gone", "key.bin");
+  const directoryVanishes = () => {
+    rmSync(join(root, "gone"), { recursive: true });
+    return noLinks();
+  };
+  assert.throws(() => createPrivateFile(other, "x", directoryVanishes), /ENOENT/);
 });
 
 test("appends create the file 0600 in a 0700 directory and add to it", () => {

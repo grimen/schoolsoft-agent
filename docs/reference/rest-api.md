@@ -241,6 +241,7 @@ try {
 |---|---|---|---|
 | Any problem details answer | the body's | the body's type | the body's |
 | `401` that survives one refresh, a refused refresh, or no tokens | `not_authenticated` | `oauth-token` | false |
+| A refresh the connector could not answer (`429`, `5xx`); the tokens are kept | `upstream` | null | true |
 | The connector cannot be reached | `network` | null | true |
 | An answer that does not fit its schema | `upstream` | `response-drift` | false |
 | Any other answer (e.g. a proxy's error page) | `upstream` | null | for 5xx |

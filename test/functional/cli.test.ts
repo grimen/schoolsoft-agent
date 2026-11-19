@@ -5,7 +5,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli, type CliDeps } from "../../src/cli/program.js";
@@ -150,8 +158,9 @@ test("configure: --query resolves via the cached school list; interactive picks 
   assert.equal(r2.code, EXIT.OK, r2.err);
   assert.equal(r2.json().config.orgId, "18");
 
-  const none = harness();
-  assert.equal((await none.run("--config-dir", dir, "configure")).code, EXIT.ERROR);
+  const none = await harness().run("--config-dir", dir, "configure");
+  assert.equal(none.code, EXIT.NOT_CONFIGURED, "nothing to go on is not a fault in the tool");
+  assert.match(none.err, /pass --school <slug> \[--org-id <id>\] or --query <name>/);
 });
 
 test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy store", async () => {
@@ -175,9 +184,22 @@ test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy 
   writeFileSync(join(home, ".schoolsoft-mcp", "key.bin"), "key");
   const warn = await run("--config-dir", dir, "--school", "taby", "doctor");
   assert.match(warn.out, /doctor --fix/);
+  mkdirSync(join(home, ".schoolsoft-mcp", "old-folder"));
   const fixed = await run("--config-dir", dir, "--school", "taby", "doctor", "--fix");
   assert.ok(existsSync(join(dir, "state", "session.enc")));
   assert.match(fixed.out, /moved/);
+  assert.equal(readFileSync(join(dir, "state", "key.bin"), "utf8"), "key");
+  assert.deepEqual(
+    readdirSync(join(home, ".schoolsoft-mcp")),
+    ["old-folder"],
+    "the files were moved; anything that is not a file stays where it was",
+  );
+  if (process.platform !== "win32")
+    assert.equal(
+      statSync(join(dir, "state", "session.enc")).mode & 0o777,
+      0o600,
+      "the moved files are private whatever the old ones were",
+    );
 });
 
 test("browser status/install use injected probes and spawner; cdp engine needs nothing", async () => {
@@ -352,8 +374,12 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
     }),
   );
   const none = await harness().run("--config-dir", dir, "configure", "--query", "zzzz");
-  assert.equal(none.code, EXIT.ERROR);
-  assert.match(none.err, /No school matched/);
+  assert.equal(none.code, EXIT.INPUT, "a person's mistake, not a fault in the tool");
+  assert.match(none.err, /No school in SchoolSoft's public list matched "zzzz"/);
+  assert.match(none.err, /Next: /);
+  const swedish = harness({ env: { SCHOOLSOFT_LANG: "sv" } });
+  const ingen = await swedish.run("--config-dir", dir, "configure", "--query", "zzzz");
+  assert.match(ingen.err, /Ingen skola i SchoolSofts offentliga lista matchade "zzzz"/);
   const answers = ["täby", ""];
   const dflt = harness({ prompt: async () => answers.shift() ?? "" });
   const d = await dflt.run("--config-dir", dir, "configure");
@@ -362,8 +388,8 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
   const bad = ["täby", "9"];
   const invalid = harness({ prompt: async () => bad.shift() ?? "" });
   const i = await invalid.run("--config-dir", dir, "configure");
-  assert.equal(i.code, EXIT.ERROR);
-  assert.match(i.err, /Invalid choice/);
+  assert.equal(i.code, EXIT.INPUT);
+  assert.match(i.err, /choose a number from 1 to 2, got "9"/);
 
   // doctor: invalid config (not a NotConfiguredError), saved session detail, network failure, browser ready detail
   const bogus = harness({ env: { SCHOOLSOFT_CALLBACK_PORT: "abc" } });
@@ -572,7 +598,8 @@ test("login --background hands the blocking login to a detached process and repo
       return 4242;
     },
   });
-  const r = await h.run("--school", "taby", "login", "--background", "--strategy", "fake");
+  const globals = ["--school", "taby", "--org-id", "20", "--config-dir", "/c", "--state-dir", "/s"];
+  const r = await h.run(...globals, "login", "--background", "--strategy", "fake");
   assert.equal(r.code, EXIT.OK, r.err);
   assert.deepEqual(r.json(), {
     status: "login_started",
@@ -580,7 +607,11 @@ test("login --background hands the blocking login to a detached process and repo
     pid: 4242,
     next: "Ask the user to complete BankID in the browser window, then run auth-status until authenticated is true.",
   });
-  assert.deepEqual(spawned, [["--school", "taby", "login", "--strategy", "fake"]]);
+  assert.deepEqual(
+    spawned,
+    [[...globals, "login", "--strategy", "fake"]],
+    "the child gets the global options spelled as the flags it parses",
+  );
   // already running: no second spawn
   const again = await h.run("login", "--background");
   assert.equal(again.json().status, "login_started");
