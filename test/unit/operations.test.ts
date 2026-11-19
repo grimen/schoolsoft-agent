@@ -123,6 +123,27 @@ test("browser-backed and web-gated operations return the child plus the portal p
   assert.equal(crit.page.title, "Kriterier Bild");
 });
 
+test("get_assignments around New Year: the default year is the week's own, not the calendar year", async (t) => {
+  const { ctx } = makeContext();
+  await run("login", ctx);
+  t.mock.timers.enable({ apis: ["Date"], now: Date.UTC(2027, 0, 2, 12) });
+  // Saturday 2 January 2027 lies in ISO week 53 of 2026.
+  const first = await run("get_assignments", ctx);
+  assert.deepEqual([first.week, first.year], [53, 2026]);
+  t.mock.timers.setTime(Date.UTC(2025, 11, 30, 12));
+  // Tuesday 30 December 2025 lies in ISO week 1 of 2026.
+  const last = await run("get_assignments", ctx);
+  assert.deepEqual([last.week, last.year], [1, 2026]);
+  const asked = await run("get_assignments", ctx, { week: 2 });
+  assert.deepEqual([asked.week, asked.year], [2, 2026], "a week alone means the one nearest today");
+  const explicit = await run("get_assignments", ctx, { week: 53, year: 2020 });
+  assert.deepEqual(
+    [explicit.week, explicit.year],
+    [53, 2020],
+    "an explicit year is taken as given",
+  );
+});
+
 test("defaults and explicit inputs: activity log limit, assignments week/year, lunch week, news limit, contacts", async () => {
   const { ctx } = makeContext();
   await run("login", ctx);

@@ -260,7 +260,8 @@ Get assignments (homework, tests, projects) for one child for a given ISO week.
 
 Args:
   - week (number, optional): ISO week 1–53. Defaults to current week.
-  - year (number, optional): Defaults to current year.
+  - year (number, optional): Defaults to the year that week belongs to, nearest today
+    (week 1 asked in late December is next January's, as for get_schedule).
   - child_id (number, optional): from list_children.
   - fresh (boolean, optional): read from SchoolSoft now instead of a recent in-memory copy.
 
