@@ -12,6 +12,7 @@ import {
   appendFileSync,
   closeSync,
   fsyncSync,
+  linkSync,
   mkdirSync,
   openSync,
   renameSync,
@@ -67,18 +68,41 @@ export function writePrivateFile(
   if (options.durable) syncDirectory(dir);
 }
 
-/**
- * Create the file (0600) only if it does not exist yet: true when this call
- * created it. Two processes creating the same key at once agree on one.
- */
-export function createPrivateFile(path: string, data: string | Uint8Array): boolean {
-  ensurePrivateDir(dirname(path));
+/** Create `path` with `data` unless it exists: true when this call created it. */
+function createExclusive(path: string, data: string | Uint8Array): boolean {
   try {
     writeFileSync(path, data, { mode: PRIVATE_FILE_MODE, flag: "wx" });
     return true;
   } catch (e) {
     if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
     throw e;
+  }
+}
+
+/**
+ * Create the file (0600) only if it does not exist yet: true when this call
+ * created it. Two processes creating the same key at once agree on one, and
+ * neither can read it half-written: the content goes to a temporary file that
+ * is then linked into place, which happens whole or not at all. Where the
+ * filesystem has no hard links the file is created directly.
+ */
+export function createPrivateFile(
+  path: string,
+  data: string | Uint8Array,
+  link: (existing: string, created: string) => void = linkSync,
+): boolean {
+  ensurePrivateDir(dirname(path));
+  const temporary = `${path}.${process.pid}.new`;
+  rmSync(temporary, { force: true }); // a leftover of a crashed creation
+  createExclusive(temporary, data);
+  try {
+    link(temporary, path);
+    return true;
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === "EEXIST") return false;
+    return createExclusive(path, data); // no hard links here
+  } finally {
+    rmSync(temporary, { force: true });
   }
 }
 
