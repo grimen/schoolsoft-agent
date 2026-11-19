@@ -7,7 +7,6 @@ import type { Command } from "commander";
 import { existsSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import {
-  AgentError,
   InputError,
   CONFIG_FORMAT,
   FileSessionHistoryStore,
@@ -135,11 +134,11 @@ export async function runDoctor(
       name: "config",
       ok: false,
       detail:
+        // Loading the config fails only with errors meant for the user (a bad value, an
+        // unreadable or newer file), so the message is the detail.
         e instanceof NotConfiguredError
           ? "not configured — run: schoolsoft-agent configure"
-          : e instanceof AgentError
-            ? e.message
-            : String(e),
+          : (e as Error).message,
     });
   }
 

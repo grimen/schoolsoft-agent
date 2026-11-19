@@ -235,14 +235,14 @@ test("config.json from a newer build: every reader refuses, configure exits 5 in
   assert.equal(readFileSync(file, "utf8"), original);
 });
 
-test("config.json with a malformed version is the usual parse error naming the file", () => {
+test("config.json with a malformed version is an error that names the file and what to do", () => {
   const dir = tmp("cfgbad");
   writeFileSync(join(dir, "config.json"), JSON.stringify({ version: "one", school: "taby" }));
   assert.throws(
     () => fileSource(dir),
-    /Could not parse .*config\.json: .*"version" is not a whole number/,
+    /settings file .*config\.json cannot be read \(.*"version" is not a whole number\)/,
   );
-  assert.throws(() => readConfigFile(dir), /Could not parse/);
+  assert.throws(() => readConfigFile(dir), /cannot be read/);
   assert.equal(configFileVersion(dir), null);
   writeFileSync(join(dir, "config.json"), "{oops");
   assert.equal(configFileVersion(dir), null);
@@ -448,7 +448,7 @@ test("doctor fails the check of each file from a newer build with the update mes
   const corrupt = (await runDoctor(doctorDeps(dir), { configDir: dir }, false, "v22.0.0"))
     .checks[1];
   assert.deepEqual([corrupt.name, corrupt.ok], ["config", false]);
-  assert.match(corrupt.detail, /^Error: Could not parse/);
+  assert.match(corrupt.detail, /^The settings file .*config\.json cannot be read/);
 
   writeFileSync(join(dir, "config.json"), JSON.stringify({ school: "taby" }));
   new FileSessionStore(state, "schoolsoft:taby").save(session);

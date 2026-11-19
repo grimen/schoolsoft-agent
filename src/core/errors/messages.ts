@@ -77,6 +77,12 @@ export const MESSAGES = {
     en: (p) => `Not configured: no school is set${p.reason ? ` (${p.reason})` : ""}.`,
     sv: (p) => `Inte konfigurerad: ingen skola är vald${p.reason ? ` (${p.reason})` : ""}.`,
   },
+  config_file_unreadable: {
+    en: (p) =>
+      `The settings file ${p.file} cannot be read (${p.detail}). Correct it or delete it, then run configure again.`,
+    sv: (p) =>
+      `Inställningsfilen ${p.file} kan inte läsas (${p.detail}). Rätta den eller ta bort den och kör sedan configure igen.`,
+  },
   not_authenticated: {
     en: (p) => `Not logged in to SchoolSoft (${p.reason}).`,
     sv: (p) => `Inte inloggad på SchoolSoft (${p.reason}).`,

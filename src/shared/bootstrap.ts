@@ -11,6 +11,7 @@ import {
   type ConfigDocument,
   type ConfigSource,
   type OperationContext,
+  AgentError,
   CONFIG_FORMAT,
   accountSource,
   foldAccountSettings,
@@ -49,7 +50,8 @@ export function configDirFrom(inputs: BootstrapInputs): string {
  * Parse and migrate config.json, with top-level account settings folded
  * into their account (they stay valid settings in every version). A file
  * from a newer build throws NewerFormatError; bad JSON or a malformed
- * version is the usual "Could not parse" error naming the file.
+ * version is an error a person can act on, naming the file: a hand edit that
+ * went wrong must not look like a bug, or keep a long-lived host from starting.
  */
 function readConfigDocument(file: string): ConfigDocument {
   return foldAccountSettings(
@@ -58,7 +60,12 @@ function readConfigDocument(file: string): ConfigDocument {
       file,
       () => JSON.parse(readFileSync(file, "utf8")),
       (e) => {
-        throw new Error(`Could not parse ${file}: ${(e as Error).message}`, { cause: e });
+        throw new AgentError({
+          kind: "not_configured",
+          key: "config_file_unreadable",
+          params: { file, detail: (e as Error).message },
+          cause: e,
+        });
       },
     ),
   );
