@@ -35,11 +35,11 @@
   "author": "Jonas Grimfelt",
   "license": "MIT",
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "commander": "^15.0.0",
     "express": "^5.2.1",
     "express-rate-limit": "^8.7.0",
-    "zod": "^4.6.5"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
