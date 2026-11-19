@@ -208,6 +208,12 @@ export const MESSAGES = {
     en: (p) => `The web login did not reach the school portal within ${p.seconds} s.`,
     sv: (p) => `Webbinloggningen nådde inte skolportalen inom ${p.seconds} s.`,
   },
+  web_login_needs_login: {
+    en: () =>
+      `The web login is saved together with the app session, and there is no saved session yet. Log in first, then do the web login.`,
+    sv: () =>
+      `Webbinloggningen sparas tillsammans med appsessionen, och det finns ingen sparad session ännu. Logga in först och gör sedan webbinloggningen.`,
+  },
   web_login_unavailable: {
     en: () => `The web login is not available in this configuration.`,
     sv: () => `Webbinloggningen är inte tillgänglig i den här konfigurationen.`,

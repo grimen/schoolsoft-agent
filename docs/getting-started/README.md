@@ -69,7 +69,7 @@ For information that requires the separate login:
 npx -y schoolsoft-agent login --web
 ```
 
-The second command opens a browser on your computer. Complete the login yourself. It may need repeating after a period of inactivity. You do not need these extras for ordinary schedule and lunch questions.
+The second command opens a browser on your computer. Complete the login yourself. It is saved together with your ordinary login, so do the ordinary `login` first. It may need repeating after a period of inactivity. You do not need these extras for ordinary schedule and lunch questions.
 
 ## 5. When something does not work
 

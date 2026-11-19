@@ -434,8 +434,17 @@ export class SessionManager<S extends ProviderSession = ProviderSession> {
   async webLogin(): Promise<{ status: "web_logged_in"; landedOn: string; cookies: number }> {
     if (!this.webLoginRunner)
       throw new AgentError({ kind: "not_available", key: "web_login_unavailable" });
+    // The web session is saved inside the app session's record. Without one it would live
+    // only in this process and be gone at exit, after the user went through the whole login.
+    if (!this.store.load())
+      throw new AgentError({
+        kind: "not_authenticated",
+        key: "web_login_needs_login",
+        hint: "login",
+      });
     const web = await this.webLoginRunner(this.school);
     this.web = web;
+    // Read again: the login took minutes and a refresh may have rotated the credentials.
     const saved = this.store.load();
     if (saved) this.store.save({ ...saved, web });
     this.emit({ type: "web_login", since: web.savedAt });

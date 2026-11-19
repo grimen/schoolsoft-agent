@@ -153,6 +153,8 @@ test("createPortal injects the web-login cookies into the browser session for ga
     openBrowser: () => {},
     webLogin: async () => web,
   });
+  // the web session is saved inside the app session's record, so one has to exist
+  store.save({ school: "taby", data: {}, savedAt: 1, authMethod: "bankid-browser" });
   await manager.webLogin();
   assert.equal(manager.getWebSession()?.cookies.length, 1);
   const injected: { name: string; value: string }[] = [];
@@ -239,6 +241,20 @@ test("createSessionManager defaults: file store in stateDir, web login runs a he
       resolveConfig([{ school: "taby", configDir: "/nowhere", stateDir }], defaults),
       { playwrightLoader: loader },
     );
+    await assert.rejects(
+      chromium.webLogin(),
+      /no saved session yet/,
+      "without an app session there is nowhere to save it, so no browser is opened",
+    );
+    assert.deepEqual(launched, []);
+    const { FileSessionStore } = await import("../../src/core/session/file-store.js");
+    const { accountKey } = await import("../../src/core/accounts.js");
+    new FileSessionStore(stateDir, accountKey("schoolsoft", "taby")).save({
+      school: "taby",
+      data: {},
+      savedAt: 1,
+      authMethod: "bankid-browser",
+    });
     const r = await chromium.webLogin();
     assert.equal(r.status, "web_logged_in");
     assert.deepEqual(launched, [{ headless: false }]);
