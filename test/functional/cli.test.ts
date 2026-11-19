@@ -5,7 +5,15 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runCli, type CliDeps } from "../../src/cli/program.js";
@@ -176,9 +184,22 @@ test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy 
   writeFileSync(join(home, ".schoolsoft-mcp", "key.bin"), "key");
   const warn = await run("--config-dir", dir, "--school", "taby", "doctor");
   assert.match(warn.out, /doctor --fix/);
+  mkdirSync(join(home, ".schoolsoft-mcp", "old-folder"));
   const fixed = await run("--config-dir", dir, "--school", "taby", "doctor", "--fix");
   assert.ok(existsSync(join(dir, "state", "session.enc")));
   assert.match(fixed.out, /moved/);
+  assert.equal(readFileSync(join(dir, "state", "key.bin"), "utf8"), "key");
+  assert.deepEqual(
+    readdirSync(join(home, ".schoolsoft-mcp")),
+    ["old-folder"],
+    "the files were moved; anything that is not a file stays where it was",
+  );
+  if (process.platform !== "win32")
+    assert.equal(
+      statSync(join(dir, "state", "session.enc")).mode & 0o777,
+      0o600,
+      "the moved files are private whatever the old ones were",
+    );
 });
 
 test("browser status/install use injected probes and spawner; cdp engine needs nothing", async () => {

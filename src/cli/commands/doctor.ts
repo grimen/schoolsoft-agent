@@ -4,7 +4,7 @@
  * `--verify` for the live parse check of the typed operations (verify.ts).
  */
 import type { Command } from "commander";
-import { existsSync, renameSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import {
   InputError,
@@ -17,7 +17,7 @@ import {
   accountKeyOf,
   describeVersion,
   emptyHistory,
-  ensurePrivateDir,
+  writePrivateFile,
   summarizeHistory,
   browserStatus,
   createRequestBudget,
@@ -147,8 +147,14 @@ export async function runDoctor(
     const hasLegacy = existsSync(join(legacy, "session.enc"));
     const hasCurrent = existsSync(join(config.stateDir, "session.enc"));
     if (hasLegacy && !hasCurrent && fix) {
-      ensurePrivateDir(config.stateDir);
-      for (const f of readdirSync(legacy)) renameSync(join(legacy, f), join(config.stateDir, f));
+      // Copied, then removed: a rename fails when the two directories are on different
+      // filesystems, and the copy is private (0600) whatever the old file was.
+      for (const entry of readdirSync(legacy, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        const from = join(legacy, entry.name);
+        writePrivateFile(join(config.stateDir, entry.name), readFileSync(from));
+        rmSync(from);
+      }
       checks.push({ name: "migration", ok: true, detail: `moved ${legacy} → ${config.stateDir}` });
     } else if (hasLegacy && !hasCurrent) {
       checks.push({
