@@ -83,7 +83,8 @@ export type Spawner = (cmd: string, args: string[]) => Promise<number>;
 /** Runs a command inheriting stdio and resolves with its exit code (1 when killed by a signal). */
 export const defaultSpawner = (cmd: string, args: string[], spawnImpl: typeof spawn = spawn) =>
   new Promise<number>((resolve, reject) => {
-    const child = spawnImpl(cmd, args, { stdio: "inherit" });
+    // The child's progress goes to stderr: stdout is this command's one JSON result.
+    const child = spawnImpl(cmd, args, { stdio: ["inherit", 2, 2] });
     child.on("error", reject);
     child.on("exit", (code) => resolve(code ?? 1));
   });

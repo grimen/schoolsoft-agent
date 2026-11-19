@@ -410,10 +410,14 @@ test("browserStatus without probes resolves the real playwright; chromiumPath fa
 test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn error", async () => {
   const { defaultSpawner } = await import("../../src/core/browser/install.js");
   const { EventEmitter } = await import("node:events");
+  const stdio: unknown[] = [];
   const mk = (fire: (c: InstanceType<typeof EventEmitter>) => void) => {
     const child = new EventEmitter();
     queueMicrotask(() => fire(child));
-    return (() => child) as never;
+    return ((_cmd: string, _args: string[], options: { stdio: unknown }) => {
+      stdio.push(options.stdio);
+      return child;
+    }) as never;
   };
   assert.equal(
     await defaultSpawner(
@@ -438,6 +442,11 @@ test("defaultSpawner resolves the exit code, 1 for a signal, rejects on spawn er
       mk((c) => c.emit("error", new Error("ENOENT"))),
     ),
     /ENOENT/,
+  );
+  assert.deepEqual(
+    stdio[0],
+    ["inherit", 2, 2],
+    "the installer's progress goes to stderr, so stdout stays the command's one JSON result",
   );
 });
 
