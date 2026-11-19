@@ -264,6 +264,7 @@ function renderTokens(): string {
     "| Failure | `kind` | `problem` | `retryable` |\n|---|---|---|---|\n" +
     "| Any problem details answer | the body's | the body's type | the body's |\n" +
     "| `401` that survives one refresh, a refused refresh, or no tokens | `not_authenticated` | `oauth-token` | false |\n" +
+    "| A refresh the connector could not answer (`429`, `5xx`); the tokens are kept | `upstream` | null | true |\n" +
     "| The connector cannot be reached | `network` | null | true |\n" +
     "| An answer that does not fit its schema | `upstream` | `response-drift` | false |\n" +
     "| Any other answer (e.g. a proxy's error page) | `upstream` | null | for 5xx |\n\n" +

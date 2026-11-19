@@ -220,6 +220,17 @@ export function createClient(options: ClientOptions): ConnectorClient {
         resource: origin + RESOURCE_PATH,
       }).toString(),
     });
+    // Only the connector refusing the token (400 invalid_grant, 401 invalid_client) ends
+    // the connection. Any other failure (a restart behind its proxy, the rate limit) is the
+    // connector not answering now: the tokens are kept and the call can be made again.
+    if (!response.ok && response.status !== 400 && response.status !== 401)
+      throw new ConnectorError({
+        kind: "upstream",
+        retryable: true,
+        status: response.status,
+        problem: null,
+        message: `The connector could not renew the connection now (HTTP ${response.status}); try again shortly.`,
+      });
     const body = (await response.json().catch(() => ({}))) as {
       access_token?: unknown;
       refresh_token?: unknown;
