@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "schoolsoft-agent",
   "display_name": "SchoolSoft",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "SchoolSoft for guardians: schedule, lunch, assignments, news and messages. BankID login in your browser.",
   "long_description": "Independent, MIT-licensed project. SchoolSoft is a trademark of SchoolSoft AB, which is not affiliated with, endorsing, or involved in this extension. Reads a guardian's SchoolSoft data through the same unofficial APIs the SchoolSoft app uses. Login is BankID in your own browser; a session is stored encrypted on your machine.",
   "author": {
