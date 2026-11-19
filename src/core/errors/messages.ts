@@ -192,12 +192,6 @@ export const MESSAGES = {
     en: (p) => `The login page reported an error: ${p.error}.`,
     sv: (p) => `Inloggningssidan rapporterade ett fel: ${p.error}.`,
   },
-  login_state_mismatch: {
-    en: () =>
-      `The login response did not match the request that opened it (possible CSRF); nothing was accepted.`,
-    sv: () =>
-      `Inloggningssvaret matchade inte begäran som öppnade det (möjlig CSRF); inget godtogs.`,
-  },
   login_no_code: {
     en: () => `The login response carried no authorization code.`,
     sv: () => `Inloggningssvaret saknade auktoriseringskod.`,

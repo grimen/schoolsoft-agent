@@ -439,7 +439,8 @@ test("createSessionManager: the login URL is recorded in the pending marker and 
   assert.match(started.url ?? "", /react\/#\/login\/parent/);
   assert.equal(opened.length, 1, "the browser opener still runs");
   // end the background login so its callback server does not keep the process alive
-  await fetch("http://127.0.0.1:43555/callback?error=cancelled");
+  const state = new URLSearchParams((started.url ?? "").split("?")[1]).get("state");
+  await fetch(`http://127.0.0.1:43555/callback?error=cancelled&state=${state}`);
   await new Promise((r) => setTimeout(r, 50));
   assert.equal(pending.read()?.state, "failed");
   assert.match(pending.read()?.error ?? "", /cancelled/);
