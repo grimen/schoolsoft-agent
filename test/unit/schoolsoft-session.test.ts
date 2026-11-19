@@ -15,11 +15,7 @@ test("fresh session: no cookies → null header, nothing to serialise; tokens se
   const s = new SchoolsoftSession("taby", noRequests);
   assert.equal(s.school, "taby");
   assert.equal(s.cookieHeader(), null);
-  assert.deepEqual(s.serialize(), {
-    accessToken: undefined,
-    refreshToken: undefined,
-    accessTokenExpiresAt: undefined,
-  });
+  assert.deepEqual(s.serialize(), {}, "no credentials yet: nothing to save");
   s.tokens.setAccessToken(jwt({ exp: 1_800_000_000 }), "R", 1_800_000_000);
   s.tokens.setSessionCookies("J", "H", "2");
   assert.equal(s.cookieHeader(), "JSESSIONID=J; hash=H; usertype=2");

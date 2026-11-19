@@ -12,7 +12,7 @@
  * so this request never follows it.
  */
 import type { SchoolsoftUserType } from "../../../core/constants.js";
-import { AgentError, guardNetwork } from "../../../core/errors/index.js";
+import { AgentError, UpstreamError, guardNetwork } from "../../../core/errors/index.js";
 import type { FetchOptions } from "../net.js";
 import type { SessionTokens } from "../tokens.js";
 import { portalUrl } from "../web-login.js";
@@ -84,6 +84,10 @@ export async function exchangeTokenForCookies(
       APP_UA,
     ),
   );
+
+  // The portal failing is not the portal refusing: a 5xx says nothing about the token, so
+  // it must stay a transient failure and never cost the saved session.
+  if (result.status >= 500) throw new UpstreamError(result.status, "the session cookie exchange");
 
   const jsessionid = cookieValue(result.setCookies, "JSESSIONID");
   const hash = cookieValue(result.setCookies, "hash");

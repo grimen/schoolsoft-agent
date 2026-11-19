@@ -64,6 +64,11 @@ for (const id of providerIds) {
     const data = provider.serializeSession(session);
     assert.equal(typeof data, "object");
     assert.equal(JSON.parse(JSON.stringify(data)) instanceof Object, true, "JSON-safe");
+    assert.deepEqual(
+      Object.keys(data),
+      [],
+      "a session without credentials serialises to {}: a login that failed before any were issued must not overwrite a saved session",
+    );
     const header = session.cookieHeader();
     assert.ok(header === null || typeof header === "string");
     assert.equal(typeof session.verify, "function");
