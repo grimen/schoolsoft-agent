@@ -58,13 +58,24 @@ export type SchoolsoftFetch = (
   userAgent: string,
 ) => Promise<FetchResult>;
 
-/** One request, never following a redirect: the live sender below, or a test fake. */
+/**
+ * One request, never following a redirect: the live sender below, or a test fake.
+ * `abort` is the caller giving up: it is handed over next to the request, never inside it.
+ */
 type Send = (
   url: string,
   school: string,
   options: SendOptions,
   userAgent: string,
+  abort?: AbortSignal,
 ) => Promise<{ status: number; headers?: Record<string, string | string[] | undefined> }>;
+
+/**
+ * How long one request may take, answer body included. The portal answers in a second or
+ * two; without a limit a connection that stalls would hold its place in the budget (and,
+ * in the connector, the whole read queue) until the runtime's own five-minute default.
+ */
+export const REQUEST_TIMEOUT_MS = 30_000;
 
 /** The most redirects one request follows. */
 export const MAX_REDIRECTS = 5;
@@ -94,13 +105,18 @@ function parseJson(text: string): unknown {
  * The live sender: one request with the portal's usual `Referer` and
  * `Origin` and the caller's user agent. `redirect: "manual"` makes fetch
  * hand every 3xx back; following is budgetedFetch's decision, per request.
+ * It ends when the caller gives up (`abort`) or after `timeoutMs`, whichever
+ * comes first; `guardNetwork` reports a timeout as a network failure.
  */
 async function sendToPortal(
   url: string,
   school: string,
   options: SendOptions,
   userAgent: string,
+  abort: AbortSignal | undefined,
+  timeoutMs: number,
 ): Promise<FetchResult> {
+  const timeout = AbortSignal.timeout(timeoutMs);
   const res = await fetch(url, {
     method: options.method ?? "GET",
     headers: {
@@ -111,6 +127,7 @@ async function sendToPortal(
     },
     body: options.body,
     redirect: "manual",
+    signal: abort ? AbortSignal.any([abort, timeout]) : timeout,
   });
   const text = await res.text();
   const headers: Record<string, string> = {};
@@ -155,16 +172,25 @@ function nextHop(
  * by default, the live sender. Every hop of a followed redirect is one
  * request through the budget; a write is sent once and never followed.
  */
-export function budgetedFetch(budget: RequestBudget, raw?: unknown): SchoolsoftFetch {
-  const send = (raw ?? sendToPortal) as Send;
+export function budgetedFetch(
+  budget: RequestBudget,
+  raw?: unknown,
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): SchoolsoftFetch {
+  const live: Send = (url, school, options, userAgent, abort) =>
+    sendToPortal(url, school, options, userAgent, abort, timeoutMs);
+  const send = (raw ?? live) as Send;
   return async (url, school, options, userAgent) => {
     const { signal, write, redirect, ...sent } = options;
     const follow = redirect === "follow" && !write; // a write is never followed, whatever the caller says
+    // A read the caller abandoned is cut short. A write is not: once it is on its way,
+    // stopping the request would only hide whether the portal applied it.
+    const abort = write ? undefined : signal;
     let hop = { url, request: sent as SendOptions };
     for (let hops = 0; ; hops++) {
       const answer = await budget.run(
         { signal, write },
-        () => send(hop.url, school, hop.request, userAgent),
+        () => send(hop.url, school, hop.request, userAgent, abort),
         answerOf,
       );
       const next = follow && hops < MAX_REDIRECTS ? nextHop(hop.url, hop.request, answer) : null;
@@ -192,6 +218,9 @@ export type JsonFetch = (
   init: PlainInit,
 ) => Promise<PlainResponse & { ok: boolean; json(): Promise<unknown> }>;
 
+/** The same time limit for the two plain requests below. */
+const timeLimit = () => AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+
 const plainAnswer = (r: PlainResponse): OutboundAnswer => ({
   status: r.status,
   retryAfter: r.headers?.get("retry-after") ?? null,
@@ -200,7 +229,7 @@ const plainAnswer = (r: PlainResponse): OutboundAnswer => ({
 /** JSON GET of a public, unauthenticated resource (the school list), behind the budget. */
 export function budgetedJson(
   budget: RequestBudget,
-  raw: JsonFetch = (url, init) => fetch(url, init),
+  raw: JsonFetch = (url, init) => fetch(url, { ...init, signal: timeLimit() }),
 ): (url: string) => Promise<unknown> {
   return async (url) => {
     const res = await guardNetwork(() =>
@@ -218,7 +247,7 @@ export function budgetedJson(
 /** One HEAD of the portal's front page, behind the budget; resolves with the status. */
 export async function budgetedHead(
   budget: RequestBudget,
-  raw: HeadFetch = (url, init) => fetch(url, init),
+  raw: HeadFetch = (url, init) => fetch(url, { ...init, signal: timeLimit() }),
 ): Promise<number> {
   const res = await budget.run(
     {},

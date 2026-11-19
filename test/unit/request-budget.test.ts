@@ -127,6 +127,38 @@ test("concurrency: never more than maxInFlight waiting for an answer; the next g
   assert.equal(s.up.sent.length, 5);
 });
 
+test("cancellation: a read its caller left while it was on its way is cancelled, not push-back; a write's failure stays what it was", async () => {
+  const s = setup();
+  const left = new AbortController();
+  let fail!: () => void;
+  const hold = new Promise<void>((resolve) => (fail = resolve));
+  const read = s.run(new Error("aborted by the caller"), { signal: left.signal, hold });
+  const refused = assert.rejects(read, RequestCancelledError);
+  await settle();
+  left.abort();
+  fail();
+  await refused;
+  assert.equal(s.budget.snapshot().retryAt, null, "no pause: the portal did nothing wrong");
+  assert.equal(s.budget.snapshot().inFlight, 0, "and its slot is free again");
+  await s.run();
+  assert.equal(s.up.sent.length, 2, "the next request goes straight out");
+
+  const gone = new AbortController();
+  const down = new Error("socket hang up");
+  let failWrite!: () => void;
+  const write = s.run(down, {
+    write: true,
+    signal: gone.signal,
+    hold: new Promise<void>((resolve) => (failWrite = resolve)),
+  });
+  const failed = assert.rejects(write, (e) => e === down);
+  await settle();
+  gone.abort();
+  failWrite();
+  await failed;
+  assert.notEqual(s.budget.snapshot().retryAt, null, "a write that failed is push-back as before");
+});
+
 test("cancellation: a queued request leaves the queue without a token; one cancelled before it starts is never queued", async () => {
   const s = setup({ perMinute: 1, burst: 1, maxInFlight: 1 });
   await s.run(); // the only token

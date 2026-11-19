@@ -27,10 +27,15 @@ test("budgetedFetch: signal, write and redirect stay in net.ts, never upstream; 
     { status: 503, data: null, headers: { "retry-after": "7" }, setCookies: [] },
     { status: 200, data: 2 },
   ];
-  const send = budgetedFetch(budget, async (_url: string, _school: string, options: unknown) => {
-    seen.push(options);
-    return answers.shift();
-  });
+  const aborts: unknown[] = [];
+  const send = budgetedFetch(
+    budget,
+    async (_url: string, _school: string, options: unknown, _ua: string, abort: unknown) => {
+      seen.push(options);
+      aborts.push(abort);
+      return answers.shift();
+    },
+  );
   const signal = new AbortController().signal;
   await send(
     "https://x/taby/a",
@@ -38,13 +43,46 @@ test("budgetedFetch: signal, write and redirect stay in net.ts, never upstream; 
     { method: "POST", signal, write: true, body: "{}", redirect: "manual" },
     "UA",
   );
-  for (let i = 0; i < 3; i++) await send("https://x/taby/b", "taby", { redirect: "follow" }, "UA");
+  await send("https://x/taby/b", "taby", { redirect: "follow", signal }, "UA");
+  for (let i = 0; i < 2; i++) await send("https://x/taby/b", "taby", { redirect: "follow" }, "UA");
   assert.deepEqual(seen[0], { method: "POST", body: "{}" });
+  assert.deepEqual(seen[1], {}, "the signal is never part of the request itself");
+  assert.deepEqual(
+    aborts,
+    [undefined, signal, undefined, undefined],
+    "a read hands the caller's cancellation to the sender; a write, once sent, is never cut short",
+  );
   assert.deepEqual(budget.calls[0], { signal, write: true });
   assert.deepEqual(
     budget.answers.map((a) => a.retryAfter),
     [null, "5", "7", null],
   );
+});
+
+test("the live sender gives up: after the time limit when the portal stalls, at once when a read's caller leaves", async (t) => {
+  const stalled: ServerResponse[] = [];
+  const portal = await localPortal(t, (_req, res) => void stalled.push(res)); // never answers
+  t.after(() => stalled.forEach((res) => res.destroy()));
+  const send = budgetedFetch(new CountingBudget(), undefined, 40);
+  const started = Date.now();
+  await assert.rejects(
+    send(`${portal.base}/taby/slow`, "taby", { redirect: "follow" }, "UA"),
+    (e: Error) => e.name === "TimeoutError",
+  );
+  assert.ok(Date.now() - started < 5_000, "the request's own limit, not the runtime's minutes");
+
+  const patient = budgetedFetch(new CountingBudget()); // the production limit: far away
+  const caller = new AbortController();
+  const read = patient(
+    `${portal.base}/taby/slow`,
+    "taby",
+    { redirect: "follow", signal: caller.signal },
+    "UA",
+  );
+  const refused = assert.rejects(read, (e: Error) => e.name === "AbortError");
+  while (stalled.length < 2) await new Promise((r) => setTimeout(r, 5)); // it is on its way
+  caller.abort();
+  await refused;
 });
 
 test("budgetedHead: the portal's front page through the budget, with the global fetch by default", async (t) => {

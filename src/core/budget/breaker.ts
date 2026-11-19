@@ -64,7 +64,7 @@ export class Breaker {
     return { kind: "go", probe: false };
   }
 
-  /** The probe never went out (cancelled while queued): the next user request may probe instead. */
+  /** The probe never got an answer (cancelled while queued or on its way): the next user request may probe instead. */
   abandon(probe: boolean): void {
     if (probe) this.probing = false;
   }
