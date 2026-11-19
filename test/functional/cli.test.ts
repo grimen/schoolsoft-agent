@@ -572,7 +572,8 @@ test("login --background hands the blocking login to a detached process and repo
       return 4242;
     },
   });
-  const r = await h.run("--school", "taby", "login", "--background", "--strategy", "fake");
+  const globals = ["--school", "taby", "--org-id", "20", "--config-dir", "/c", "--state-dir", "/s"];
+  const r = await h.run(...globals, "login", "--background", "--strategy", "fake");
   assert.equal(r.code, EXIT.OK, r.err);
   assert.deepEqual(r.json(), {
     status: "login_started",
@@ -580,7 +581,11 @@ test("login --background hands the blocking login to a detached process and repo
     pid: 4242,
     next: "Ask the user to complete BankID in the browser window, then run auth-status until authenticated is true.",
   });
-  assert.deepEqual(spawned, [["--school", "taby", "login", "--strategy", "fake"]]);
+  assert.deepEqual(
+    spawned,
+    [[...globals, "login", "--strategy", "fake"]],
+    "the child gets the global options spelled as the flags it parses",
+  );
   // already running: no second spawn
   const again = await h.run("login", "--background");
   assert.equal(again.json().status, "login_started");
