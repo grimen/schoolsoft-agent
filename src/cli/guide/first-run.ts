@@ -31,7 +31,13 @@ import { loadConfig } from "../../shared/bootstrap.js";
 import type { CliDeps } from "../program.js";
 import { CliExit, globalOverrides } from "../program.js";
 import type { ExitCode } from "../exit-codes.js";
-import { configDirOf, findSchools, providerIdOf, saveSchool } from "../commands/configure.js";
+import {
+  configDirOf,
+  findSchools,
+  providerIdOf,
+  saveSchool,
+  schoolNotFound,
+} from "../commands/configure.js";
 import { renderContext } from "../text/emit.js";
 import { toText } from "../text/render.js";
 import { textRenderer } from "../text/registry.js";
@@ -70,14 +76,6 @@ export function currentSchool(deps: CliDeps, globals: Record<string, unknown>): 
 }
 
 const cancelled = () => new AgentError({ kind: "input", key: "cancelled", hint: "run_again" });
-
-const schoolNotFound = (query: string) =>
-  new AgentError({
-    kind: "input",
-    key: "school_not_found",
-    params: { query },
-    hint: "school_query",
-  });
 
 function pause(ms: number): { done: Promise<false>; stop: () => void } {
   let timer: ReturnType<typeof setTimeout> | undefined;

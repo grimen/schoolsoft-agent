@@ -150,8 +150,9 @@ test("configure: --query resolves via the cached school list; interactive picks 
   assert.equal(r2.code, EXIT.OK, r2.err);
   assert.equal(r2.json().config.orgId, "18");
 
-  const none = harness();
-  assert.equal((await none.run("--config-dir", dir, "configure")).code, EXIT.ERROR);
+  const none = await harness().run("--config-dir", dir, "configure");
+  assert.equal(none.code, EXIT.NOT_CONFIGURED, "nothing to go on is not a fault in the tool");
+  assert.match(none.err, /pass --school <slug> \[--org-id <id>\] or --query <name>/);
 });
 
 test("doctor: reports checks, exit 1 when unconfigured, --fix migrates a legacy store", async () => {
@@ -352,8 +353,12 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
     }),
   );
   const none = await harness().run("--config-dir", dir, "configure", "--query", "zzzz");
-  assert.equal(none.code, EXIT.ERROR);
-  assert.match(none.err, /No school matched/);
+  assert.equal(none.code, EXIT.INPUT, "a person's mistake, not a fault in the tool");
+  assert.match(none.err, /No school in SchoolSoft's public list matched "zzzz"/);
+  assert.match(none.err, /Next: /);
+  const swedish = harness({ env: { SCHOOLSOFT_LANG: "sv" } });
+  const ingen = await swedish.run("--config-dir", dir, "configure", "--query", "zzzz");
+  assert.match(ingen.err, /Ingen skola i SchoolSofts offentliga lista matchade "zzzz"/);
   const answers = ["täby", ""];
   const dflt = harness({ prompt: async () => answers.shift() ?? "" });
   const d = await dflt.run("--config-dir", dir, "configure");
@@ -362,8 +367,8 @@ test("unexpected errors exit 1 with the message; configure edge cases; doctor de
   const bad = ["täby", "9"];
   const invalid = harness({ prompt: async () => bad.shift() ?? "" });
   const i = await invalid.run("--config-dir", dir, "configure");
-  assert.equal(i.code, EXIT.ERROR);
-  assert.match(i.err, /Invalid choice/);
+  assert.equal(i.code, EXIT.INPUT);
+  assert.match(i.err, /choose a number from 1 to 2, got "9"/);
 
   // doctor: invalid config (not a NotConfiguredError), saved session detail, network failure, browser ready detail
   const bogus = harness({ env: { SCHOOLSOFT_CALLBACK_PORT: "abc" } });
