@@ -43,7 +43,8 @@ export interface PlaywrightSessionOptions {
 const READ_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export class PlaywrightSession implements BrowserSession {
-  private browser: Browser | null = null;
+  /** The browsers of the calls running now, so close() can reach them. */
+  private readonly open = new Set<Browser>();
   private readonly engine: BrowserEngine;
   private readonly loader: PlaywrightLoader;
   private readonly origin: string;
@@ -54,14 +55,23 @@ export class PlaywrightSession implements BrowserSession {
     this.origin = o.origin ?? "https://sms.schoolsoft.se";
   }
 
-  /** One browser per call (see withPage); kept on the instance only so close() can reach it. */
-  private async getBrowser(): Promise<Browser> {
+  /**
+   * One browser per call (see withPage), owned by that call: two reads at the same time
+   * each get and close their own, never each other's.
+   */
+  private async launch(): Promise<Browser> {
     const pw = await this.loader();
-    this.browser =
+    const browser =
       this.engine.kind === "cdp"
         ? await pw.chromium.connectOverCDP(this.engine.endpoint)
         : await pw.chromium.launch({ headless: this.engine.headless ?? true });
-    return this.browser;
+    this.open.add(browser);
+    return browser;
+  }
+
+  private async shut(browser: Browser): Promise<void> {
+    this.open.delete(browser);
+    await browser.close().catch(() => {});
   }
 
   async withPage<T>(
@@ -72,52 +82,55 @@ export class PlaywrightSession implements BrowserSession {
     const cookie = this.o.cookieHeader();
     if (options.web && !web?.length) throw new SessionLostError("(no web-login cookies)", true);
     if (!web?.length && !cookie) throw new SessionLostError("(no web session cookies)");
-    const browser = await this.getBrowser();
-    const context: BrowserContext = await browser.newContext({ locale: "sv-SE" });
+    const browser = await this.launch();
     try {
-      const origin = new URL(this.origin);
-      const host = origin.hostname;
-      // Cookies only make sense for an http(s) origin; fixtures load from file://.
-      if (origin.protocol.startsWith("http")) {
-        const specs = web?.length
-          ? web.map((c) => ({
-              name: c.name,
-              value: c.value,
-              domain: c.domain,
-              path: c.path,
-              ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
-              httpOnly: c.httpOnly,
-              secure: c.secure,
-            }))
-          : (cookie as string) // guarded above: no web cookies means cookie is set
-              .split(";")
-              .map((s) => s.trim())
-              .filter(Boolean)
-              .map((s) => {
-                const i = s.indexOf("=");
-                return { name: s.slice(0, i), value: s.slice(i + 1), domain: host, path: "/" };
-              });
-        await context.addCookies(specs);
+      const context: BrowserContext = await browser.newContext({ locale: "sv-SE" });
+      try {
+        const origin = new URL(this.origin);
+        const host = origin.hostname;
+        // Cookies only make sense for an http(s) origin; fixtures load from file://.
+        if (origin.protocol.startsWith("http")) {
+          const specs = web?.length
+            ? web.map((c) => ({
+                name: c.name,
+                value: c.value,
+                domain: c.domain,
+                path: c.path,
+                ...(c.expires && c.expires > 0 ? { expires: c.expires } : {}),
+                httpOnly: c.httpOnly,
+                secure: c.secure,
+              }))
+            : (cookie as string) // guarded above: no web cookies means cookie is set
+                .split(";")
+                .map((s) => s.trim())
+                .filter(Boolean)
+                .map((s) => {
+                  const i = s.indexOf("=");
+                  return { name: s.slice(0, i), value: s.slice(i + 1), domain: host, path: "/" };
+                });
+          await context.addCookies(specs);
+        }
+        const page = await context.newPage();
+        // Bundlers (tsx/esbuild keepNames) decorate serialised function sources
+        // with `__name(fn, "name")`; give the page an identity helper so
+        // extractors run unchanged in dev and in the built package.
+        await page.addInitScript("globalThis.__name = globalThis.__name || ((f) => f);");
+        await page.route("**/*", (route: Route) => {
+          const req = route.request();
+          if (READ_METHODS.has(req.method())) return route.continue();
+          if (options.allowWrites) return route.continue();
+          if (options.allowedNonGet?.some((re) => re.test(req.url()))) return route.continue();
+          return route.abort("blockedbyclient");
+        });
+        return await fn(this.wrap(page, web));
+      } finally {
+        await context.close().catch(() => {});
       }
-      const page = await context.newPage();
-      // Bundlers (tsx/esbuild keepNames) decorate serialised function sources
-      // with `__name(fn, "name")`; give the page an identity helper so
-      // extractors run unchanged in dev and in the built package.
-      await page.addInitScript("globalThis.__name = globalThis.__name || ((f) => f);");
-      await page.route("**/*", (route: Route) => {
-        const req = route.request();
-        if (READ_METHODS.has(req.method())) return route.continue();
-        if (options.allowWrites) return route.continue();
-        if (options.allowedNonGet?.some((re) => re.test(req.url()))) return route.continue();
-        return route.abort("blockedbyclient");
-      });
-      return await fn(this.wrap(page, web));
     } finally {
-      await context.close().catch(() => {});
       // One browser per call: a lingering Chromium would keep the CLI / MCP
       // process alive after the operation finished (and cost memory between
       // calls). Launch cost is paid once per operation, not per page.
-      await this.close();
+      await this.shut(browser);
     }
   }
 
@@ -150,9 +163,8 @@ export class PlaywrightSession implements BrowserSession {
     };
   }
 
+  /** Close what is still open: the browsers of calls that have not finished. */
   async close(): Promise<void> {
-    const b = this.browser;
-    this.browser = null;
-    if (b) await b.close().catch(() => {});
+    await Promise.all([...this.open].map((browser) => this.shut(browser)));
   }
 }

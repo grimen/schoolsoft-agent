@@ -474,3 +474,76 @@ test("every navigation is one request of the budget; its status and Retry-After 
     (e) => e instanceof PortalPushbackError && e.sent,
   );
 });
+
+test("two reads at the same time each use and close their own browser; a failed context still closes it; close() ends what is running", async () => {
+  interface Launched {
+    closed: boolean;
+    contextFails?: boolean;
+  }
+  const launched: Launched[] = [];
+  let failNextContext = false;
+  const loader = async () =>
+    ({
+      chromium: {
+        launch: async () => {
+          const mine: Launched = { closed: false, contextFails: failNextContext };
+          failNextContext = false;
+          launched.push(mine);
+          return {
+            newContext: async () => {
+              if (mine.contextFails) throw new Error("no context");
+              return {
+                addCookies: async () => {},
+                newPage: async () => ({ addInitScript: async () => {}, route: async () => {} }),
+                close: async () => {},
+              };
+            },
+            close: async () => {
+              mine.closed = true;
+            },
+          };
+        },
+      },
+    }) as never;
+  const s = new PlaywrightSession({
+    budget: new CountingBudget(),
+    school: "taby",
+    cookieHeader: () => "JSESSIONID=a; hash=b",
+    loader,
+  });
+  let releaseSlow!: () => void;
+  const hold = new Promise<void>((resolve) => (releaseSlow = resolve));
+  const slow = s.withPage(async () => {
+    await hold;
+    return launched[0].closed;
+  });
+  while (launched.length < 1) await new Promise((r) => setImmediate(r));
+  await s.withPage(async () => {}); // a second read starts and finishes while the first runs
+  assert.deepEqual(
+    launched.map((b) => b.closed),
+    [false, true],
+    "the read that finished closed its own browser, not the one still in use",
+  );
+  releaseSlow();
+  assert.equal(await slow, false, "the first read's browser was open for all of it");
+  assert.deepEqual(
+    launched.map((b) => b.closed),
+    [true, true],
+    "and nothing is left running",
+  );
+
+  failNextContext = true;
+  await assert.rejects(
+    s.withPage(async () => {}),
+    /no context/,
+  );
+  assert.equal(launched[2].closed, true, "a browser whose context never opened is closed too");
+
+  let releaseStuck!: () => void;
+  const stuck = s.withPage(() => new Promise<void>((resolve) => (releaseStuck = resolve)));
+  while (launched.length < 4) await new Promise((r) => setImmediate(r));
+  await s.close();
+  assert.equal(launched[3].closed, true, "close() reaches a browser whose call has not finished");
+  releaseStuck();
+  await stuck;
+});
